@@ -2,8 +2,8 @@ name: 定时筛选纯净IP
 
 on:
   workflow_dispatch:          # 手动触发
-  schedule:                   # 定时触发（默认关闭，启用请取消注释）
-    - cron: "5 * * * *"       # 每小时第 5 分钟
+  schedule:                   # 定时触发：每小时第 5 分钟自动运行
+    - cron: "5 * * * *"
 
 # 并发控制：同一时间只允许一个 workflow 运行
 concurrency:
@@ -71,12 +71,17 @@ jobs:
             exit 0
           fi
           git commit -m "chore: 更新优选 IP 结果 $(date -u +'%Y-%m-%d %H:%M UTC')"
-          # 偶发的并发 push（如手动触发与定时任务重叠）先 rebase 再 push
+          # 偶发的并发 push（如手动触发与本地/其他 push 竞争）先 rebase 再 push。
+          # -X ours：rebase 冲突时自动偏向本 run 新生成的结果文件。
+          # 仓库中只有 result/ 是自动生成的产物，其余文件由人工维护且工作流
+          # 不会改动它们，因此“结果文件优先”的冲突策略安全。
           for i in 1 2 3; do
-            if git pull --rebase --autostash && git push; then
+            if git pull --rebase --autostash -X ours && git push; then
               exit 0
             fi
             sleep 3
           done
           echo "连续 3 次 push 失败，请手动检查"
+          echo "--- 当前 git 状态 ---"
+          git status --short | head -30
           exit 1
