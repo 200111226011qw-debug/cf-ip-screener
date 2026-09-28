@@ -1,0 +1,15 @@
+[
+  {
+    "ip": "172.64.67.117",
+    "port": 443,
+    "avg_ms": 13.5,
+    "loss_rate": 0.0,
+    "tls_ok": true,
+    "remark": "CFYes优选 | 联通 | 172.64.67.117",
+    "isp": "cu",
+    "native": false,
+    "source": "https://bestcf.pages.dev/cfyes/ipv4.txt",
+    "speed_mbps": 124.16,
+    "colo": "MSP"
+  }
+]
