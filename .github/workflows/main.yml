@@ -1,0 +1,82 @@
+name: 定时筛选纯净IP
+
+on:
+  workflow_dispatch:          # 手动触发
+  schedule:                   # 定时触发（默认关闭，启用请取消注释）
+    - cron: "5 * * * *"       # 每小时第 5 分钟
+
+# 并发控制：同一时间只允许一个 workflow 运行
+concurrency:
+  group: cf-screener
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  screen:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30       # 防止某个池 hang 导致 job 挂数小时
+    steps:
+      - name: 检出仓库
+        uses: actions/checkout@v4
+
+      - name: 配置 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # 定位项目根目录：main.py 必须在仓库根目录，或唯一的子目录中。
+      # GitHub 网页上传若拖了整个文件夹，会把项目嵌进一层子目录，
+      # 这里自动进入该子目录继续跑；找不到则列出实际结构并报错。
+      - name: 定位项目根目录
+        run: |
+          if [ -f main.py ]; then
+            echo "main.py 在仓库根目录，无需调整"
+            exit 0
+          fi
+          echo "main.py 不在仓库根目录，当前文件结构："
+          find . -maxdepth 3 -type f | sort
+          DIR=$(find . -maxdepth 2 -name main.py -exec dirname {} \; | head -1)
+          if [ -n "$DIR" ]; then
+            echo "已在子目录 $DIR 找到项目，自动进入该目录"
+            echo "PROJECT_DIR=$DIR" >> "$GITHUB_ENV"
+          else
+            echo "::error::仓库根目录下找不到 main.py，请确认项目文件位于仓库根目录（main.py、config.py、screener/、.github/workflows/ 等）。若上传时嵌套了一层文件夹，请把其中的文件移到仓库根目录后重试"
+            exit 1
+          fi
+
+      # 单 job 一次跑出总表 + 三运营商分表 + 其他：
+      # 不拆矩阵，避免多 job 并发写同一批 result/ 文件导致 rebase 冲突
+      - name: 运行筛选（全运营商）
+        run: |
+          cd "${PROJECT_DIR:-.}"
+          python main.py --top-n 50
+
+      - name: 上传报告 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: result
+          path: "${PROJECT_DIR:-.}/result/"
+
+      - name: 提交结果
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          RESULT_DIR="${PROJECT_DIR:+$PROJECT_DIR/}result/"
+          # result/ 在 .gitignore 中，用 -f 强制加入（结果文件本就是要入库的产物）
+          git add -f "$RESULT_DIR"
+          if git diff --cached --quiet; then
+            echo "结果无变化，跳过提交"
+            exit 0
+          fi
+          git commit -m "chore: 更新优选 IP 结果 $(date -u +'%Y-%m-%d %H:%M UTC')"
+          # 偶发的并发 push（如手动触发与定时任务重叠）先 rebase 再 push
+          for i in 1 2 3; do
+            if git pull --rebase --autostash && git push; then
+              exit 0
+            fi
+            sleep 3
+          done
+          echo "连续 3 次 push 失败，请手动检查"
+          exit 1
