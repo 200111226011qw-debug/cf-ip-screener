@@ -3,9 +3,14 @@
 
 import json
 import os
+import re
 import unicodedata
 
 import config
+
+# 源站备注里的时间戳（如 "| 09-28 20:01"）：剥离后避免同一 IP 每次
+# 抓取备注都不同，导致 result/ 反复 diff、CI 白 commit
+_DATESTAMP_RE = re.compile(r"\s*\|\s*\d{2}-\d{2}\s+\d{2}:\d{2}")
 
 
 def _disp_width(s: str) -> int:
@@ -24,6 +29,7 @@ def to_subscribe_line(r: dict) -> str:
     备注中的换行与 # 会破坏订阅格式：换行替换为空格，半角 # 替换为全角 ＃。
     """
     remark = r.get("remark") or f"CF筛选 | {r['avg_ms']}ms | 丢包{r['loss_rate']:.0%}"
+    remark = _DATESTAMP_RE.sub("", remark).strip(" |")
     speed = r.get("speed_mbps")
     colo = r.get("colo")
     if speed:

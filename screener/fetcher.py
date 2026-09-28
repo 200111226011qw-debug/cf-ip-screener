@@ -116,6 +116,14 @@ def _expand_cidr(cidr_str: str, default_port: int, sample: int = 64):
     if usable <= sample:
         return [(str(ip), default_port) for ip in net.hosts()]
 
+    # 过宽的段：IPv4 /8 以内或 IPv6 /16 以内都太宽，采样基本是随机
+    # 互联网 IP，不是 CF 边缘。正常优选池不会给出这种宽段；这层防护是
+    # 为了避免误抓 Clash 规则 / 防火墙白名单类文件时产生大批垃圾候选。
+    if net.version == 4 and net.prefixlen <= 8:
+        return []
+    if net.version == 6 and net.prefixlen <= 16:
+        return []
+
     # 大到无意义的段（如 IPv6 /0~/7）：直接拒绝，避免无谓的大整数运算
     if total > (1 << 120):
         return []
@@ -191,24 +199,41 @@ def parse_candidates(content: str, default_port: int = 443, pool_isp=None,
         except Exception:
             data = None
         if data is not None:
-            nodes = data if isinstance(data, list) else [data]
-            for node in nodes:
+            for node in _walk_json_nodes(data):
                 if isinstance(node, str):
-                    # 字符串元素走文本解析
                     candidates.update(_parse_text_block(
                         node, default_port, pool_isp, cidr_sample))
                     continue
-                if isinstance(node, dict):
-                    ip, port = _json_ip_port(node)
-                    if ip:
-                        remark = str(node.get("remark") or node.get("name")
-                                     or node.get("备注") or "")
-                        isp = config.classify_isp(remark, pool_isp)
-                        candidates[(ip, port or default_port)] = {
-                            "remark": remark, "isp": isp}
+                ip, port = _json_ip_port(node)
+                if ip:
+                    remark = str(node.get("remark") or node.get("name")
+                                 or node.get("备注") or "")
+                    isp = config.classify_isp(remark, pool_isp)
+                    candidates[(ip, port or default_port)] = {
+                        "remark": remark, "isp": isp}
             return candidates
 
     return _parse_text_block(content, default_port, pool_isp, cidr_sample)
+
+
+def _walk_json_nodes(node):
+    """递归遍历 JSON 树，产出含 IP 的节点。
+
+    兼容两种常见结构：
+      - 顶层数组：["1.2.3.4:443", {...}, ...]
+      - 嵌套对象：{"data": [{"ip": "1.2.3.4", ...}, ...], "info": {...}}
+    字典节点自身含可识别 IP 字段时直接产出；否则下钻其所有子值。
+    """
+    if isinstance(node, list):
+        for item in node:
+            yield from _walk_json_nodes(item)
+    elif isinstance(node, dict):
+        ip, _ = _json_ip_port(node)
+        if ip:
+            yield node
+            return
+        for value in node.values():
+            yield from _walk_json_nodes(value)
 
 
 def _parse_text_block(content: str, default_port: int, pool_isp=None,
@@ -292,3 +317,36 @@ def fetch_pool(pool: dict, default_port: int = 443, timeout: float = 15,
     """
     content = fetch(pool["url"], timeout, retries, retry_delay)
     return parse_candidates(content, default_port, pool.get("isp"), cidr_sample)
+
+
+# ============================================================
+# Cloudflare 官方网段（用于过滤非 CF 节点）
+# ============================================================
+_CF_NETS_CACHE = None
+
+
+def fetch_cf_nets(force=False):
+    """拉取 Cloudflare 官方公告段（IPv4 + IPv6），返回 [ip_network, ...]。
+
+    进程内缓存；失败时返回空列表（不影响主流程，只是这轮不做网段校验）。
+    """
+    global _CF_NETS_CACHE
+    if _CF_NETS_CACHE is not None and not force:
+        return _CF_NETS_CACHE
+    nets = []
+    for url in ("https://www.cloudflare.com/ips-v4",
+                "https://www.cloudflare.com/ips-v6"):
+        try:
+            content = fetch(url, timeout=10, retries=1, retry_delay=1.0)
+        except Exception:
+            continue
+        for line in content.splitlines():
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            try:
+                nets.append(ipaddress.ip_network(line, strict=False))
+            except ValueError:
+                pass
+    _CF_NETS_CACHE = nets
+    return nets

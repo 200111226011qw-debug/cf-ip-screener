@@ -50,10 +50,16 @@ class TestExpandCidr(unittest.TestCase):
             self.assertTrue(ip.startswith("2606:4700:"))
             self.assertEqual(port, 443)
 
-    def test_large_ipv6_64_sample(self):
-        """更大的 IPv6 段（2^112 地址，仍在 2^120 拒绝线内）也应能采样。"""
-        got = fetcher._expand_cidr("2606:4700:0000::/16", 443, sample=3)
+    def test_large_ipv6_sample(self):
+        """较大的 IPv6 段（2^104 地址，prefixlen=24 > 16 安全阀，
+        仍在 2^120 拒绝线内）也应能采样。"""
+        got = fetcher._expand_cidr("2606:4700::/24", 443, sample=3)
         self.assertEqual(len(got), 3)
+
+    def test_wide_ipv6_rejected(self):
+        """IPv6 /16 及以内是过宽段（采样近乎随机互联网 IP，
+        非 CF 边缘），安全阀应直接拒绝，返回空。"""
+        self.assertEqual(fetcher._expand_cidr("2606:4700::/16", 443, sample=3), [])
 
     def test_meaningless_huge_rejected(self):
         """IPv6 /0 级无意义段（> 2^120）直接拒绝，返回空。"""
@@ -157,6 +163,32 @@ class TestFilterClean(unittest.TestCase):
         clean = filter_mod.filter_clean(rows, top_n=2)
         # 排序：丢包低优先，其次延迟低
         self.assertEqual([r["ip"] for r in clean], ["2.2.2.2", "1.1.1.1"])
+
+    def test_cf_net_filter(self):
+        """cf_nets 传入时，非 CF IP 应被剔除。"""
+        import ipaddress
+        nets = [ipaddress.ip_network("104.16.0.0/13"),
+                ipaddress.ip_network("172.64.0.0/13")]
+        rows = [
+            {"ip": "104.17.187.190", "port": 443, "avg_ms": 50.0,
+             "loss_rate": 0.0, "tls_ok": True},   # CF
+            {"ip": "47.83.14.42", "port": 443, "avg_ms": 50.0,
+             "loss_rate": 0.0, "tls_ok": True},   # 阿里云，非 CF
+            {"ip": "172.64.149.28", "port": 443, "avg_ms": 50.0,
+             "loss_rate": 0.0, "tls_ok": True},   # CF
+        ]
+        clean = filter_mod.filter_clean(rows, cf_nets=nets)
+        self.assertEqual([r["ip"] for r in clean],
+                         ["104.17.187.190", "172.64.149.28"])
+
+    def test_cf_net_empty_passes_all(self):
+        """cf_nets 为空时不拦截（保持向后兼容）。"""
+        rows = [
+            {"ip": "1.1.1.1", "port": 443, "avg_ms": 50.0,
+             "loss_rate": 0.0, "tls_ok": True},
+        ]
+        clean = filter_mod.filter_clean(rows, cf_nets=None)
+        self.assertEqual(len(clean), 1)
 
 
 class TestOutputEscaping(unittest.TestCase):

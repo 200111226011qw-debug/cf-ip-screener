@@ -13,6 +13,7 @@
 
 import argparse
 import asyncio
+import concurrent.futures as futures
 import os
 import time
 
@@ -113,59 +114,112 @@ def main():
 
     t0 = time.time()
 
-    # 1) 抓取候选池
-    print(f"[1/6] 抓取候选池（{len(cfg['pools'])} 个来源，"
+    # 0) 拉取 Cloudflare 官方网段（用于后续过滤非 CF 节点）
+    cf_nets = []
+    if cfg.get("require_cf_net", True):
+        print("[0/6] 拉取 Cloudflare 官方网段...")
+        cf_nets = fetcher.fetch_cf_nets()
+        if cf_nets:
+            print(f"      得到 {len(cf_nets)} 个网段（v4+v6）")
+        else:
+            print(f"      [warn] 拉取失败，本轮跳过网段校验")
+
+    # 1) 并发抓取候选池
+    fetch_workers = max(1, int(cfg.get("fetch_concurrency", 8)))
+    print(f"[1/6] 并发抓取候选池（{len(cfg['pools'])} 个来源，并发 {fetch_workers}，"
           f"失败自动重试 {cfg['fetch_retries']} 次）...")
+    def _fetch_one(pool):
+        """线程池内执行：抓单个池，返回 (pool, parsed_or_None, err)。
+        err 约定：
+          None       → 成功
+          "__SKIP__" → 运营商过滤跳过
+          其他字符串  → 抓取失败的异常消息
+        """
+        url = pool["url"]
+        if isp_filter and pool.get("isp") and pool["isp"] not in isp_filter:
+            return pool, None, "__SKIP__"
+        try:
+            parsed = fetcher.fetch_pool(
+                pool, cfg["default_port"], cfg["fetch_timeout"],
+                cfg.get("cidr_sample", 64),
+                cfg.get("fetch_retries", 2),
+                cfg.get("fetch_retry_delay", 2.0),
+            )
+            return pool, parsed, None
+        except Exception as e:
+            return pool, None, str(e)
+    # 并发抓取（保留原顺序聚合，避免 pool_stats 顺序乱）
+    fetch_results = {}
+    with futures.ThreadPoolExecutor(max_workers=fetch_workers) as ex:
+        futs = {ex.submit(_fetch_one, p): p for p in cfg["pools"]}
+        for i, fut in enumerate(futures.as_completed(futs), 1):
+            pool, parsed, err = fut.result()
+            fetch_results[pool["url"]] = (pool, parsed, err)
+            if i % 10 == 0 or i == len(cfg["pools"]):
+                print(f"      抓取进度 {i}/{len(cfg['pools'])}")
+    # 按原顺序聚合候选 + 生成 pool_stats
     candidates = {}
     pool_stats = []
     for pool in cfg["pools"]:
         url = pool["url"]
+        _, parsed, err = fetch_results[url]
         stat = {"url": url, "isp": pool.get("isp", ""),
                 "native": bool(pool.get("native")),
                 "parsed": 0, "kept": 0, "hit": 0, "ok": False, "err": "",
                 "skipped": False}
-        # 运营商过滤：池声明了 isp 且不在过滤集合中，跳过
-        if isp_filter and pool.get("isp") and pool["isp"] not in isp_filter:
+        if err == "__SKIP__":
             print(f"      {url}  -> 跳过（运营商过滤）")
             stat["skipped"] = True
             pool_stats.append(stat)
             continue
-        try:
-            parsed = fetcher.fetch_pool(pool, cfg["default_port"], cfg["fetch_timeout"],
-                                        cfg.get("cidr_sample", 64),
-                                        cfg.get("fetch_retries", 2),
-                                        cfg.get("fetch_retry_delay", 2.0))
-            native = bool(pool.get("native"))
-            kept = 0
-            for key, meta in parsed.items():
-                # 运营商过滤：仅剔除“明确属于其他运营商”的候选；
-                # 未分类（isp 为空，如官方原生段）予以保留
-                if isp_filter and meta["isp"] and meta["isp"] not in isp_filter:
-                    continue
-                if native:
-                    meta = dict(meta)
-                    meta["native"] = True  # 官方原生段标记
-                # 去重：仅首次出现的候选记录来源池
-                if key not in candidates:
-                    candidates[key] = dict(meta, source=url)
-                kept += 1
-            stat["parsed"] = len(parsed)
-            stat["kept"] = kept
-            stat["ok"] = True
-            print(f"      {url}  -> 解析到 {len(parsed)} 个候选，保留 {kept} 个"
-                  + (" [原生段]" if native else ""))
-        except Exception as e:
-            stat["err"] = str(e)
-            print(f"      {url}  -> 抓取失败（已重试）: {e}")
+        if parsed is None:
+            stat["err"] = err or "unknown"
+            print(f"      {url}  -> 抓取失败（已重试）: {err[:80]}")
+            pool_stats.append(stat)
+            continue
+        native = bool(pool.get("native"))
+        kept = 0
+        for key, meta in parsed.items():
+            # 运营商过滤：仅剔除“明确属于其他运营商”的候选；
+            # 未分类（isp 为空，如官方原生段）予以保留
+            if isp_filter and meta["isp"] and meta["isp"] not in isp_filter:
+                continue
+            if native:
+                meta = dict(meta)
+                meta["native"] = True  # 官方原生段标记
+            # 去重：仅首次出现的候选记录来源池
+            if key not in candidates:
+                candidates[key] = dict(meta, source=url)
+            kept += 1
+        stat["parsed"] = len(parsed)
+        stat["kept"] = kept
+        stat["ok"] = True
         pool_stats.append(stat)
-
+        print(f"      {url}  -> 解析到 {len(parsed)} 个候选，保留 {kept} 个"
+              + (" [原生段]" if native else ""))
     if not candidates:
         print("错误: 所有候选池均未解析到 IP，请检查网络或更换候选池。")
         return 1
-
     if cfg["limit"]:
-        candidates = dict(list(candidates.items())[: cfg["limit"]])
-
+        # 按来源池轮流采样，避免单个大池吃光 limit
+        from collections import OrderedDict, defaultdict
+        buckets = defaultdict(list)
+        for key, meta in candidates.items():
+            buckets[meta.get("source", "")].append((key, meta))
+        picked = OrderedDict()
+        idx = 0
+        while len(picked) < cfg["limit"]:
+            added = False
+            for src, items in buckets.items():
+                if idx < len(items) and len(picked) < cfg["limit"]:
+                    key, meta = items[idx]
+                    picked[key] = meta
+                    added = True
+            if not added:
+                break
+            idx += 1
+        candidates = dict(picked)
+        print(f"      --limit {cfg['limit']}：按 {len(buckets)} 个池轮流采样")
     print(f"      去重后共 {len(candidates)} 个候选")
 
     # 2) 并发连通性测试
@@ -201,10 +255,20 @@ def main():
         max_loss_rate=cfg["max_loss_rate"],
         min_speed_mbps=0.0,  # 速度门槛在测速后应用
         top_n=0,             # 先全部保留，测速后再截断
+        cf_nets=cf_nets,     # 网段校验：剔除非 CF 节点
     )
 
     # 4) 真实下载测速（可选）
     if cfg["speed_test"] and clean:
+        # 测速是带宽密集型，候选太多会撞 CI 超时。
+        # 按延迟排序取前 N（延迟低的更可能是优质节点，性价比最高）。
+        speed_cap = int(cfg.get("speed_max_candidates", 300))
+        if speed_cap > 0 and len(clean) > speed_cap:
+            clean.sort(key=lambda r: (r["loss_rate"], r["avg_ms"]))
+            dropped = len(clean) - speed_cap
+            clean = clean[:speed_cap]
+            print(f"      测速候选限流：{dropped} 条未进入测速"
+                  f"（speed_max_candidates={speed_cap}）")
         print(f"[4/6] 真实下载测速（{len(clean)} 个候选，"
               f"并发 {cfg['speed_concurrency']}，目标 {cfg['speed_url']}）...")
         st = speedtest.SpeedTester(
@@ -230,6 +294,14 @@ def main():
         # 参考 XIU2/CloudflareSpeedTest 用下载速度下限过滤回源 IP 的做法
         clean = [r for r in clean if r.get("speed_mbps", 0) > 0]
 
+        # cf-ray 校验：非 CF 节点不会有此响应头（需测速才能拿到）
+        if cfg.get("require_cf_ray", True):
+            before = len(clean)
+            clean = [r for r in clean if r.get("colo")]
+            dropped = before - len(clean)
+            if dropped:
+                print(f"      cf-ray 校验剔除 {dropped} 条非 CF 边缘节点")
+
         # 地区过滤：指定了 --colo 时仅保留地区码在白名单内的 IP
         if cfg["colo_filter"]:
             allowed = {c.strip().upper() for c in cfg["colo_filter"].split(",") if c.strip()}
@@ -242,6 +314,7 @@ def main():
             max_loss_rate=cfg["max_loss_rate"],
             min_speed_mbps=cfg["min_speed_mbps"],
             top_n=cfg["top_n"],
+            cf_nets=cf_nets,
         )
     else:
         clean = filter_mod.filter_clean(
@@ -250,6 +323,7 @@ def main():
             max_loss_rate=cfg["max_loss_rate"],
             min_speed_mbps=cfg["min_speed_mbps"],
             top_n=cfg["top_n"],
+            cf_nets=cf_nets,
         )
 
     # 5) 输出
