@@ -1,0 +1,13 @@
+[
+  {
+    "ip": "104.17.187.190",
+    "port": 443,
+    "avg_ms": 184.3,
+    "loss_rate": 0.0,
+    "tls_ok": true,
+    "remark": "CFYes优选 | 电信 | 104.17.187.190",
+    "isp": "ct",
+    "native": false,
+    "source": "https://bestcf.pages.dev/cfyes/ipv4.txt"
+  }
+]

@@ -1,0 +1,13 @@
+[
+  {
+    "ip": "162.159.198.1",
+    "port": 443,
+    "avg_ms": 186.4,
+    "loss_rate": 0.0,
+    "tls_ok": true,
+    "remark": "WeTest优选| 09-28 21:31 | BestCF.pages.dev",
+    "isp": "",
+    "native": false,
+    "source": "https://bestcf.pages.dev/wetest/ipv4.txt"
+  }
+]

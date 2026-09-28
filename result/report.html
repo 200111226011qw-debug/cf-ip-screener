@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CF 优选 IP 筛选报告</title>
+<style>
+  body { font-family: "Segoe UI", "Microsoft YaHei", sans-serif; margin: 24px; background: #f7f8fa; color: #222; }
+  h1 { font-size: 22px; } h2 { font-size: 17px; margin-top: 28px; border-bottom: 2px solid #e3e6ea; padding-bottom: 6px; }
+  .meta { color: #666; font-size: 13px; line-height: 1.7; }
+  table { border-collapse: collapse; width: 100%; background: #fff; font-size: 13px; }
+  th, td { border: 1px solid #e3e6ea; padding: 6px 10px; text-align: left; }
+  th { background: #eef1f5; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  td.url { word-break: break-all; }
+  .ok { color: #1a7f37; font-weight: 600; }
+  .bad { color: #b42318; font-weight: 600; }
+  .bar { display: flex; align-items: center; margin: 4px 0; }
+  .bar-label { width: 90px; font-size: 12px; color: #555; }
+  .bar-fill { display: inline-block; height: 14px; background: #4a7dd9; border-radius: 3px; }
+  .bar-num { margin-left: 8px; font-size: 12px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<h1>CF 优选 IP 筛选报告</h1>
+<div class="meta">
+  时间: 2026-09-28 21:40:25<br>
+  候选池: 28 个（成功 26 / 失败 0 / 跳过 2）<br>
+  解析候选: 2115 → 保留(去重后) 1930 → 已测 8 → <b>纯净 2</b><br>
+  耗时: 38.3s
+</div>
+
+<h2>池命中率</h2>
+<table>
+<tr><th>池</th><th>运营商</th><th>原生</th><th>解析</th><th>保留</th><th>命中纯净</th><th>状态</th></tr>
+<tr><td class='url'>https://bestcf.pages.dev/wetest/ipv4.txt</td><td>-</td><td>-</td><td class='num'>17</td><td class='num'>7</td><td class='num'>1</td><td><span class='ok'>OK</span></td></tr><tr><td class='url'>https://bestcf.pages.dev/cfyes/ipv4.txt</td><td>-</td><td>-</td><td class='num'>12</td><td class='num'>7</td><td class='num'>1</td><td><span class='ok'>OK</span></td></tr><tr><td class='url'>https://bestcf.pages.dev/domain/all.txt</td><td>-</td><td>-</td><td class='num'>6</td><td class='num'>6</td><td class='num'>0</td><td><span class='ok'>OK</span></td></tr><tr><td class='url'>https://bestcf.pages.dev/domain/mini.txt</td><td>-</td><td>-</td><td class='num'>4</td><td class='num'>4</td><td class='num'>0</td><td><span class='ok'>OK</span></td></tr><tr><td class='url'>https://bestcf.pages.dev/vps789/top100.txt</td><td>-</td><td>-</td><td class='num'>2</td><td class='num'>2</td><td class='num'>0</td><td><span class='ok'>OK</span></td></tr><tr><td class='url'>https://bestcf.pages.dev/cmliu/all.txt</td><td>-</td><td>-</td><td class='num'>32</td><td class='num'>32</td><td class='num'>0</td><td><span class='ok'>OK</span></td></tr><tr><td class='url'>https://bestcf.pages.dev/tiancheng/mini.txt</td><td>-</td><td>-</td><td class='num'>20</td><td class='num'>20</td><td class='num'>0</td><td><span class='ok'>OK</span></td></tr><tr><td class='url'>https://bestcf.pages.dev/tiancheng/all.txt</td><td>-</td><td>-</td><td class='num'>58</td><td class='num'>58</td><td class='num'>0</td><td><span class='ok'>OK</span></td></tr><tr><td class='url'>https://bestcf.pages.dev/s5gy/mini.txt</td><td>-</td><td>-</td><td class='num'>45</td><td class='num'>45</td><td class='num'>0</td><td><span class='ok'>OK</span></td></tr><tr><td class='url'>https://bestcf.pages.dev/luoli/all.txt</td><td>-</td><td>-</td><td class='num'>16</td><td class='num'>16</td><td class='num'>0</td><td><span class='ok'>OK</span></td></tr><tr><td class='url'>https://bestcf.pages.dev/uouin/all.txt</td><td>-</td><td>-</td><td class='num'>42</td><td class='num'>22</td><td class='num'>0</td><td><span class='ok'>OK</span></td></tr><tr><td class='url'>https://bestcf.pages.dev/zhixuanwang/ipv4-onlyip.txt</td><td>-</td><td>-</td><td class='num'>1</td><td class='num'>1</td><td class='num'>0</td><td><span class='ok'>OK</span></td></tr><tr><td class='url'>https://cf.090227.xyz/ct?ips=50</td><td>电信</td><td>-</td><td class='num'>50</td><td class='num'>50</td><td class='num'>0</td><td><span class='ok'>OK</span></td></tr><tr><td class='url'>https://cf.090227.xyz/cmcc?ips=50</td><td>移动</td><td>-</td><td class='num'>0</td><td class='num'>0</td><td class='num'>0</td><td><span class='ok'>跳过（运营商过滤）</span></td></tr><tr><td class='url'>https://cf.090227.xyz/cu?ips=50</td><td>联通</td><td>-</td><td class='num'>0</td><td class='num'>0</td><td class='num'>0</td><td><span class='ok'>跳过（运营商过滤）</span></td></tr><tr><td class='url'>https://090227.pages.dev/bestcf?isp=all&amp;ips=50</td><td>-</td><td>-</td><td class='num'>149</td><td class='num'>49</td><td class='num'>0</td><td><span class='ok'>OK</span></td></tr><tr><td class='url'>https://raw.githubusercontent.com/cmliu/WorkerVless2sub/refs/heads/main/addressesapi.txt</td><td>-</td><td>-</td><td class='num'>4</td><td class='num'>4</td><td class='num'>0</td><td><span class='ok'>OK</span></td></tr><tr><td class='url'>https://raw.githubusercontent.com/joname1/BestCFip/refs/heads/main/ipv4.txt</td><td>-</td><td>-</td><td class='num'>89</td><td class='num'>89</td><td class='num'>0</td><td><span class='ok'>OK</span></td></tr><tr><td class='url'>https://raw.githubusercontent.com/Senflare/Senflare-IP/refs/heads/main/Senflare-Pro.txt</td><td>-</td><td>-</td><td class='num'>27</td><td class='num'>27</td><td class='num'>0</td><td><span class='ok'>OK</span></td></tr><tr><td class='url'>https://raw.githubusercontent.com/JieChaoCC/cf-ip-auto/refs/heads/main/data/ipapi.txt</td><td>-</td><td>-</td><td class='num'>3</td><td class='num'>3</td><td class='num'>0</td><td><span class='ok'>OK</span></td></tr><tr><td class='url'>https://raw.githubusercontent.com/ahang39/router/refs/heads/main/all.txt</td><td>-</td><td>-</td><td class='num'>10</td><td class='num'>10</td><td class='num'>0</td><td><span class='ok'>OK</span></td></tr><tr><td class='url'>https://raw.githubusercontent.com/einsitang/my-fast-cf-ip/refs/heads/master/fastips.txt</td><td>-</td><td>-</td><td class='num'>20</td><td class='num'>20</td><td class='num'>0</td><td><span class='ok'>OK</span></td></tr><tr><td class='url'>https://raw.githubusercontent.com/hubbylei/bestcf/refs/heads/main/bestcf.txt</td><td>-</td><td>-</td><td class='num'>10</td><td class='num'>10</td><td class='num'>0</td><td><span class='ok'>OK</span></td></tr><tr><td class='url'>https://raw.githubusercontent.com/gshtwy/CF-DNS-Clone/refs/heads/main/wetest-cloudflare-v4.txt</td><td>-</td><td>-</td><td class='num'>75</td><td class='num'>25</td><td class='num'>0</td><td><span class='ok'>OK</span></td></tr><tr><td class='url'>https://raw.githubusercontent.com/svip-s/cloudflare_ip/refs/heads/main/best_ips.txt</td><td>-</td><td>-</td><td class='num'>12</td><td class='num'>12</td><td class='num'>0</td><td><span class='ok'>OK</span></td></tr><tr><td class='url'>https://raw.githubusercontent.com/love-ztm/cfip/refs/heads/main/best_ips.txt</td><td>-</td><td>-</td><td class='num'>3</td><td class='num'>3</td><td class='num'>0</td><td><span class='ok'>OK</span></td></tr><tr><td class='url'>https://www.cloudflare.com/ips-v4</td><td>-</td><td>是</td><td class='num'>960</td><td class='num'>960</td><td class='num'>0</td><td><span class='ok'>OK</span></td></tr><tr><td class='url'>https://www.cloudflare.com/ips-v6</td><td>-</td><td>是</td><td class='num'>448</td><td class='num'>448</td><td class='num'>0</td><td><span class='ok'>OK</span></td></tr>
+</table>
+
+<div class="grid">
+<div>
+<h2>延迟分布 (ms)</h2>
+<div class='bar'><span class='bar-label'><50</span><span class='bar-fill' style='width:0%'></span><span class='bar-num'>0</span></div><div class='bar'><span class='bar-label'><100</span><span class='bar-fill' style='width:0%'></span><span class='bar-num'>0</span></div><div class='bar'><span class='bar-label'><200</span><span class='bar-fill' style='width:100%'></span><span class='bar-num'>2</span></div><div class='bar'><span class='bar-label'><300</span><span class='bar-fill' style='width:0%'></span><span class='bar-num'>0</span></div>
+</div>
+<div>
+<h2>速度分布 (MB/s)</h2>
+<p>-</p>
+</div>
+</div>
+
+<h2>机房地区分布</h2>
+<p>（未识别到机房码）</p>
+
+<h2>纯净 IP 明细</h2>
+<table>
+<tr><th>IP:端口</th><th>延迟(ms)</th><th>丢包</th><th>TLS</th><th>速度(MB/s)</th><th>机房</th><th>原生</th></tr>
+<tr><td>104.17.187.190:443</td><td class='num'>184.3</td><td class='num'>0%</td><td><span class='ok'>OK</span></td><td class='num'>-</td><td>-</td><td>-</td></tr><tr><td>162.159.198.1:443</td><td class='num'>186.4</td><td class='num'>0%</td><td><span class='ok'>OK</span></td><td class='num'>-</td><td>-</td><td>-</td></tr>
+</table>
+<p style="font-size:12px;color:#888;">完整明细见 result/clean-ips.txt 与 clean-ips.json。</p>
+</body>
+</html>
