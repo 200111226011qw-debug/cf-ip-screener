@@ -1,6 +1,19 @@
 [
   {
-    "ip": "104.24.166.125",
+    "ip": "198.41.197.95",
+    "port": 443,
+    "avg_ms": 1.5,
+    "loss_rate": 0.0,
+    "tls_ok": true,
+    "remark": "",
+    "isp": "",
+    "native": true,
+    "source": "https://www.cloudflare.com/ips-v4",
+    "speed_mbps": 93.32,
+    "colo": "IAD"
+  },
+  {
+    "ip": "103.31.4.173",
     "port": 443,
     "avg_ms": 1.6,
     "loss_rate": 0.0,
@@ -9,11 +22,24 @@
     "isp": "",
     "native": true,
     "source": "https://www.cloudflare.com/ips-v4",
-    "speed_mbps": 106.27,
-    "colo": "SJC"
+    "speed_mbps": 178.3,
+    "colo": "IAD"
   },
   {
-    "ip": "188.114.97.65",
+    "ip": "190.93.244.23",
+    "port": 443,
+    "avg_ms": 1.6,
+    "loss_rate": 0.0,
+    "tls_ok": true,
+    "remark": "",
+    "isp": "",
+    "native": true,
+    "source": "https://www.cloudflare.com/ips-v4",
+    "speed_mbps": 121.38,
+    "colo": "IAD"
+  },
+  {
+    "ip": "103.31.4.139",
     "port": 443,
     "avg_ms": 1.7,
     "loss_rate": 0.0,
@@ -22,11 +48,76 @@
     "isp": "",
     "native": false,
     "source": "https://raw.githubusercontent.com/XIU2/CloudflareSpeedTest/master/ip.txt",
-    "speed_mbps": 99.59,
-    "colo": "SJC"
+    "speed_mbps": 151.44,
+    "colo": "IAD"
   },
   {
-    "ip": "188.114.97.78",
+    "ip": "141.101.122.113",
+    "port": 443,
+    "avg_ms": 1.7,
+    "loss_rate": 0.0,
+    "tls_ok": true,
+    "remark": "",
+    "isp": "",
+    "native": false,
+    "source": "https://raw.githubusercontent.com/XIU2/CloudflareSpeedTest/master/ip.txt",
+    "speed_mbps": 129.8,
+    "colo": "IAD"
+  },
+  {
+    "ip": "104.18.43.177",
+    "port": 443,
+    "avg_ms": 1.7,
+    "loss_rate": 0.0,
+    "tls_ok": true,
+    "remark": "",
+    "isp": "",
+    "native": false,
+    "source": "https://raw.githubusercontent.com/XIU2/CloudflareSpeedTest/master/ip.txt",
+    "speed_mbps": 158.54,
+    "colo": "IAD"
+  },
+  {
+    "ip": "104.19.71.111",
+    "port": 443,
+    "avg_ms": 1.7,
+    "loss_rate": 0.0,
+    "tls_ok": true,
+    "remark": "US 🇺🇸",
+    "isp": "",
+    "native": false,
+    "source": "https://raw.githubusercontent.com/mall994/cloudflare-best-ip/main/best-ips.txt",
+    "speed_mbps": 122.36,
+    "colo": "IAD"
+  },
+  {
+    "ip": "172.64.85.48",
+    "port": 443,
+    "avg_ms": 1.7,
+    "loss_rate": 0.0,
+    "tls_ok": true,
+    "remark": "US 🇺🇸",
+    "isp": "",
+    "native": false,
+    "source": "https://raw.githubusercontent.com/mall994/cloudflare-best-ip/main/best-ips.txt",
+    "speed_mbps": 183.31,
+    "colo": "IAD"
+  },
+  {
+    "ip": "188.114.96.125",
+    "port": 443,
+    "avg_ms": 1.7,
+    "loss_rate": 0.0,
+    "tls_ok": true,
+    "remark": "",
+    "isp": "",
+    "native": false,
+    "source": "https://raw.githubusercontent.com/ymyuuu/IPDB/main/bestcf.txt",
+    "speed_mbps": 333.5,
+    "colo": "IAD"
+  },
+  {
+    "ip": "173.245.49.13",
     "port": 443,
     "avg_ms": 1.7,
     "loss_rate": 0.0,
@@ -35,11 +126,11 @@
     "isp": "",
     "native": false,
     "source": "https://ipdb.api.030101.xyz/?type=cfv4%3Bproxy",
-    "speed_mbps": 113.14,
-    "colo": "SJC"
+    "speed_mbps": 154.36,
+    "colo": "IAD"
   },
   {
-    "ip": "104.21.41.71",
+    "ip": "198.41.193.22",
     "port": 443,
     "avg_ms": 1.7,
     "loss_rate": 0.0,
@@ -48,11 +139,11 @@
     "isp": "",
     "native": false,
     "source": "https://ipdb.api.030101.xyz/?type=cfv4%3Bproxy",
-    "speed_mbps": 104.06,
-    "colo": "SJC"
+    "speed_mbps": 358.92,
+    "colo": "IAD"
   },
   {
-    "ip": "190.93.246.109",
+    "ip": "173.245.49.172",
     "port": 443,
     "avg_ms": 1.7,
     "loss_rate": 0.0,
@@ -61,11 +152,11 @@
     "isp": "",
     "native": true,
     "source": "https://www.cloudflare.com/ips-v4",
-    "speed_mbps": 312.09,
-    "colo": "SJC"
+    "speed_mbps": 165.22,
+    "colo": "IAD"
   },
   {
-    "ip": "198.41.196.101",
+    "ip": "103.31.4.184",
     "port": 443,
     "avg_ms": 1.7,
     "loss_rate": 0.0,
@@ -74,11 +165,11 @@
     "isp": "",
     "native": true,
     "source": "https://www.cloudflare.com/ips-v4",
-    "speed_mbps": 103.51,
-    "colo": "SJC"
+    "speed_mbps": 395.61,
+    "colo": "IAD"
   },
   {
-    "ip": "162.159.207.47",
+    "ip": "103.31.4.96",
     "port": 443,
     "avg_ms": 1.7,
     "loss_rate": 0.0,
@@ -87,11 +178,11 @@
     "isp": "",
     "native": true,
     "source": "https://www.cloudflare.com/ips-v4",
-    "speed_mbps": 88.96,
-    "colo": "SJC"
+    "speed_mbps": 248.76,
+    "colo": "IAD"
   },
   {
-    "ip": "162.159.84.195",
+    "ip": "103.31.4.50",
     "port": 443,
     "avg_ms": 1.7,
     "loss_rate": 0.0,
@@ -100,11 +191,11 @@
     "isp": "",
     "native": true,
     "source": "https://www.cloudflare.com/ips-v4",
-    "speed_mbps": 128.8,
-    "colo": "SJC"
+    "speed_mbps": 388.32,
+    "colo": "IAD"
   },
   {
-    "ip": "104.18.19.156",
+    "ip": "190.93.246.196",
     "port": 443,
     "avg_ms": 1.7,
     "loss_rate": 0.0,
@@ -113,11 +204,11 @@
     "isp": "",
     "native": true,
     "source": "https://www.cloudflare.com/ips-v4",
-    "speed_mbps": 97.91,
-    "colo": "SJC"
+    "speed_mbps": 178.3,
+    "colo": "IAD"
   },
   {
-    "ip": "104.18.207.176",
+    "ip": "190.93.246.66",
     "port": 443,
     "avg_ms": 1.7,
     "loss_rate": 0.0,
@@ -126,11 +217,11 @@
     "isp": "",
     "native": true,
     "source": "https://www.cloudflare.com/ips-v4",
-    "speed_mbps": 100.92,
-    "colo": "SJC"
+    "speed_mbps": 167.73,
+    "colo": "IAD"
   },
   {
-    "ip": "104.16.255.145",
+    "ip": "198.41.198.98",
     "port": 443,
     "avg_ms": 1.7,
     "loss_rate": 0.0,
@@ -139,11 +230,11 @@
     "isp": "",
     "native": true,
     "source": "https://www.cloudflare.com/ips-v4",
-    "speed_mbps": 139.76,
-    "colo": "SJC"
+    "speed_mbps": 287.99,
+    "colo": "IAD"
   },
   {
-    "ip": "104.16.124.142",
+    "ip": "104.17.193.72",
     "port": 443,
     "avg_ms": 1.7,
     "loss_rate": 0.0,
@@ -152,11 +243,11 @@
     "isp": "",
     "native": true,
     "source": "https://www.cloudflare.com/ips-v4",
-    "speed_mbps": 203.31,
-    "colo": "SJC"
+    "speed_mbps": 273.77,
+    "colo": "IAD"
   },
   {
-    "ip": "104.24.190.191",
+    "ip": "104.18.189.211",
     "port": 443,
     "avg_ms": 1.7,
     "loss_rate": 0.0,
@@ -165,11 +256,11 @@
     "isp": "",
     "native": true,
     "source": "https://www.cloudflare.com/ips-v4",
-    "speed_mbps": 167.52,
-    "colo": "SJC"
+    "speed_mbps": 172.94,
+    "colo": "IAD"
   },
   {
-    "ip": "104.24.57.226",
+    "ip": "104.25.97.116",
     "port": 443,
     "avg_ms": 1.7,
     "loss_rate": 0.0,
@@ -178,24 +269,11 @@
     "isp": "",
     "native": true,
     "source": "https://www.cloudflare.com/ips-v4",
-    "speed_mbps": 130.7,
-    "colo": "SJC"
+    "speed_mbps": 192.69,
+    "colo": "IAD"
   },
   {
-    "ip": "172.64.85.128",
-    "port": 443,
-    "avg_ms": 1.7,
-    "loss_rate": 0.0,
-    "tls_ok": true,
-    "remark": "",
-    "isp": "",
-    "native": true,
-    "source": "https://www.cloudflare.com/ips-v4",
-    "speed_mbps": 19.65,
-    "colo": "SJC"
-  },
-  {
-    "ip": "190.93.247.246",
+    "ip": "103.31.4.232",
     "port": 443,
     "avg_ms": 1.8,
     "loss_rate": 0.0,
@@ -204,11 +282,11 @@
     "isp": "",
     "native": false,
     "source": "https://raw.githubusercontent.com/XIU2/CloudflareSpeedTest/master/ip.txt",
-    "speed_mbps": 149.42,
-    "colo": "SJC"
+    "speed_mbps": 211.43,
+    "colo": "IAD"
   },
   {
-    "ip": "190.93.247.120",
+    "ip": "141.101.122.153",
     "port": 443,
     "avg_ms": 1.8,
     "loss_rate": 0.0,
@@ -217,11 +295,11 @@
     "isp": "",
     "native": false,
     "source": "https://raw.githubusercontent.com/XIU2/CloudflareSpeedTest/master/ip.txt",
-    "speed_mbps": 274.17,
-    "colo": "SJC"
+    "speed_mbps": 265.13,
+    "colo": "IAD"
   },
   {
-    "ip": "190.93.245.21",
+    "ip": "188.114.99.245",
     "port": 443,
     "avg_ms": 1.8,
     "loss_rate": 0.0,
@@ -230,11 +308,11 @@
     "isp": "",
     "native": false,
     "source": "https://raw.githubusercontent.com/XIU2/CloudflareSpeedTest/master/ip.txt",
-    "speed_mbps": 301.96,
-    "colo": "SJC"
+    "speed_mbps": 249.58,
+    "colo": "IAD"
   },
   {
-    "ip": "162.159.60.170",
+    "ip": "104.18.203.189",
     "port": 443,
     "avg_ms": 1.8,
     "loss_rate": 0.0,
@@ -243,11 +321,11 @@
     "isp": "",
     "native": false,
     "source": "https://raw.githubusercontent.com/XIU2/CloudflareSpeedTest/master/ip.txt",
-    "speed_mbps": 307.29,
-    "colo": "SJC"
+    "speed_mbps": 210.08,
+    "colo": "IAD"
   },
   {
-    "ip": "162.159.228.161",
+    "ip": "172.64.190.15",
     "port": 443,
     "avg_ms": 1.8,
     "loss_rate": 0.0,
@@ -256,11 +334,11 @@
     "isp": "",
     "native": false,
     "source": "https://raw.githubusercontent.com/XIU2/CloudflareSpeedTest/master/ip.txt",
-    "speed_mbps": 231.93,
-    "colo": "SJC"
+    "speed_mbps": 170.64,
+    "colo": "IAD"
   },
   {
-    "ip": "162.159.158.36",
+    "ip": "172.66.216.73",
     "port": 443,
     "avg_ms": 1.8,
     "loss_rate": 0.0,
@@ -269,11 +347,11 @@
     "isp": "",
     "native": false,
     "source": "https://raw.githubusercontent.com/XIU2/CloudflareSpeedTest/master/ip.txt",
-    "speed_mbps": 204.74,
-    "colo": "SJC"
+    "speed_mbps": 157.17,
+    "colo": "IAD"
   },
   {
-    "ip": "104.17.183.102",
+    "ip": "172.66.128.74",
     "port": 443,
     "avg_ms": 1.8,
     "loss_rate": 0.0,
@@ -282,11 +360,11 @@
     "isp": "",
     "native": false,
     "source": "https://raw.githubusercontent.com/XIU2/CloudflareSpeedTest/master/ip.txt",
-    "speed_mbps": 253.49,
-    "colo": "SJC"
+    "speed_mbps": 142.4,
+    "colo": "IAD"
   },
   {
-    "ip": "104.17.224.39",
+    "ip": "172.67.239.113",
     "port": 443,
     "avg_ms": 1.8,
     "loss_rate": 0.0,
@@ -295,24 +373,24 @@
     "isp": "",
     "native": false,
     "source": "https://raw.githubusercontent.com/XIU2/CloudflareSpeedTest/master/ip.txt",
-    "speed_mbps": 259.27,
-    "colo": "SJC"
+    "speed_mbps": 30.42,
+    "colo": "IAD"
   },
   {
-    "ip": "104.16.42.153",
+    "ip": "162.159.193.71",
     "port": 443,
     "avg_ms": 1.8,
     "loss_rate": 0.0,
     "tls_ok": true,
-    "remark": "",
+    "remark": "US 🇺🇸",
     "isp": "",
     "native": false,
-    "source": "https://raw.githubusercontent.com/XIU2/CloudflareSpeedTest/master/ip.txt",
-    "speed_mbps": 226.11,
-    "colo": "SJC"
+    "source": "https://raw.githubusercontent.com/mall994/cloudflare-best-ip/main/best-ips.txt",
+    "speed_mbps": 224.62,
+    "colo": "IAD"
   },
   {
-    "ip": "104.24.82.248",
+    "ip": "104.24.138.113",
     "port": 443,
     "avg_ms": 1.8,
     "loss_rate": 0.0,
@@ -321,11 +399,24 @@
     "isp": "",
     "native": false,
     "source": "https://raw.githubusercontent.com/mall994/cloudflare-best-ip/main/best-ips.txt",
-    "speed_mbps": 127.71,
-    "colo": "SJC"
+    "speed_mbps": 164.69,
+    "colo": "IAD"
   },
   {
-    "ip": "104.17.137.160",
+    "ip": "172.67.138.114",
+    "port": 443,
+    "avg_ms": 1.8,
+    "loss_rate": 0.0,
+    "tls_ok": true,
+    "remark": "NL 🇳🇱",
+    "isp": "",
+    "native": false,
+    "source": "https://raw.githubusercontent.com/mall994/cloudflare-best-ip/main/best-ips.txt",
+    "speed_mbps": 168.21,
+    "colo": "IAD"
+  },
+  {
+    "ip": "103.31.4.37",
     "port": 443,
     "avg_ms": 1.8,
     "loss_rate": 0.0,
@@ -333,21 +424,34 @@
     "remark": "",
     "isp": "",
     "native": false,
-    "source": "https://www.wetest.vip/page/cloudflare/address_v4.html",
-    "speed_mbps": 141.71,
-    "colo": "SJC"
+    "source": "https://ipdb.api.030101.xyz/?type=cfv4%3Bproxy",
+    "speed_mbps": 212.6,
+    "colo": "IAD"
   },
   {
     "ip": "141.101.90.116",
     "port": 443,
-    "avg_ms": 2.2,
+    "avg_ms": 1.9,
     "loss_rate": 0.0,
     "tls_ok": true,
     "remark": "ES 🇪🇸",
     "isp": "",
     "native": false,
     "source": "https://raw.githubusercontent.com/mall994/cloudflare-best-ip/main/best-ips.txt",
-    "speed_mbps": 8.99,
+    "speed_mbps": 14.0,
     "colo": "MAD"
+  },
+  {
+    "ip": "141.101.90.114",
+    "port": 443,
+    "avg_ms": 1.9,
+    "loss_rate": 0.0,
+    "tls_ok": true,
+    "remark": "",
+    "isp": "",
+    "native": false,
+    "source": "https://ipdb.api.030101.xyz/?type=cfv4%3Bproxy",
+    "speed_mbps": 16.82,
+    "colo": "AMS"
   }
 ]
