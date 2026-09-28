@@ -1,0 +1,15 @@
+[
+  {
+    "ip": "162.159.131.31",
+    "port": 443,
+    "avg_ms": 11.3,
+    "loss_rate": 0.0,
+    "tls_ok": true,
+    "remark": "微测优选 | 移动 | LHR | 162.159.131.31",
+    "isp": "cmcc",
+    "native": false,
+    "source": "https://bestcf.pages.dev/wetest/ipv4.txt",
+    "speed_mbps": 49.0,
+    "colo": "ORD"
+  }
+]

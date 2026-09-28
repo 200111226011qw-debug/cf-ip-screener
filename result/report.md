@@ -9,9 +9,9 @@
 
 | 池 | 运营商 | 原生 | 解析 | 保留 | 命中纯净 | 状态 |
 | --- | --- | --- | --- | --- | --- | --- |
-| https://bestcf.pages.dev/wetest/ipv4.txt | - | - | 17 | 17 | 0 | OK |
-| https://bestcf.pages.dev/cfyes/ipv4.txt | - | - | 12 | 12 | 0 | OK |
-| https://bestcf.pages.dev/domain/all.txt | - | - | 6 | 6 | 0 | OK |
+| https://bestcf.pages.dev/wetest/ipv4.txt | - | - | 17 | 17 | 3 | OK |
+| https://bestcf.pages.dev/cfyes/ipv4.txt | - | - | 12 | 12 | 2 | OK |
+| https://bestcf.pages.dev/domain/all.txt | - | - | 6 | 6 | 2 | OK |
 | https://bestcf.pages.dev/domain/mini.txt | - | - | 4 | 4 | 0 | OK |
 | https://bestcf.pages.dev/vps789/top100.txt | - | - | 2 | 2 | 0 | OK |
 | https://bestcf.pages.dev/cmliu/all.txt | - | - | 32 | 32 | 0 | OK |

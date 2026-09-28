@@ -1,15 +1,41 @@
 [
   {
-    "ip": "172.64.67.117",
+    "ip": "104.19.155.12",
     "port": 443,
-    "avg_ms": 13.5,
+    "avg_ms": 11.0,
     "loss_rate": 0.0,
     "tls_ok": true,
-    "remark": "CFYes优选 | 联通 | 172.64.67.117",
+    "remark": "微测优选 | 联通 | HKG | 104.19.155.12",
+    "isp": "cu",
+    "native": false,
+    "source": "https://bestcf.pages.dev/wetest/ipv4.txt",
+    "speed_mbps": 118.2,
+    "colo": "MSP"
+  },
+  {
+    "ip": "162.159.135.12",
+    "port": 443,
+    "avg_ms": 11.4,
+    "loss_rate": 0.0,
+    "tls_ok": true,
+    "remark": "CFYes优选 | 联通 | 162.159.135.12",
     "isp": "cu",
     "native": false,
     "source": "https://bestcf.pages.dev/cfyes/ipv4.txt",
-    "speed_mbps": 124.16,
+    "speed_mbps": 65.84,
+    "colo": "ORD"
+  },
+  {
+    "ip": "162.159.148.90",
+    "port": 443,
+    "avg_ms": 11.4,
+    "loss_rate": 0.0,
+    "tls_ok": true,
+    "remark": "麒麟优选 | 联通 | 162.159.148.90 | 63.71ms | 0.81mb/s",
+    "isp": "cu",
+    "native": false,
+    "source": "https://bestcf.pages.dev/uouin/all.txt",
+    "speed_mbps": 120.5,
     "colo": "MSP"
   }
 ]
