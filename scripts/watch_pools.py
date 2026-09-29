@@ -53,6 +53,8 @@ except ImportError:
 
 UA = "Mozilla/5.0 (compatible; cf-ip-screener-watch/1.0)"
 DEFAULT_STATE = _ROOT / ".watch-state.json"
+# 保留键：不当作池 URL 处理，用于存全局元数据（触发冷却时间戳）
+META_KEY = "__meta__"
 
 
 def fetch_hash(url: str, timeout: float = 10.0):
@@ -173,7 +175,8 @@ def main():
     while True:
         t0 = time.time()
         state = load_state(state_path)
-        is_first_run = not state
+        # 首次判断用“有无池记录”，排除 __meta__ 保留键（防中途打断后误判）
+        is_first_run = not any(k != META_KEY for k in state)
         print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] 检查 {len(pools)} 个池...")
         changed, new_state, failed = check_pools(
             pools, state,
@@ -189,20 +192,32 @@ def main():
                 print(f"    + {u}")
         save_state(state_path, new_state)
 
-        if changed and not args.dry_run and not is_first_run:
-            since = time.time() - last_triggered
-            if last_triggered and since < args.cooldown:
-                print(f"  冷却中：距上次触发 {since:.0f}s < {args.cooldown}s，"
-                      f"只记录不触发")
-            else:
-                print(f"  触发筛选（{len(changed)} 个池有更新）...")
-                rc = run_main(args.main_cmd)
-                last_triggered = time.time()
-                print(f"  筛选完成，exit={rc}，耗时 {time.time() - t0:.1f}s")
-        else:
-            reason = "首次运行" if is_first_run else (
-                "dry-run" if args.dry_run else "无变化")
+        # —— 读取冷却状态（跨进程持久化：--once 模式也能生效）——
+        meta = new_state.get(META_KEY, {})
+        last_trig = meta.get("last_triggered", 0)
+        cooldown_left = 0
+        if last_trig:
+            cooldown_left = args.cooldown - (time.time() - last_trig)
+
+        should_trigger = bool(changed) and not args.dry_run and not is_first_run
+        if not should_trigger:
+            reason = ("首次运行" if is_first_run
+                      else "dry-run" if args.dry_run
+                      else "无变化")
             print(f"  跳过筛选（{reason}）")
+        elif cooldown_left > 0:
+            print(f"  检测到 {len(changed)} 个池变化，但冷却期内"
+                  f"（剩余 {cooldown_left:.0f}s / 共 {args.cooldown}s），跳过触发")
+        else:
+            print(f"  触发筛选（{len(changed)} 个池有更新）...")
+            # 触发前立即记录时间戳（防 main.py 崩溃后重复触发）
+            new_state[META_KEY] = {
+                "last_triggered": time.time(),
+                "last_changed_count": len(changed),
+            }
+            save_state(state_path, new_state)
+            rc = run_main(args.main_cmd)
+            print(f"  筛选完成，exit={rc}，耗时 {time.time() - t0:.1f}s")
         print()
 
         if args.once:
