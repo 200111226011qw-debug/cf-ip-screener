@@ -20,3 +20,6 @@ result-local/
 
 # IP 差集观察器（diff_new_ips.py）
 .seen-ips.json
+
+# 池 FAIL 连续观察状态（定时任务跨轮计数）
+pool-fail-watch.json
