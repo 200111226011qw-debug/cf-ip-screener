@@ -57,7 +57,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: result
-          path: "${PROJECT_DIR:-.}/result/"
+          # 注意：path 不支持 shell 变量展开（${PROJECT_DIR:-.} 会被当字面路径），
+          # 必须用 GitHub Actions 表达式：未设置 PROJECT_DIR 时回退到仓库根目录 .
+          path: ${{ env.PROJECT_DIR || '.' }}/result/
 
       - name: 提交结果
         run: |
