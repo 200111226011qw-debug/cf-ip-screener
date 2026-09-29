@@ -1,28 +1,15 @@
 [
   {
-    "ip": "104.16.102.180",
+    "ip": "198.41.209.211",
     "port": 443,
-    "avg_ms": 18.4,
+    "avg_ms": 5.5,
     "loss_rate": 0.0,
     "tls_ok": true,
-    "remark": "移动优选",
+    "remark": "移动Default",
     "isp": "cmcc",
     "native": false,
-    "source": "https://raw.githubusercontent.com/jifengwind/HHP-cf-ips/main/ips-dj.txt",
-    "speed_mbps": 43.15,
-    "colo": "DFW"
-  },
-  {
-    "ip": "104.16.10.25",
-    "port": 443,
-    "avg_ms": 18.5,
-    "loss_rate": 0.0,
-    "tls_ok": true,
-    "remark": "移动优选",
-    "isp": "cmcc",
-    "native": false,
-    "source": "https://raw.githubusercontent.com/jifengwind/HHP-cf-ips/main/ips-dj.txt",
-    "speed_mbps": 46.67,
-    "colo": "DFW"
+    "source": "https://cdn.jsdelivr.net/gh/suancaicc/cf-ip@main/ip.txt",
+    "speed_mbps": 54.68,
+    "colo": "IAD"
   }
 ]
