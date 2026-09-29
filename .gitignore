@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# 结果输出（保留目录结构）
+result/*
+!result/.gitkeep
+
+# 系统
+.DS_Store
+Thumbs.db
+
+# 池更新监视器（watch_pools.py）
+.watch-state.json
+watch.log
+watch.err
+result-local/
