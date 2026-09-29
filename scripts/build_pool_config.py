@@ -54,6 +54,33 @@ def load_existing_from_config():
 # 现有池（config.py 当前 70 池）——作为"已收录"基线
 EXISTING = load_existing_from_config()
 
+
+def load_blacklist():
+    """读取已知无产出池黑名单（config/pool_blacklist.txt）。
+    支持精确 URL 与 sub: 前缀（子串匹配，覆盖同源参数/ref 变体）。
+    """
+    path = os.path.join(BASE, "config", "pool_blacklist.txt")
+    out = set()
+    if os.path.exists(path):
+        for l in open(path, encoding="utf-8"):
+            l = l.strip()
+            if l and not l.startswith("#"):
+                out.add(l)
+    return out
+
+
+BLACKLIST = load_blacklist()
+
+
+def is_blacklisted(url):
+    """历史多轮 report 命中纯净 = 0 的池（或同源变体）→ 跳过，不再重复抓取验证。"""
+    for b in BLACKLIST:
+        if b.startswith("sub:") and b[4:] in url:
+            return True
+        if b == url:
+            return True
+    return False
+
 # 多轮补充搜索关键词（与首轮 discover 不重复）
 MORE_KEYWORDS = [
     "cloudflare best ip", "anycast ip", "cf优选", "cloudflare ip pool",
@@ -168,6 +195,9 @@ def main():
                     help="搜索后最多 raw 试探的仓库数（默认 120）")
     ap.add_argument("--stage", choices=["probe", "build", "full"], default="full",
                     help="probe=仅搜索+试探写 pool_probed.txt；build=仅下载解析过滤；full=全流程")
+    ap.add_argument("--probe-first", type=int, default=6,
+                    help="先导抓取数量（默认 6）：先抓少量池验证网络/解析可用，"
+                         "全部失败则中止，避免全量空抓浪费时间")
     args = ap.parse_args()
 
     found = []
@@ -231,12 +261,50 @@ def main():
         "https://cf.090227.xyz/cmcc?ips=200",
         "https://090227.pages.dev/bestcf?isp=all&ips=200",
     }
+    # 黑名单跳过：历史多轮命中纯净 = 0 的池（或同源变体），不重复抓取验证
+    black_hit = {u for u in candidates if is_blacklisted(u)}
+    if black_hit:
+        candidates -= black_hit
+        print("[2/3] 跳过 %d 个黑名单池（历史无纯净产出）" % len(black_hit))
+    if not candidates:
+        print("[2/3] 候选池全部被黑名单跳过（或清单为空）。")
+        return 1
     print("[2/3] 下载解析 %d 个候选池..." % len(candidates))
 
+    def _grab(urls, workers):
+        """并发抓取一组 URL，返回 {url: (ips, cidrs)}（失败的丢弃）。"""
+        local = {}
+        with ThreadPoolExecutor(max_workers=workers) as ex:
+            futs = {ex.submit(fetch_text, u): u for u in urls}
+            for f in futs:
+                try:
+                    r = f.result()
+                except Exception:
+                    r = None
+                if r is not None:
+                    local[futs[f]] = r
+        return local
+
+    # 先导抓取：先抓少量（默认 6）验证网络与解析可用。
+    # 全部失败说明网络故障或源集体失效，直接中止，避免全量空抓。
+    ordered = sorted(candidates)
+    first_batch, rest = ordered[: args.probe_first], ordered[args.probe_first:]
     results = {}
+    results.update(_grab(first_batch, args.probe_first))
+    probe_ok = sum(
+        1 for u in first_batch
+        if u in results and (results[u][0] or results[u][1]))
+    print("[2/3] 先导抓取 %d 个：可解析 %d%s"
+          % (len(first_batch), probe_ok,
+             "" if probe_ok else " —— 全部失败，疑似网络/源不可用"))
+    if probe_ok == 0:
+        print("[2/3] 先导全部失败，中止（可用 --probe-first 调大重试）。")
+        return 1
+
+    done0 = len(first_batch)
     with ThreadPoolExecutor(max_workers=16) as ex:
-        futs = {ex.submit(fetch_text, u): u for u in candidates}
-        done = 0
+        futs = {ex.submit(fetch_text, u): u for u in rest}
+        done = done0
         for f in futs:
             try:
                 r = f.result()

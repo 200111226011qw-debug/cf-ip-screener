@@ -13,15 +13,9 @@ DEFAULT_CONFIG = {
         {"url": "https://bestcf.pages.dev/cfyes/ipv4.txt"},
         {"url": "https://bestcf.pages.dev/cfyes/ipv6.txt"},
         {"url": "https://bestcf.pages.dev/domain/all.txt"},
-        {"url": "https://bestcf.pages.dev/domain/mini.txt"},
-        {"url": "https://bestcf.pages.dev/vps789/top100.txt"},
         {"url": "https://bestcf.pages.dev/cmliu/all.txt"},
-        {"url": "https://bestcf.pages.dev/tiancheng/mini.txt"},
         {"url": "https://bestcf.pages.dev/tiancheng/all.txt"},
         {"url": "https://bestcf.pages.dev/s5gy/mini.txt"},
-        {"url": "https://bestcf.pages.dev/luoli/all.txt"},
-        {"url": "https://bestcf.pages.dev/uouin/all.txt"},
-        {"url": "https://bestcf.pages.dev/zhixuanwang/ipv4-onlyip.txt"},
         # —— 090227 家族（cf.090227.xyz / 090227.pages.dev）——
         {"url": "https://cf.090227.xyz/ct?ips=200", "isp": "ct"},
         {"url": "https://cf.090227.xyz/cu?ips=200", "isp": "cu"},
@@ -31,19 +25,13 @@ DEFAULT_CONFIG = {
         {"url": "https://090227.pages.dev/bestcf?isp=cu&ips=50", "isp": "cu"},
         {"url": "https://090227.pages.dev/bestcf?isp=cmcc&ips=50", "isp": "cmcc"},
         # —— GitHub 公开池 ——
-        {"url": "https://raw.githubusercontent.com/cmliu/WorkerVless2sub/refs/heads/main/addressesapi.txt"},
         {"url": "https://raw.githubusercontent.com/joname1/BestCFip/refs/heads/main/ipv4.txt"},
         {"url": "https://raw.githubusercontent.com/joname1/BestCFip/main/ipv6.txt"},
-        {"url": "https://raw.githubusercontent.com/Senflare/Senflare-IP/refs/heads/main/Senflare-Pro.txt"},
-        {"url": "https://raw.githubusercontent.com/JieChaoCC/cf-ip-auto/refs/heads/main/data/ipapi.txt"},
-        {"url": "https://raw.githubusercontent.com/ahang39/router/refs/heads/main/all.txt"},
-        {"url": "https://raw.githubusercontent.com/einsitang/my-fast-cf-ip/refs/heads/master/fastips.txt"},
         {"url": "https://raw.githubusercontent.com/einsitang/my-fast-cf-ip/master/ipv6.txt"},
         {"url": "https://raw.githubusercontent.com/hubbylei/bestcf/refs/heads/main/bestcf.txt"},
         {"url": "https://raw.githubusercontent.com/gshtwy/CF-DNS-Clone/refs/heads/main/wetest-cloudflare-v4.txt"},
         {"url": "https://raw.githubusercontent.com/svip-s/cloudflare_ip/refs/heads/main/best_ips.txt"},
         {"url": "https://raw.githubusercontent.com/svip-s/cloudflare_ip/main/full_ips.txt"},
-        {"url": "https://raw.githubusercontent.com/love-ztm/cfip/refs/heads/main/best_ips.txt"},
         {"url": "https://raw.githubusercontent.com/jifengwind/HHP-cf-ips/main/ips-dj.txt"},
         {"url": "https://raw.githubusercontent.com/XIU2/CloudflareSpeedTest/master/ip.txt"},
         {"url": "https://raw.githubusercontent.com/LancelotRar/best-cf-ips/main/best-cf-ip-scanned-top400.txt"},
@@ -75,6 +63,7 @@ DEFAULT_CONFIG = {
         {"url": "https://www.wetest.vip/page/cloudflare/ipv6.txt"},
         # —— 第三方 IPDB / 聚合 ——
         {"url": "https://ipdb.api.030101.xyz/?type=cfv4%3Bproxy"},
+        {"url": "https://ipdb.api.030101.xyz/?type=bestcf&country=true"},
         # —— 官方原生段 ——
         {"url": "https://www.cloudflare.com/ips-v4", "native": True},
         {"url": "https://www.cloudflare.com/ips-v6", "native": True},
@@ -92,6 +81,10 @@ DEFAULT_CONFIG = {
 
     # 抓取池的并发数（0 或 1 = 串行；建议 8）
     "fetch_concurrency": 8,
+
+    # 单池候选上限：防个别会膨胀的池（如 HHP 曾达 5 万行）吃光
+    # 连通性测试预算。0 = 不限制（不推荐）。
+    "max_candidates_per_pool": 3000,
 
     # 是否只保留落在 Cloudflare 官方网段内的 IP（防非 CF 节点混入）
     # 通过 cloudflare.com/ips-v4 + ips-v6 拉取，缓存在内存

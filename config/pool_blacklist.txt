@@ -1,0 +1,26 @@
+# 已知无纯净产出的池黑名单（build_pool_config.py 抓取时跳过）
+# 判定依据：git 历史 11 轮 CI report 命中纯净 = 0，或有效轮次 0 命中。
+# 两种格式：
+#   精确 URL（整行匹配）
+#   sub:XXX（子串匹配，用于同源不同参数/ref 变体，避免重复抓取）
+# 已从 config.py 删除的池：13（11 轮 0 命中）+ 3（新增 0 命中，本轮）
+# —— 090227 家族联通分流（11 轮 0 命中）——
+sub:090227.xyz/cu?
+sub:090227.pages.dev/bestcf?isp=cu
+# —— bestcf 家族无效子池 ——
+sub:bestcf.pages.dev/domain/mini
+sub:bestcf.pages.dev/vps789
+sub:bestcf.pages.dev/tiancheng/mini
+sub:bestcf.pages.dev/luoli
+sub:bestcf.pages.dev/uouin
+sub:bestcf.pages.dev/zhixuanwang
+# —— GitHub 无效池 ——
+sub:cmliu/WorkerVless2sub/refs/heads/main/addressesapi.txt
+sub:Senflare/Senflare-IP
+sub:JieChaoCC/cf-ip-auto
+sub:ahang39/router
+sub:einsitang/my-fast-cf-ip/refs/heads/master/fastips.txt
+sub:love-ztm/cfip
+sub:jifengwind/HHP-cf-ips/main/ips.txt
+sub:addressesapi.090227.xyz
+sub:ydxydx926

@@ -178,8 +178,13 @@ def main():
             pool_stats.append(stat)
             continue
         native = bool(pool.get("native"))
+        pool_cap = int(cfg.get("max_candidates_per_pool", 0) or 0)
         kept = 0
         for key, meta in parsed.items():
+            # 单池候选上限：防 HHP 这类会膨胀的池（曾达 5 万行）吃光
+            # 连通性测试预算。0 = 不限制。
+            if pool_cap and kept >= pool_cap:
+                break
             # 运营商过滤：仅剔除“明确属于其他运营商”的候选；
             # 未分类（isp 为空，如官方原生段）予以保留
             if isp_filter and meta["isp"] and meta["isp"] not in isp_filter:
@@ -192,6 +197,9 @@ def main():
                 candidates[key] = dict(meta, source=url)
             kept += 1
         stat["parsed"] = len(parsed)
+        if pool_cap and kept == pool_cap and len(parsed) > pool_cap:
+            print(f"      {url}  -> 解析到 {len(parsed)} 个，"
+                  f"超过单池上限 {pool_cap}，截断保留前 {kept} 个")
         stat["kept"] = kept
         stat["ok"] = True
         pool_stats.append(stat)
