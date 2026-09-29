@@ -17,3 +17,6 @@ Thumbs.db
 watch.log
 watch.err
 result-local/
+
+# IP 差集观察器（diff_new_ips.py）
+.seen-ips.json

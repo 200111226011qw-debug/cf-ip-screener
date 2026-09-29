@@ -18,11 +18,9 @@ DEFAULT_CONFIG = {
         {"url": "https://bestcf.pages.dev/s5gy/mini.txt"},
         # —— 090227 家族（cf.090227.xyz / 090227.pages.dev）——
         {"url": "https://cf.090227.xyz/ct?ips=200", "isp": "ct"},
-        {"url": "https://cf.090227.xyz/cu?ips=200", "isp": "cu"},
         {"url": "https://cf.090227.xyz/cmcc?ips=200", "isp": "cmcc"},
         {"url": "https://090227.pages.dev/bestcf?isp=all&ips=200"},
         {"url": "https://090227.pages.dev/bestcf?isp=ct&ips=50", "isp": "ct"},
-        {"url": "https://090227.pages.dev/bestcf?isp=cu&ips=50", "isp": "cu"},
         {"url": "https://090227.pages.dev/bestcf?isp=cmcc&ips=50", "isp": "cmcc"},
         # —— GitHub 公开池 ——
         {"url": "https://raw.githubusercontent.com/joname1/BestCFip/refs/heads/main/ipv4.txt"},
@@ -57,10 +55,6 @@ DEFAULT_CONFIG = {
         {"url": "https://raw.githubusercontent.com/demon-hugo/CF-iP/main/lax_ips.txt"},
         {"url": "https://raw.githubusercontent.com/nyoungo/bestIp/main/best_ips.txt"},
         {"url": "https://raw.githubusercontent.com/swjturay/cfnb-ip/main/ip.txt"},
-        {"url": "https://raw.githubusercontent.com/yu2130778-cpu/cf-ip/main/ip.txt"},
-        # —— wetest 自建池（真实 IPv4/IPv6 优选）——
-        {"url": "https://www.wetest.vip/page/cloudflare/address_v4.html"},
-        {"url": "https://www.wetest.vip/page/cloudflare/ipv6.txt"},
         # —— 第三方 IPDB / 聚合 ——
         {"url": "https://ipdb.api.030101.xyz/?type=cfv4%3Bproxy"},
         {"url": "https://ipdb.api.030101.xyz/?type=bestcf&country=true"},
