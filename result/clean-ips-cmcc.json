@@ -1,15 +1,28 @@
 [
   {
-    "ip": "104.16.1.152",
+    "ip": "104.16.0.77",
     "port": 443,
-    "avg_ms": 8.7,
+    "avg_ms": 1.8,
     "loss_rate": 0.0,
     "tls_ok": true,
     "remark": "移动优选",
     "isp": "cmcc",
     "native": false,
     "source": "https://raw.githubusercontent.com/jifengwind/HHP-cf-ips/main/ips-dj.txt",
-    "speed_mbps": 81.0,
-    "colo": "ORD"
+    "speed_mbps": 132.1,
+    "colo": "SJC"
+  },
+  {
+    "ip": "104.16.0.127",
+    "port": 443,
+    "avg_ms": 2.0,
+    "loss_rate": 0.0,
+    "tls_ok": true,
+    "remark": "移动优选",
+    "isp": "cmcc",
+    "native": false,
+    "source": "https://raw.githubusercontent.com/jifengwind/HHP-cf-ips/main/ips-dj.txt",
+    "speed_mbps": 267.71,
+    "colo": "SJC"
   }
 ]
