@@ -300,29 +300,6 @@ def main():
 
         # 测速失败（下载 0 字节/超时，典型为回源 IP 不可用）剔除，
         # 参考 XIU2/CloudflareSpeedTest 用下载速度下限过滤回源 IP 的做法
-        # —— [诊断] 测速完成后、过滤 0 速度之前统计被淘汰数与按源分布（观察 3~5 轮后删除）——
-        import statistics
-        zero_speed = sum(1 for r in clean if r.get("speed_mbps", 0) == 0)
-        _total = len(clean)
-        _pct = zero_speed / _total if _total else 0
-        zero_lat = [r["avg_ms"] for r in clean
-                    if r.get("speed_mbps", 0) == 0 and r.get("avg_ms") is not None]
-        pos_lat = [r["avg_ms"] for r in clean
-                   if r.get("speed_mbps", 0) > 0 and r.get("avg_ms") is not None]
-        z_med = statistics.median(zero_lat) if zero_lat else float("nan")
-        p_med = statistics.median(pos_lat) if pos_lat else float("nan")
-        ratio = (z_med / p_med) if p_med and p_med > 0 else float("nan")
-        print(f"[诊断] 测速候选 {_total}，0 速度 {zero_speed} ({_pct:.0%}) | "
-              f"零速中位 {z_med:.0f}ms / 正速中位 {p_med:.0f}ms | ratio={ratio:.2f}")
-        if zero_speed > 0:
-            by_src = {}
-            for r in clean:
-                if r.get("speed_mbps", 0) == 0:
-                    src = r.get("source", "unknown")
-                    by_src[src] = by_src.get(src, 0) + 1
-            top_src = sorted(by_src.items(), key=lambda x: -x[1])[:3]
-            for src, n in top_src:
-                print(f"       {n:3d} 条来自 {src}")
         clean = [r for r in clean if r.get("speed_mbps", 0) > 0]
 
         # cf-ray 校验：非 CF 节点不会有此响应头（需测速才能拿到）
