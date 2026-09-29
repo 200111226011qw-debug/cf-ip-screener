@@ -54,6 +54,30 @@ DEFAULT_CONFIG = {
         {"url": "https://raw.githubusercontent.com/demon-hugo/CF-iP/main/lax_ips.txt"},
         {"url": "https://raw.githubusercontent.com/nyoungo/bestIp/main/best_ips.txt"},
         {"url": "https://raw.githubusercontent.com/swjturay/cfnb-ip/main/ip.txt"},
+        # —— GitHub 池 jsDelivr 镜像（本机 raw 不通时的备源，谁通谁进来；CI 两源皆通）——
+        # 转换规则：raw refs/heads/main|x → cdn.jsdelivr.net/gh/user/repo@main|x
+        {"url": "https://cdn.jsdelivr.net/gh/joname1/BestCFip@main/ipv4.txt"},
+        {"url": "https://cdn.jsdelivr.net/gh/joname1/BestCFip@main/ipv6.txt"},
+        {"url": "https://cdn.jsdelivr.net/gh/einsitang/my-fast-cf-ip@master/ipv6.txt"},
+        {"url": "https://cdn.jsdelivr.net/gh/hubbylei/bestcf@main/bestcf.txt"},
+        {"url": "https://cdn.jsdelivr.net/gh/gshtwy/CF-DNS-Clone@main/wetest-cloudflare-v4.txt"},
+        {"url": "https://cdn.jsdelivr.net/gh/svip-s/cloudflare_ip@main/best_ips.txt"},
+        {"url": "https://cdn.jsdelivr.net/gh/svip-s/cloudflare_ip@main/full_ips.txt"},
+        {"url": "https://cdn.jsdelivr.net/gh/XIU2/CloudflareSpeedTest@master/ip.txt"},
+        {"url": "https://cdn.jsdelivr.net/gh/LancelotRar/best-cf-ips@main/best-cf-ip-scanned-top400.txt"},
+        {"url": "https://cdn.jsdelivr.net/gh/sanzang-tango/best-cf-ip@main/best-cf-ipv4.txt"},
+        {"url": "https://cdn.jsdelivr.net/gh/mall994/cloudflare-best-ip@main/best-ips.txt"},
+        {"url": "https://cdn.jsdelivr.net/gh/suancaicc/cf-ip@main/ip.txt"},
+        {"url": "https://cdn.jsdelivr.net/gh/KafeMars/best-ips-domains@main/cf-bestips.txt"},
+        {"url": "https://cdn.jsdelivr.net/gh/aihddelyy/Cloudflare_ips@main/CFST.txt"},
+        {"url": "https://cdn.jsdelivr.net/gh/yuanxiawan/cfipv4db@main/high_score_ips.txt"},
+        {"url": "https://cdn.jsdelivr.net/gh/burylove-baby/cf-ips@main/ip.txt"},
+        {"url": "https://cdn.jsdelivr.net/gh/zcf794743/cfip_collect@main/ip.txt"},
+        {"url": "https://cdn.jsdelivr.net/gh/anthony11122/cf-ip@main/ip.txt"},
+        {"url": "https://cdn.jsdelivr.net/gh/asdminss/cf-ip@main/ip.txt"},
+        {"url": "https://cdn.jsdelivr.net/gh/zy1078/cf-IP@master/ip.txt"},
+        {"url": "https://cdn.jsdelivr.net/gh/ymyuuu/IPDB@main/bestcf.txt"},
+        {"url": "https://cdn.jsdelivr.net/gh/baiyilevou/cf-ip@main/ip.txt"},
         # —— 第三方 IPDB / 聚合 ——
         {"url": "https://ipdb.api.030101.xyz/?type=cfv4%3Bproxy"},
         {"url": "https://ipdb.api.030101.xyz/?type=bestcf&country=true"},
@@ -65,8 +89,9 @@ DEFAULT_CONFIG = {
     # 裸 IP（未带端口）时默认测试的端口
     "default_port": 443,
 
-    # 抓取池的超时（秒）
-    "fetch_timeout": 15,
+    # 抓取池的超时（秒）。正常池 <1s 即可下载完；8s 已足够，
+    # 挂的池（如本机到 raw.githubusercontent.com 不通）每个少等 7s × (1+重试2) 次
+    "fetch_timeout": 8,
 
     # 抓取失败自动重试：次数与首轮等待（指数退避：delay*2^n）
     "fetch_retries": 2,
