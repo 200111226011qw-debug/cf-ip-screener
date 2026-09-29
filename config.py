@@ -30,7 +30,6 @@ DEFAULT_CONFIG = {
         {"url": "https://raw.githubusercontent.com/gshtwy/CF-DNS-Clone/refs/heads/main/wetest-cloudflare-v4.txt"},
         {"url": "https://raw.githubusercontent.com/svip-s/cloudflare_ip/refs/heads/main/best_ips.txt"},
         {"url": "https://raw.githubusercontent.com/svip-s/cloudflare_ip/main/full_ips.txt"},
-        {"url": "https://raw.githubusercontent.com/jifengwind/HHP-cf-ips/main/ips-dj.txt"},
         {"url": "https://raw.githubusercontent.com/XIU2/CloudflareSpeedTest/master/ip.txt"},
         {"url": "https://raw.githubusercontent.com/LancelotRar/best-cf-ips/main/best-cf-ip-scanned-top400.txt"},
         {"url": "https://raw.githubusercontent.com/sanzang-tango/best-cf-ip/main/best-cf-ipv4.txt"},

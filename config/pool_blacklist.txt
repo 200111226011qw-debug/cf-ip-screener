@@ -3,7 +3,7 @@
 # 两种格式：
 #   精确 URL（整行匹配）
 #   sub:XXX（子串匹配，用于同源不同参数/ref 变体，避免重复抓取）
-# 已从 config.py 删除的池：13（11 轮 0 命中）+ 3（新增 0 命中，本轮）
+# 已从 config.py 删除的池：13（11 轮 0 命中）+ 3（新增 0 命中）+ 1（HHP ips-dj，观察期到 0 命中）
 # —— 090227 家族联通分流（11 轮 0 命中）——
 sub:090227.xyz/cu?
 sub:090227.pages.dev/bestcf?isp=cu
@@ -21,6 +21,7 @@ sub:JieChaoCC/cf-ip-auto
 sub:ahang39/router
 sub:einsitang/my-fast-cf-ip/refs/heads/master/fastips.txt
 sub:love-ztm/cfip
-sub:jifengwind/HHP-cf-ips/main/ips.txt
+sub:jifengwind/HHP-cf-ips
 sub:addressesapi.090227.xyz
 sub:ydxydx926
+sub:yu2130778-cpu
