@@ -1,0 +1,43 @@
+name: test
+
+on:
+  push:
+    paths:
+      - "main.py"
+      - "config.py"
+      - "screener/**"
+      - "tests/**"
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  unittest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: 检出仓库
+        uses: actions/checkout@v4
+
+      - name: 配置 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # 与 auto-run.yml 相同的“定位项目根目录”逻辑：
+      # main.py 在仓库根目录则直接跑；网页上传嵌套时自动进入子目录。
+      - name: 运行单元测试
+        run: |
+          if [ -f main.py ]; then
+            python -m unittest discover -s tests -v
+          else
+            DIR=$(find . -maxdepth 2 -name main.py -exec dirname {} \; | head -1)
+            if [ -n "$DIR" ]; then
+              cd "$DIR"
+              python -m unittest discover -s tests -v
+            else
+              echo "::error::找不到 main.py，无法定位项目根目录"
+              exit 1
+            fi
+          fi

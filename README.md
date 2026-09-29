@@ -74,6 +74,12 @@ python main.py --colo HKG,SIN
 # 电信 + 只保留日本/韩国/香港机房 + 速度门槛
 python main.py --isp ct --colo NRT,ICN,HKG --min-speed 1
 
+# ★ 推荐：低延迟精选（电信 + 亚洲机房 + 收紧延迟/丢包 + 速度门槛）
+# 实测效果：20 个纯净 IP 全部亚洲机房，延迟 36~116ms，零丢包，最高 18.29 MB/s
+python main.py --isp ct --colo HKG,SIN,NRT,ICN,TPE --max-latency 150 --max-loss 0.05 --min-speed 1 --top-n 20
+# 更精简：只保留延迟最低的前 5 个
+python main.py --isp ct --colo HKG,SIN,NRT,ICN,TPE --max-latency 150 --max-loss 0.05 --min-speed 1 --top-n 5
+
 # 单目标快速检测（实测 TCP/TLS/延迟/丢包/测速/机房/归属画像，不做静态解析）
 python main.py --single 43.175.131.30
 python main.py --single speed.cloudflare.com:443
@@ -156,6 +162,20 @@ HTML 锚点 `#`（如 `<a href="#top">1.2.3.4</a>`）位于 IP 之前，不会�
 
 说明：工作流为**单 job 全运营商**运行（一次跑出总表 + 三运营商分表），
 不使用矩阵并行——多 job 并发写同一批 `result/` 文件会导致 rebase 冲突。
+
+## 订阅加速访问（可选）
+
+`result/` 下的 txt/json 若直接用 GitHub Raw 链接供客户端订阅，部分网络下可能不稳定。可选加速方式：
+
+* **jsDelivr 反代**（免费、零配置，但内容缓存约 12h，不适合高频更新场景）：
+
+  ```
+  https://cdn.jsdelivr.net/gh/<用户名>/cf-ip-screener@main/result/clean-ips.txt
+  ```
+
+  ⚠️ 本项目结果每 2 小时更新一次，jsDelivr 缓存可能导致订阅内容滞后；追求实时请直接用 raw 链接。
+
+* **GitHub Pages / Cloudflare Pages**：把 `result/` 发布为静态站点（或同步到 `docs/` 分支），获得无缓存、稳定的访问地址。
 
 ## 筛选口径
 
