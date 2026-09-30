@@ -1,15 +1,16 @@
 [
   {
-    "ip": "104.17.211.131",
+    "ip": "198.41.208.119",
     "port": 443,
-    "avg_ms": 7.4,
+    "avg_ms": 1.6,
     "loss_rate": 0.0,
     "tls_ok": true,
-    "remark": "wetest移动HKG",
+    "remark": "移动Default",
     "isp": "cmcc",
     "native": false,
     "source": "https://cdn.jsdelivr.net/gh/suancaicc/cf-ip@main/ip.txt",
-    "speed_mbps": 85.65,
-    "colo": "ORD"
+    "speed_mbps": 86.92,
+    "colo": "IAD",
+    "net_scope": "announced"
   }
 ]
