@@ -72,9 +72,20 @@ def build_report(cfg, pool_stats, clean, total_tested, total_candidates,
     total_parsed = sum(p.get("parsed", 0) for p in pool_stats)
     total_kept = sum(p.get("kept", 0) for p in pool_stats)
 
+    # 网段校验降级告警：官方网段没拉到时 is_cf_ip 会全量放行，
+    # 报告必须显著标注，否则读者会把含非 CF 节点的结果当正常产物采信
+    cf_net_degraded = bool(cfg.get("require_cf_net")) and not cfg.get(
+        "_cf_nets_loaded")
+    cf_net_note = (
+        "⚠️ 网段校验未生效：未能拉取 Cloudflare 官方网段"
+        "（已用 --allow-no-cf-nets 放行），本轮结果可能混入非 Cloudflare 节点"
+        if cf_net_degraded else "")
+
     # ---------- Markdown ----------
     md = []
     md.append("# CF 优选 IP 筛选报告\n")
+    if cf_net_degraded:
+        md.insert(1, f"> **{cf_net_note}**\n")
     md.append(f"- 时间: {now}")
     md.append(f"- 候选池: {len(pool_stats)} 个 (成功 {len(ok_pools)} / 失败 {len(failed_pools)} / 跳过 {len(skipped_pools)})")
     md.append(f"- 解析候选: {total_parsed} → 保留(去重后) {total_kept} → 已测 {total_tested} → 纯净 {len(clean)}")
@@ -138,6 +149,11 @@ def build_report(cfg, pool_stats, clean, total_tested, total_candidates,
         f.write("\n".join(md))
 
     # ---------- HTML ----------
+    # 预计算告警行：不放进 html_page 的 f-string 表达式里，避免嵌套引号
+    # 在 Python 3.8~3.11 的 f-string 解析下出歧义
+    cf_net_html = ('<b class="bad">' + html.escape(cf_net_note) + '</b><br>'
+                   if cf_net_degraded else '')
+
     def _rows():
         rows = []
         for r in clean[:100]:
@@ -214,6 +230,7 @@ def build_report(cfg, pool_stats, clean, total_tested, total_candidates,
 <h1>CF 优选 IP 筛选报告</h1>
 <div class="meta">
   时间: {html.escape(now)}<br>
+  {cf_net_html}
   候选池: {len(pool_stats)} 个（成功 {len(ok_pools)} / 失败 {len(failed_pools)} / 跳过 {len(skipped_pools)}）<br>
   解析候选: {total_parsed} → 保留(去重后) {total_kept} → 已测 {total_tested} → <b>纯净 {len(clean)}</b><br>
   耗时: {elapsed:.1f}s

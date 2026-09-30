@@ -68,6 +68,9 @@ def parse_args():
                         "使用公开 ip-api.com 接口，免费额度约 45 次/分钟）；"
                         "批量模式与 --single 单目标模式通用，默认均关闭")
     p.add_argument("--outdir", default=None, help="输出目录（默认 result）")
+    p.add_argument("--allow-no-cf-nets", action="store_true",
+                   help="官方网段拉取失败时仍继续（关闭非 CF 节点校验，"
+                        "结果可能混入非 Cloudflare 节点）")
     return p.parse_args()
 
 
@@ -121,8 +124,21 @@ def main():
         cf_nets = fetcher.fetch_cf_nets()
         if cf_nets:
             print(f"      得到 {len(cf_nets)} 个网段（v4+v6）")
+        elif not args.allow_no_cf_nets:
+            # 拉取失败 → cf_nets=[] → filter.is_cf_ip 走 "not nets" 分支
+            # 全量放行，唯一的"非 CF 节点"防线消失；再叠加 --no-speed 时
+            # require_cf_ray 也失效（需测速响应头），两道防线同时失守。
+            # 宁可本轮不跑，也不要把脏数据写进订阅文件。
+            print("错误: 无法拉取 Cloudflare 官方网段，已中止本轮筛选。")
+            print("      原因: 网段校验是剔除非 Cloudflare 节点的关键防线，"
+                  "缺失时所有 IP 都会被放行。")
+            print("      确认要继续（接受无网段校验的风险）请加 --allow-no-cf-nets。")
+            return 2
         else:
-            print(f"      [warn] 拉取失败，本轮跳过网段校验")
+            print("      [warn] 拉取失败，按 --allow-no-cf-nets 继续："
+                  "本轮不做网段校验")
+    # 供 report.build_report 标注网段校验是否真的生效
+    cfg["_cf_nets_loaded"] = bool(cf_nets)
 
     # 1) 并发抓取候选池
     fetch_workers = max(1, int(cfg.get("fetch_concurrency", 8)))
@@ -267,6 +283,12 @@ def main():
     )
 
     # 4) 真实下载测速（可选）
+    # 未测速时结果里不存在 speed_mbps 字段，若仍把 min_speed_mbps 传下去，
+    # filter.py 的 `r.get("speed_mbps", 0.0) < min_speed_mbps` 会把每条都判为
+    # 0 MB/s 不达标而全部剔除（静默输出 0 条）。故此分支门槛强制为 0。
+    if not cfg["speed_test"] and cfg["min_speed_mbps"] > 0:
+        print(f"      [warn] --no-speed 时无法测速，--min-speed "
+              f"{cfg['min_speed_mbps']}MB/s 门槛本轮不生效")
     if cfg["speed_test"] and clean:
         # 测速是带宽密集型，候选太多会撞 CI 超时。
         # 按延迟排序取前 N（延迟低的更可能是优质节点，性价比最高）。
@@ -329,7 +351,8 @@ def main():
             clean,
             max_latency_ms=cfg["max_latency_ms"],
             max_loss_rate=cfg["max_loss_rate"],
-            min_speed_mbps=cfg["min_speed_mbps"],
+            # 未测速：无 speed_mbps 数据，速度门槛不适用（见上方 warn）
+            min_speed_mbps=0.0,
             top_n=cfg["top_n"],
             cf_nets=cf_nets,
         )

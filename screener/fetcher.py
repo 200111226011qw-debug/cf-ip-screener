@@ -337,7 +337,11 @@ def fetch_cf_nets(force=False):
     for url in ("https://www.cloudflare.com/ips-v4",
                 "https://www.cloudflare.com/ips-v6"):
         try:
-            content = fetch(url, timeout=10, retries=1, retry_delay=1.0)
+            # 网段已是 P0 硬依赖（拉不到时 main.py 直接 exit 2），重试预算
+            # 给足以挡掉瞬时抖动：3 次 + 1.5s 指数退避（1.5/3/6s），
+            # 两段最坏多等约 21s，相对 CI 30 分钟预算可忽略。
+            # 不够的话只会剩"CF 真挂了"这种真故障，红灯才有意义。
+            content = fetch(url, timeout=10, retries=3, retry_delay=1.5)
         except Exception:
             continue
         for line in content.splitlines():
