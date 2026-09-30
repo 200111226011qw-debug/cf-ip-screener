@@ -6,6 +6,10 @@
 在两者间随机分配。单看任一 URL 都会误判，故先按 mirror_of 聚合成逻辑源。
 
 路径默认取脚本所在仓库，不再硬编码绝对路径；用 --repo / --git 覆盖。
+
+输出分三节：当前 config 中有命中的逻辑源、当前 config 中的可删候选、
+已从 config 移除的池（仅复盘参考）。历史里的已删池不混进"可删候选"，
+否则复盘时照着去 config 里找会扑空。
 """
 import argparse
 import collections
@@ -81,14 +85,33 @@ for _k, _s in stats.items():
         f"统计口径回归：{_k} 的 hit_rounds={_s['hit_rounds']} > "
         f"rounds={_s['rounds']}，同一逻辑源的多个池被重复计数")
 
-print('=== 累计命中 > 0（出过纯净IP的逻辑源）===')
+# 统计范围：stats 来自历史，会包含已从 config.py 删除的池。它们混在
+# "可删候选" 里会误导复盘（照着去 config 里找会扑空），故可删候选只列
+# 当前 config 中的逻辑源；已删除的池单列一节，信息不丢
+# （"当初删 ips-v6 是对的，它 22 轮 0 命中"本身就是复盘结论）。
+current = set(logical_of.values())
+
+print(f'当前 config 逻辑源: {len(current)}   '
+      f'历史出现过的逻辑源: {len(stats)}\n')
+
+print('=== 累计命中 > 0（出过纯净IP的逻辑源 · 当前 config）===')
 for key, s in sorted(stats.items(), key=lambda kv: -kv[1]['hits']):
-    if s['hits'] > 0:
+    if s['hits'] > 0 and key in current:
         print(f"{key} | 累计命中{s['hits']} | "
               f"出过{s['hit_rounds']}/{s['rounds']}轮 | 累计解析{s['parsed']}")
 
 print()
-print('=== 从未命中（0 命中，可删候选）===')
+print('=== 从未命中（0 命中 · 当前 config，可删候选）===')
 for key, s in sorted(stats.items(), key=lambda kv: -kv[1]['parsed']):
-    if s['hits'] == 0:
+    if s['hits'] == 0 and key in current:
         print(f"{key} | 轮次{s['rounds']} | 累计解析{s['parsed']}")
+
+removed = [k for k in stats if k not in current]
+if removed:
+    print()
+    print(f'=== 已从 config 移除的池（{len(removed)} 个，仅供复盘参考，'
+          f'勿再执行删除）===')
+    for key in sorted(removed, key=lambda k: -stats[k]['parsed']):
+        s = stats[key]
+        print(f"{key} | 累计命中{s['hits']} | 轮次{s['rounds']} "
+              f"| 累计解析{s['parsed']}")
