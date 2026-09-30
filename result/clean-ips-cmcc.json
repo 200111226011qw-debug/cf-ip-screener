@@ -1,16 +1,16 @@
 [
   {
-    "ip": "198.41.208.119",
-    "port": 443,
-    "avg_ms": 1.6,
+    "ip": "104.17.19.65",
+    "port": 2053,
+    "avg_ms": 7.6,
     "loss_rate": 0.0,
     "tls_ok": true,
-    "remark": "移动Default",
+    "remark": "移动-HKG-2053-WS-TLS",
     "isp": "cmcc",
     "native": false,
-    "source": "https://cdn.jsdelivr.net/gh/suancaicc/cf-ip@main/ip.txt",
-    "speed_mbps": 86.92,
-    "colo": "IAD",
+    "source": "https://cdn.jsdelivr.net/gh/gshtwy/CF-DNS-Clone@main/wetest-cloudflare-v4.txt",
+    "speed_mbps": 87.78,
+    "colo": "ORD",
     "net_scope": "announced"
   }
 ]

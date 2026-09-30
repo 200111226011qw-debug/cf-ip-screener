@@ -1,15 +1,16 @@
 [
   {
-    "ip": "104.17.128.81",
-    "port": 2096,
-    "avg_ms": 55.9,
+    "ip": "104.17.151.79",
+    "port": 443,
+    "avg_ms": 6.6,
     "loss_rate": 0.0,
     "tls_ok": true,
-    "remark": "联通-SJC-2096-WS-TLS",
+    "remark": "联通-SJC-443-WS-TLS",
     "isp": "cu",
     "native": false,
-    "source": "https://raw.githubusercontent.com/gshtwy/CF-DNS-Clone/refs/heads/main/wetest-cloudflare-v4.txt",
-    "speed_mbps": 237.42,
-    "colo": "IAD"
+    "source": "https://cdn.jsdelivr.net/gh/gshtwy/CF-DNS-Clone@main/wetest-cloudflare-v4.txt",
+    "speed_mbps": 126.83,
+    "colo": "MSP",
+    "net_scope": "announced"
   }
 ]
