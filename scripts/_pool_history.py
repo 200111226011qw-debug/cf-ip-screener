@@ -42,6 +42,7 @@ commits = subprocess.check_output(
 stats = collections.defaultdict(
     lambda: {'hits': 0, 'parsed': 0, 'rounds': 0, 'hit_rounds': 0})
 ROW = re.compile(r'\| (https?://\S+) \| [^|]* \| [^|]* \| (\d+) \| (\d+) \| (\d+) \|')
+rounds_observed = len(commits)
 
 # 注：hits/parsed 为同一逻辑源下 raw + 镜像各行的求和。jsDelivr 缓存与 raw
 # 是不同时点的快照、IP 集不重合，求和代表"两源合计贡献"，不是单源值。
@@ -92,7 +93,9 @@ for _k, _s in stats.items():
 current = set(logical_of.values())
 
 print(f'当前 config 逻辑源: {len(current)}   '
-      f'历史出现过的逻辑源: {len(stats)}\n')
+      f'历史出现过的逻辑源: {len(stats)}   观察窗口: {rounds_observed} 轮')
+print('提示：「0 命中」是**当前观察窗口内**的结论，窗口越长越可信。'
+      '16 轮窗口与全量历史给出的可删清单会明显不同，勿据短窗口批量删池。\n')
 
 print('=== 累计命中 > 0（出过纯净IP的逻辑源 · 当前 config）===')
 for key, s in sorted(stats.items(), key=lambda kv: -kv[1]['hits']):
@@ -111,7 +114,11 @@ if removed:
     print()
     print(f'=== 已从 config 移除的池（{len(removed)} 个，仅供复盘参考，'
           f'勿再执行删除）===')
-    for key in sorted(removed, key=lambda k: -stats[k]['parsed']):
+    print('  [有产出] 当初确有纯净 IP 产出，删除是否有误需复盘确认')
+    print('  [0命中]  全窗口 0 命中，当初那刀砍对了')
+    for key in sorted(removed, key=lambda k: (-stats[k]['hits'],
+                                              -stats[k]['parsed'])):
         s = stats[key]
-        print(f"{key} | 累计命中{s['hits']} | 轮次{s['rounds']} "
-              f"| 累计解析{s['parsed']}")
+        tag = '[有产出]' if s['hits'] > 0 else '[0命中]'
+        print(f"  {tag} {key} | 累计命中{s['hits']} | "
+              f"出过{s['hit_rounds']}/{s['rounds']}轮 | 累计解析{s['parsed']}")

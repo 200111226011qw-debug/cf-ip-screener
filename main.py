@@ -71,6 +71,10 @@ def parse_args():
     p.add_argument("--allow-no-cf-nets", action="store_true",
                    help="官方网段拉取失败时仍继续（关闭非 CF 节点校验，"
                         "结果可能混入非 Cloudflare 节点）")
+    p.add_argument("--cf-net-strict", action="store_true",
+                   help="强制段校验：无论是否测速都丢弃非公告段的 IP"
+                        "（默认只在 --no-speed 时才强制；怀疑池被投毒、"
+                        "伪造 cf-ray 时用本开关回退）")
     return p.parse_args()
 
 
@@ -101,6 +105,8 @@ def main():
     }
     if args.no_tls:
         overrides["tls_check"] = False
+    if args.cf_net_strict:
+        overrides["cf_net_strict"] = True
 
     cfg = config.load(overrides)
     # 输出目录统一在入口创建，保证后续任何阶段（如 [5/6] 画像缓存）都能写入
@@ -117,28 +123,75 @@ def main():
 
     t0 = time.time()
 
-    # 0) 拉取 Cloudflare 官方网段（用于后续过滤非 CF 节点）
+    # 0) 拉取 Cloudflare 官方网段
+    #
+    # 三个概念必须分开，之前混在一起导致过两次误判：
+    #
+    #   strict      = --cf-net-strict / config.cf_net_strict
+    #                「段校验**必须成功**」。这是投毒时的回退档，
+    #                语义就是"拉不到就不算"，没有降级余地。
+    #   need_cf_nets = strict 或 --no-speed
+    #                段校验是否**承担防线职责**（--no-speed 时 cf-ray 拿不到，
+    #                只剩段校验）。承担职责 ≠ 必须成功：--no-speed 配
+    #                --allow-no-cf-nets 是合法降级，不算矛盾。
+    #   use_cf_net  = require_cf_net 或 strict
+    #                段校验是否**启用**。strict 优先级高于
+    #                require_cf_net=False —— 否则用户显式传了 strict 却
+    #                因为 config 关着而静默零校验，那是最坏的组合。
     cf_nets = []
-    if cfg.get("require_cf_net", True):
+    strict = bool(cfg.get("cf_net_strict"))
+    need_cf_nets = strict or not cfg["speed_test"]
+    use_cf_net = bool(cfg.get("require_cf_net", True)) or strict
+
+    # 真矛盾只有一个：strict（必须成功）+ --allow-no-cf-nets（拉不到也跑）
+    # = 静默关闭段校验，而产出物看起来像硬校验结果。显式失败。
+    # 注意不要把 --no-speed 也算进来：它只是让段校验顶替 cf-ray 守门，
+    # 并不要求"必须拉到"，配合 --allow-no-cf-nets 是合理降级。
+    if strict and args.allow_no_cf_nets:
+        print("错误: --allow-no-cf-nets 与 --cf-net-strict 矛盾。")
+        print("      --cf-net-strict 的定义就是「段校验必须生效，拉不到就不算」，"
+              "没有降级余地。")
+        print("      二选一：去掉 --allow-no-cf-nets（拉不到就中止本轮），"
+              "或去掉 --cf-net-strict（改由 cf-ray 把关）。")
+        return 2
+
+    if use_cf_net:
         print("[0/6] 拉取 Cloudflare 官方网段...")
         cf_nets = fetcher.fetch_cf_nets()
         if cf_nets:
             print(f"      得到 {len(cf_nets)} 个网段（v4+v6）")
-        elif not args.allow_no_cf_nets:
-            # 拉取失败 → cf_nets=[] → filter.is_cf_ip 走 "not nets" 分支
-            # 全量放行，唯一的"非 CF 节点"防线消失；再叠加 --no-speed 时
-            # require_cf_ray 也失效（需测速响应头），两道防线同时失守。
-            # 宁可本轮不跑，也不要把脏数据写进订阅文件。
+        elif strict:
+            # strict = 必须成功，无降级余地
             print("错误: 无法拉取 Cloudflare 官方网段，已中止本轮筛选。")
-            print("      原因: 网段校验是剔除非 Cloudflare 节点的关键防线，"
-                  "缺失时所有 IP 都会被放行。")
-            print("      确认要继续（接受无网段校验的风险）请加 --allow-no-cf-nets。")
+            print("      原因: 本轮开启了 --cf-net-strict，段校验必须生效。")
             return 2
+        elif need_cf_nets and not args.allow_no_cf_nets:
+            # --no-speed 且未放行：段校验是唯一可用防线
+            print("错误: 无法拉取 Cloudflare 官方网段，已中止本轮筛选。")
+            print("      原因: --no-speed 下拿不到 cf-ray 响应头，"
+                  "段校验是本轮唯一可用防线，缺失时无法剔除非 Cloudflare 节点。")
+            print("      确认要继续（接受无段校验的风险）请加 --allow-no-cf-nets。")
+            return 2
+        elif need_cf_nets:
+            # --no-speed + --allow-no-cf-nets：合法降级，但要喊清楚
+            print("      [warn] 拉取失败，按 --allow-no-cf-nets 继续。")
+            print("      [warn] 本轮处于最低防护模式：**既无段校验也无 cf-ray**"
+                  "（--no-speed 拿不到 cf-ray，段校验又没拉到），"
+                  "无法剔除非 Cloudflare 节点。结果仅供调试，勿用于订阅。")
         else:
-            print("      [warn] 拉取失败，按 --allow-no-cf-nets 继续："
-                  "本轮不做网段校验")
-    # 供 report.build_report 标注网段校验是否真的生效
+            print("      [warn] 拉取失败：仅影响公告段/外延段标记，"
+                  "不影响筛选（cf-ray 仍生效）")
+    elif not cfg.get("require_cf_net", True) and not strict:
+        print("[0/6] 段校验已在 config 中关闭（require_cf_net=False），"
+              "且未开启 --cf-net-strict，全部结果标记为「未知」")
+    # 仅在段校验承担防线职责时才作为剔除条件传入；其余情况只用于打标。
+    # 注意 cf_nets 与 cf_filter_nets 是两个变量：前者始终是完整列表（打标用），
+    # 后者可能为 None（剔除用）。打标绝不能改读 cf_filter_nets。
+    cf_filter_nets = cf_nets if (need_cf_nets and use_cf_net) else None
+    # 供 report.build_report 生成准确的告警文案
     cfg["_cf_nets_loaded"] = bool(cf_nets)
+    cfg["_cf_nets_required"] = need_cf_nets
+    cfg["_cf_net_enabled"] = use_cf_net
 
     # 1) 并发抓取候选池
     fetch_workers = max(1, int(cfg.get("fetch_concurrency", 8)))
@@ -279,7 +332,7 @@ def main():
         max_loss_rate=cfg["max_loss_rate"],
         min_speed_mbps=0.0,  # 速度门槛在测速后应用
         top_n=0,             # 先全部保留，测速后再截断
-        cf_nets=cf_nets,     # 网段校验：剔除非 CF 节点
+        cf_nets=cf_filter_nets,  # 段校验（仅在它是唯一防线时才剔除）
     )
 
     # 4) 真实下载测速（可选）
@@ -344,7 +397,7 @@ def main():
             max_loss_rate=cfg["max_loss_rate"],
             min_speed_mbps=cfg["min_speed_mbps"],
             top_n=cfg["top_n"],
-            cf_nets=cf_nets,
+            cf_nets=cf_filter_nets,
         )
     else:
         clean = filter_mod.filter_clean(
@@ -354,8 +407,28 @@ def main():
             # 未测速：无 speed_mbps 数据，速度门槛不适用（见上方 warn）
             min_speed_mbps=0.0,
             top_n=cfg["top_n"],
-            cf_nets=cf_nets,
+            cf_nets=cf_filter_nets,
         )
+
+    # 给纯净结果打「公告段 / 外延段」标记
+    #   announced 落在 Cloudflare 官方公告网段内
+    #   extended  不在公告段内，但实测确以 Cloudflare 边缘身份服务
+    #             （server=cloudflare + 合法 cf-ray），如 8.35.211.x /
+    #             188.164.248.x / 91.193.58.x 等国内优选常用段
+    #   unknown   官方网段没拉到，无法判定（不影响筛选，cf-ray 仍把关）
+    # 注意：外延段不等于「原生」。原生 = 直接来自官方公告段；外延段 =
+    # CF 边缘在第三方地址上服务，语义上与「原生」相反，二者不混用。
+    for r in clean:
+        if not cf_nets:
+            r["net_scope"] = "unknown"
+        elif filter_mod.is_cf_ip(r["ip"], cf_nets):
+            r["net_scope"] = "announced"
+        else:
+            r["net_scope"] = "extended"
+    n_ext = sum(1 for r in clean if r["net_scope"] == "extended")
+    if clean:
+        print(f"      段分布：公告段 {len(clean) - n_ext} / "
+              f"外延段 {n_ext} ({n_ext * 100 // len(clean)}%)")
 
     # 5) 输出
     # 5.1) 可选：IP 归属画像（地理位置/ISP/ASN/网络类型）
@@ -374,12 +447,15 @@ def main():
     outdir = cfg["output_dir"]
 
     # 回填各池命中数：按纯净结果（clean）的来源池统计
+    # hit_ext 额外记录该池贡献的「外延段」IP 数，供 report 池表标注
     for r in clean:
         src = r.get("source", "")
         if src:
             for p in pool_stats:
                 if p["url"] == src:
                     p["hit"] += 1
+                    if r.get("net_scope") == "extended":
+                        p["hit_ext"] = p.get("hit_ext", 0) + 1
                     break
 
     written = output.write_all(clean, outdir, cfg)

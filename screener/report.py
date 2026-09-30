@@ -20,6 +20,28 @@ def _fmt_mbps(v):
     return f"{v:.2f}" if v else "-"
 
 
+# IP 的段归属：公告段（官方公告网段内）/ 外延段（第三方地址但确由 CF 边缘
+# 服务）/ 未知（官方网段没拉到）
+_SCOPE_CN = {"announced": "公告段", "extended": "外延段", "unknown": "未知"}
+
+
+def _ip_scope(r):
+    return _SCOPE_CN.get(r.get("net_scope"), "未知")
+
+
+def _pool_scope(p):
+    """池的段属性：原生 / 外延N（该池本轮贡献了 N 个外延段 IP）/ -。
+
+    列数与原「原生」列保持一致：治理脚本
+    scripts/_pool_history.py 的表格正则依赖「URL 后恰好两列非数字」，
+    加列会让两个治理脚本的解析全部失效，所以这里是替换而非新增。
+    """
+    if p.get("native"):
+        return "原生"
+    n = p.get("hit_ext", 0)
+    return f"外延{n}" if n else "-"
+
+
 def _bucket(values, edges):
     """按分桶统计：edges 为边界列表（如 [50,100,200,400]），
     返回 [(label, count), ...]，含 '<50' 与 '>=400' 开区间。"""
@@ -47,8 +69,10 @@ def build_report(cfg, pool_stats, clean, total_tested, total_candidates,
                  elapsed, outdir):
     """生成 report.html 与 report.md，返回写入的文件路径列表。
 
-    pool_stats: [{"url","isp","native","parsed","kept","hit","ok","err"}]，
-                hit 为该池贡献的纯净 IP 数（调用方已按来源池回填）。
+    pool_stats: [{"url","isp","native","parsed","kept","hit","hit_ext",
+                  "ok","err","skipped"}]，
+                hit 为该池贡献的纯净 IP 数（调用方已按来源池回填），
+                hit_ext 为其中属于「外延段」的条数（可为 0，键缺失按 0 处理）。
     """
     now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -72,19 +96,27 @@ def build_report(cfg, pool_stats, clean, total_tested, total_candidates,
     total_parsed = sum(p.get("parsed", 0) for p in pool_stats)
     total_kept = sum(p.get("kept", 0) for p in pool_stats)
 
-    # 网段校验降级告警：官方网段没拉到时 is_cf_ip 会全量放行，
-    # 报告必须显著标注，否则读者会把含非 CF 节点的结果当正常产物采信
-    cf_net_degraded = bool(cfg.get("require_cf_net")) and not cfg.get(
-        "_cf_nets_loaded")
-    cf_net_note = (
-        "⚠️ 网段校验未生效：未能拉取 Cloudflare 官方网段"
-        "（已用 --allow-no-cf-nets 放行），本轮结果可能混入非 Cloudflare 节点"
-        if cf_net_degraded else "")
+    # 网段校验告警。两种情况后果完全不同，文案必须区分，否则会误导：
+    #   段校验承担防线职责（--cf-net-strict / --no-speed）+ 拉取失败
+    #     -> 唯一防线真的失效，结果可能混入非 Cloudflare 节点，严重
+    #   段校验只用于打标（测速开）+ 拉取失败
+    #     -> 只是「公告段/外延段」标记不可信（全为「未知」），
+    #        筛选仍由 cf-ray 把关，纯净判定不受影响
+    cf_net_note = ""
+    if cfg.get("_cf_net_enabled") and not cfg.get("_cf_nets_loaded"):
+        if cfg.get("_cf_nets_required"):
+            cf_net_note = ("⚠️ 网段校验未生效：官方网段拉取失败，且本轮无 cf-ray "
+                           "兜底（--no-speed 或 --cf-net-strict），"
+                           "结果可能混入非 Cloudflare 节点")
+        else:
+            cf_net_note = ("⚠️ 段标记不可信：官方网段拉取失败，本轮「公告段/外延段」"
+                           "标记全部为「未知」；筛选仍由 cf-ray 把关，"
+                           "不影响纯净判定")
 
     # ---------- Markdown ----------
     md = []
     md.append("# CF 优选 IP 筛选报告\n")
-    if cf_net_degraded:
+    if cf_net_note:
         md.insert(1, f"> **{cf_net_note}**\n")
     md.append(f"- 时间: {now}")
     md.append(f"- 候选池: {len(pool_stats)} 个 (成功 {len(ok_pools)} / 失败 {len(failed_pools)} / 跳过 {len(skipped_pools)})")
@@ -92,11 +124,11 @@ def build_report(cfg, pool_stats, clean, total_tested, total_candidates,
     md.append(f"- 耗时: {elapsed:.1f}s\n")
 
     md.append("## 池命中率\n")
-    md.append("| 池 | 运营商 | 原生 | 解析 | 保留 | 命中纯净 | 状态 |")
+    md.append("| 池 | 运营商 | 段 | 解析 | 保留 | 命中纯净 | 状态 |")
     md.append("| --- | --- | --- | --- | --- | --- | --- |")
     for p in pool_stats:
         isp = config.ISP_NAMES.get(p.get("isp") or "", p.get("isp") or "-")
-        native = "是" if p.get("native") else "-"
+        native = _pool_scope(p)
         if p.get("skipped"):
             status = "跳过（运营商过滤）"
         else:
@@ -133,14 +165,14 @@ def build_report(cfg, pool_stats, clean, total_tested, total_candidates,
     md.append("")
 
     md.append("## 纯净 IP 明细\n")
-    md.append("| IP:端口 | 延迟(ms) | 丢包 | TLS | 速度(MB/s) | 机房 | 原生 |")
-    md.append("| --- | --- | --- | --- | --- | --- | --- |")
+    md.append("| IP:端口 | 延迟(ms) | 丢包 | TLS | 速度(MB/s) | 机房 | 原生 | 段 |")
+    md.append("| --- | --- | --- | --- | --- | --- | --- | --- |")
     for r in clean[:50]:
         tls = "OK" if r.get("tls_ok") else ("-" if r.get("tls_ok") is None else "FAIL")
         md.append(f"| {r['ip']}:{r['port']} | {_fmt_ms(r.get('avg_ms'))} | "
                   f"{r.get('loss_rate', 0):.0%} | {tls} | "
                   f"{_fmt_mbps(r.get('speed_mbps'))} | {r.get('colo') or '-'} | "
-                  f"{'是' if r.get('native') else '-'} |")
+                  f"{'是' if r.get('native') else '-'} | {_ip_scope(r)} |")
     if len(clean) > 50:
         md.append(f"\n（其余 {len(clean) - 50} 条见 result/clean-ips.txt 与 .json）")
 
@@ -152,7 +184,7 @@ def build_report(cfg, pool_stats, clean, total_tested, total_candidates,
     # 预计算告警行：不放进 html_page 的 f-string 表达式里，避免嵌套引号
     # 在 Python 3.8~3.11 的 f-string 解析下出歧义
     cf_net_html = ('<b class="bad">' + html.escape(cf_net_note) + '</b><br>'
-                   if cf_net_degraded else '')
+                   if cf_net_note else '')
 
     def _rows():
         rows = []
@@ -166,7 +198,8 @@ def build_report(cfg, pool_stats, clean, total_tested, total_candidates,
                 f"<td>{tls}</td>"
                 f"<td class='num'>{_fmt_mbps(r.get('speed_mbps'))}</td>"
                 f"<td>{html.escape(r.get('colo') or '-')}</td>"
-                f"<td>{'是' if r.get('native') else '-'}</td></tr>")
+                f"<td>{'是' if r.get('native') else '-'}</td>"
+                f"<td>{html.escape(_ip_scope(r))}</td></tr>")
         return "".join(rows)
 
     def _pool_rows():
@@ -180,7 +213,7 @@ def build_report(cfg, pool_stats, clean, total_tested, total_candidates,
                           else f"<span class='bad'>FAIL</span> <small>{html.escape(str(p.get('err', '')))[:60]}</small>")
             rows.append(
                 f"<tr><td class='url'>{html.escape(p['url'])}</td>"
-                f"<td>{isp}</td><td>{'是' if p.get('native') else '-'}</td>"
+                f"<td>{isp}</td><td>{html.escape(_pool_scope(p))}</td>"
                 f"<td class='num'>{p.get('parsed', 0)}</td>"
                 f"<td class='num'>{p.get('kept', 0)}</td>"
                 f"<td class='num'>{p.get('hit', 0)}</td>"
@@ -238,7 +271,7 @@ def build_report(cfg, pool_stats, clean, total_tested, total_candidates,
 
 <h2>池命中率</h2>
 <table>
-<tr><th>池</th><th>运营商</th><th>原生</th><th>解析</th><th>保留</th><th>命中纯净</th><th>状态</th></tr>
+<tr><th>池</th><th>运营商</th><th>段</th><th>解析</th><th>保留</th><th>命中纯净</th><th>状态</th></tr>
 {_pool_rows()}
 </table>
 
@@ -258,7 +291,7 @@ def build_report(cfg, pool_stats, clean, total_tested, total_candidates,
 
 <h2>纯净 IP 明细</h2>
 <table>
-<tr><th>IP:端口</th><th>延迟(ms)</th><th>丢包</th><th>TLS</th><th>速度(MB/s)</th><th>机房</th><th>原生</th></tr>
+<tr><th>IP:端口</th><th>延迟(ms)</th><th>丢包</th><th>TLS</th><th>速度(MB/s)</th><th>机房</th><th>原生</th><th>段</th></tr>
 {_rows()}
 </table>
 <p style="font-size:12px;color:#888;">完整明细见 result/clean-ips.txt 与 clean-ips.json。</p>

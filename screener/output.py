@@ -38,6 +38,10 @@ def to_subscribe_line(r: dict) -> str:
         remark = f"{remark} | 机房{colo}"
     if r.get("native"):
         remark = f"{remark} | 原生"
+    # 外延段标记放在「原生」之后、机房之后（保持既有字段顺序稳定，
+    # 避免打乱订阅端对「IP|速度|机房|…」的既有解析习惯）
+    if r.get("net_scope") == "extended":
+        remark = f"{remark} | 外延段"
     info = r.get("ipinfo")
     if info:
         loc = "/".join(x for x in

@@ -53,6 +53,22 @@ def _labels(group):
     return ' + '.join(p['url'] for p in group)
 
 
+def _scope_tag(group):
+    """段属性标记。
+
+    两者互斥而非三态：官方公告段池（native）按定义只采样官方段，不会产出
+    外延段；第三方池才可能产出外延段（8.35.211.x / 188.164.248.x /
+    91.193.58.x 等——确由 CF 边缘服务但不在官方公告段内）。
+
+    刻意不改表格正则去解析 report.md 的「外延N」列：那个正则被
+    _pool_history.py 共用，改错会让删池清单静默失效，而本地无法跑验证。
+    需要外延计数时直接看 report.md 的「段」列。
+    """
+    if any(p.get('native') for p in group):
+        return ' [官方公告段池·不产外延]'
+    return ' [第三方池·可产外延段]'
+
+
 # 读 clone git 历史 report.md 的池命中数据，按逻辑源聚合
 commits = subprocess.check_output(
     [GIT, 'log', '--format=%H', '--', 'result/report.md'],
@@ -111,16 +127,15 @@ print('=== 可删（历史从未命中纯净，按逻辑源聚合后判定）===
 for logical, group in members.items():
     h = hist.get(logical)
     if h and h['hits'] == 0:
-        native = ' [含原生段]' if any(p.get('native') for p in group) else ''
         print(f"DELETE | {_labels(group)} | 轮次{h['rounds']}"
-              f" | 累计解析{h['parsed']}{native}")
+              f" | 累计解析{h['parsed']}{_scope_tag(group)}")
 
 print('\n=== 保留（历史命中 > 0）===')
 for logical, group in members.items():
     h = hist.get(logical)
     if h and h['hits'] > 0:
         print(f"KEEP   | {_labels(group)} | 累计{h['hits']}"
-              f" | 出过{h['hit_rounds']}/{h['rounds']}轮")
+              f" | 出过{h['hit_rounds']}/{h['rounds']}轮{_scope_tag(group)}")
 
 print('\n=== 无历史数据（无法判定，保留观察）===')
 for logical, group in members.items():

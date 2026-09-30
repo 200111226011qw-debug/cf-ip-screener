@@ -131,9 +131,35 @@ DEFAULT_CONFIG = {
     # 连通性测试预算。0 = 不限制（不推荐）。
     "max_candidates_per_pool": 3000,
 
-    # 是否只保留落在 Cloudflare 官方网段内的 IP（防非 CF 节点混入）
-    # 通过 cloudflare.com/ips-v4 + ips-v6 拉取，缓存在内存
+    # 是否保留落在 Cloudflare 官方公告网段内的 IP
+    #
+    # 2026-09-30 语义变更：段校验不再是唯一防线，也不该无条件剔除。
+    # 起因（实测）：090227 系池返回的 8.35.211.x / 188.164.248.x /
+    # 91.193.58.x 等「外延段」地址，server=cloudflare 且 cf-ray 合法，
+    # 实为真 Cloudflare 边缘节点，但不在官方公告段内 —— 本项此前把它们
+    # 静默丢弃，占 090227 候选的 7%(cmcc) ~ 41%(ct) ~ 15%(all)。
+    # 同源对照（各 12 个、同一时刻同一测量口径、顺序取样非严格随机）：
+    #     外延段  TCP 102.5ms  下载 1.36 MB/s
+    #     公告段  TCP 187.3ms  下载 0.29 MB/s
+    # 外延段延迟低 1.8 倍、吞吐高 4.7 倍，应当纳入而非剔除。
+    #
+    # 新语义：
+    #   speed_test=True  -> 以 cf-ray 响应头为准（require_cf_ray），
+    #                       段校验只用于给 IP 打「公告段/外延段」标记
+    #   speed_test=False -> 拿不到 cf-ray，段校验是唯一可用防线，强制启用
+    #
+    # net_scope=unknown 的输出行为（官方网段拉不到时的降级态）：
+    #   IP 照常进入 clean 和订阅文件（不静默丢弃），但：
+    #     - 订阅备注行**不打**任何段标记（等同「-」），因为无法判定，
+    #       标成「外延段」会误标、标成「公告段」会漏标；
+    #     - report.md / report.html 的「段」列显示「未知」；
+    #     - 报告顶部有对应告警，说明段标记不可信但纯净判定不受影响。
+    #   半年后若看到段标记为空，是这个降级态，不是 bug。
     "require_cf_net": True,
+    # 逃生门：True = 无论是否测速都强制段校验（丢弃外延段 IP）。
+    # 用途：若某天某个池被投毒、伪造 cf-ray 头混进非 CF 节点，置 True
+    # 一行回退到硬校验。默认 False。
+    "cf_net_strict": False,
     # 是否要求测速响应带 cf-ray 头（需 speed_test=True 才生效）
     # 开启后，非 CF 边缘节点（如云厂商 nginx）会被剔除
     # 注意：在 --no-speed 时无法校验，此时仅依赖 require_cf_net
