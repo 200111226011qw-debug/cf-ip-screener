@@ -54,6 +54,15 @@ DEFAULT_CONFIG = {
         {"url": "https://raw.githubusercontent.com/demon-hugo/CF-iP/main/lax_ips.txt"},
         {"url": "https://raw.githubusercontent.com/nyoungo/bestIp/main/best_ips.txt"},
         {"url": "https://raw.githubusercontent.com/swjturay/cfnb-ip/main/ip.txt"},
+        # —— 10-03 池发现新增（build_pool_config 收录，先单 raw 源验证）——
+        {"url": "https://raw.githubusercontent.com/a2622113/cloudflare_IPv4/main/ip.txt"},
+        {"url": "https://bestcf.pages.dev/s5gy/all.txt"},
+        {"url": "https://raw.githubusercontent.com/Coolapk-Code9527/Cloudflare-IP/main/ip.txt"},
+        {"url": "https://raw.githubusercontent.com/einsitang/my-fast-cf-ip/master/fastips.txt"},
+        {"url": "https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Clash/Cloudflare/Cloudflare.list"},
+        {"url": "https://raw.githubusercontent.com/uezer/cf-prefer-ips/main/best.json"},
+        {"url": "https://raw.githubusercontent.com/xingpingcn/enhanced-FaaS-in-China/main/Cf.json"},
+        {"url": "https://raw.githubusercontent.com/aihddelyy/Cloudflare_ips/main/CF.txt"},
         # —— GitHub 池 jsDelivr 镜像（raw 不通时的备源；CI 两源皆通）——
         # mirror_of 指向其 raw 原源，供治理脚本按"逻辑源"聚合命中后判定存废。
         # 为什么要聚合：jsDelivr 有 12~24h 缓存，与 raw 是**不同时间点的快照**，
