@@ -60,8 +60,7 @@ DEFAULT_CONFIG = {
         {"url": "https://raw.githubusercontent.com/Coolapk-Code9527/Cloudflare-IP/main/ip.txt"},
         {"url": "https://raw.githubusercontent.com/einsitang/my-fast-cf-ip/master/fastips.txt"},
         {"url": "https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Clash/Cloudflare/Cloudflare.list"},
-        {"url": "https://raw.githubusercontent.com/uezer/cf-prefer-ips/main/best.json"},
-        {"url": "https://raw.githubusercontent.com/xingpingcn/enhanced-FaaS-in-China/main/Cf.json"},
+        {"url": "https://raw.githubusercontent.com/uezer/cf-prefer-ips/main/best.txt"},
         {"url": "https://raw.githubusercontent.com/aihddelyy/Cloudflare_ips/main/CF.txt"},
         # —— GitHub 池 jsDelivr 镜像（raw 不通时的备源；CI 两源皆通）——
         # mirror_of 指向其 raw 原源，供治理脚本按"逻辑源"聚合命中后判定存废。
