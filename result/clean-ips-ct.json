@@ -1,16 +1,16 @@
 [
   {
-    "ip": "172.67.73.69",
-    "port": 2087,
-    "avg_ms": 5.4,
+    "ip": "104.27.53.58",
+    "port": 2053,
+    "avg_ms": 7.4,
     "loss_rate": 0.0,
     "tls_ok": true,
-    "remark": "电信-FRA-2087-WS-TLS",
+    "remark": "电信-FRA-2053-WS-TLS",
     "isp": "ct",
     "native": false,
     "source": "https://cdn.jsdelivr.net/gh/gshtwy/CF-DNS-Clone@main/wetest-cloudflare-v4.txt",
-    "speed_mbps": 65.11,
-    "colo": "SEA",
+    "speed_mbps": 76.03,
+    "colo": "ORD",
     "net_scope": "announced"
   }
 ]
