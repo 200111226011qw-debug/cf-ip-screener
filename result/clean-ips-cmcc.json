@@ -1,29 +1,15 @@
 [
   {
-    "ip": "104.17.158.176",
-    "port": 2053,
-    "avg_ms": 6.8,
-    "loss_rate": 0.0,
-    "tls_ok": true,
-    "remark": "移动-HKG-2053-WS-TLS",
-    "isp": "cmcc",
-    "native": false,
-    "source": "https://cdn.jsdelivr.net/gh/gshtwy/CF-DNS-Clone@main/wetest-cloudflare-v4.txt",
-    "speed_mbps": 117.06,
-    "colo": "MSP",
-    "net_scope": "announced"
-  },
-  {
-    "ip": "104.17.211.139",
+    "ip": "104.17.208.104",
     "port": 443,
-    "avg_ms": 7.5,
+    "avg_ms": 7.3,
     "loss_rate": 0.0,
     "tls_ok": true,
     "remark": "wetest移动HKG",
     "isp": "cmcc",
     "native": false,
     "source": "https://cdn.jsdelivr.net/gh/suancaicc/cf-ip@main/ip.txt",
-    "speed_mbps": 91.79,
+    "speed_mbps": 93.8,
     "colo": "ORD",
     "net_scope": "announced"
   }
