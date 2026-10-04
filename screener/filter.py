@@ -56,3 +56,22 @@ def split_by_isp(clean):
     for r in clean:
         groups.setdefault(r.get("isp", ""), []).append(r)
     return groups
+
+
+def port_matrix(clean, extra_ports, existing_keys):
+    """多端口扩展：生成待探测的 (基础行, 额外端口) 列表。
+
+    设计（「先主端口筛、再扩端口」，避免全端口 ×N 任务量爆炸）：
+    - 仅对主端口已通过筛选的行扩展——已验证可用的 CF 边缘才值得扩端口；
+    - 跳过 (ip, port) 已存在于 existing_keys 的组合（候选池可能自带该端口
+      的行、已经测过，不重复测）；
+    - 返回 [(r, port), ...]，r 为通过主端口的基础行（继承其 remark/isp/
+      native/source 等元数据），port 为待探测的额外端口。
+    """
+    out = []
+    for r in clean:
+        for p in extra_ports:
+            if (r["ip"], p) in existing_keys:
+                continue
+            out.append((r, p))
+    return out

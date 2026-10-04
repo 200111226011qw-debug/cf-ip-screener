@@ -205,5 +205,40 @@ class TestOutputEscaping(unittest.TestCase):
         self.assertIn("＃", remark_part)
 
 
+class TestPortMatrix(unittest.TestCase):
+    """port_matrix：多端口扩展的组合生成（跳过已测组合、空端口边界）。"""
+
+    def _row(self, ip):
+        return {"ip": ip, "port": 443, "avg_ms": 50.0, "loss_rate": 0.0,
+                "tls_ok": True}
+
+    def test_skip_existing_keys(self):
+        clean = [self._row("1.1.1.1"), self._row("2.2.2.2")]
+        existing = {("1.1.1.1", 2053), ("9.9.9.9", 443)}  # 1.1.1.1:2053 已测
+        matrix = filter_mod.port_matrix(clean, [2053, 2083], existing)
+        got = {(r["ip"], p) for r, p in matrix}
+        # 2 行 × 2 端口 = 4 组合，减去已存在的 1.1.1.1:2053 → 3
+        self.assertEqual(len(got), 3)
+        self.assertNotIn(("1.1.1.1", 2053), got)   # 已存在，跳过
+        self.assertIn(("1.1.1.1", 2083), got)
+        self.assertIn(("2.2.2.2", 2053), got)
+        self.assertIn(("2.2.2.2", 2083), got)
+
+    def test_empty_extra_ports(self):
+        self.assertEqual(
+            filter_mod.port_matrix([self._row("1.1.1.1")], [], set()), [])
+
+    def test_inherits_base_row(self):
+        r = self._row("1.1.1.1")
+        r["source"] = "https://example.com/pool.txt"
+        r["isp"] = "ct"
+        r["native"] = True
+        matrix = filter_mod.port_matrix([r], [8443], set())
+        self.assertEqual(len(matrix), 1)
+        base, port = matrix[0]
+        self.assertEqual(port, 8443)
+        self.assertIs(base, r)  # 直接继承基础行（元数据不复制）
+
+
 if __name__ == "__main__":
     unittest.main()

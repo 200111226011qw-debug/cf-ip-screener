@@ -27,7 +27,13 @@ def parse_args():
     p.add_argument("--pool", action="append", default=None,
                    help="候选池 URL（可多次指定，覆盖默认池）")
     p.add_argument("--port", type=int, default=None,
-                   help="裸 IP 默认测试端口（默认 443）")
+                   help="裸 IP 默认测试端口（默认 443）；与 --ports 同时传时"
+                        "--port 优先生效（单端口）")
+    p.add_argument("--ports", default=None,
+                   help="多端口探测：逗号分隔端口列表，首个为主端口（默认 443）。"
+                        "主端口通过筛选后自动扩展其余端口，如 443,2053,2083"
+                        "（参考 CF 官方 HTTPS 端口全集 443/2053/2083/2087/"
+                        "2096/8443）")
     p.add_argument("--timeout", type=float, default=None,
                    help="单次探测超时秒数（默认 3.0）")
     p.add_argument("--probes", type=int, default=None,
@@ -83,6 +89,7 @@ def main():
     overrides = {
         "pools": [{"url": u} for u in args.pool] if args.pool else None,
         "default_port": args.port,
+        "ports": args.ports,
         "timeout": args.timeout,
         "probes": args.probes,
         "max_concurrency": args.concurrency,
@@ -111,6 +118,18 @@ def main():
     cfg = config.load(overrides)
     # 输出目录统一在入口创建，保证后续任何阶段（如 [5/6] 画像缓存）都能写入
     os.makedirs(cfg["output_dir"], exist_ok=True)
+
+    # —— 端口列表解析 ——
+    # 优先级：--port（旧单端口参数）> --ports / config.ports。
+    # --port 显式传时退化为单端口（兼容旧行为）；否则取 ports 列表，
+    # 首个为「主端口」（裸 IP 候选的默认端口）。
+    if args.port:
+        ports = [args.port]
+    else:
+        ports = [int(x) for x in str(cfg.get("ports", "443")).split(",") if x.strip()]
+        if not ports:
+            ports = [443]
+        cfg["default_port"] = ports[0]
 
     # 单目标快速检测模式：不做静态解析，实测目标
     if args.single:
@@ -334,6 +353,31 @@ def main():
         top_n=0,             # 先全部保留，测速后再截断
         cf_nets=cf_filter_nets,  # 段校验（仅在它是唯一防线时才剔除）
     )
+
+    # 3.5) 多端口扩展（可选）：主端口通过后，对额外端口逐个探测
+    #      参考 BestCF 在线工具采用的 CF 官方 HTTPS 端口全集：
+    #      443 / 2053 / 2083 / 2087 / 2096 / 8443。
+    #      「先主端口筛、再扩端口」：只对已验证可用的 CF 边缘扩端口，
+    #      避免全端口 ×N 候选量把连通性/测速预算撑爆。
+    #      探测阈值过滤交给测速后的 filter_clean 统一兜底，这里只筛可达性
+    #      （TCP 通 + TLS 不失败）。
+    if len(ports) > 1 and clean:
+        extra_ports = ports[1:]
+        existing_keys = {(r["ip"], r["port"]) for r in results}
+        matrix = filter_mod.port_matrix(
+            [r for r in clean if r["port"] == ports[0]],
+            extra_ports, existing_keys)
+        if matrix:
+            print(f"      多端口扩展：对 {len(matrix)} 个 (IP, 端口) 组合探测"
+                  f"额外端口（{'/'.join(map(str, extra_ports))}）...")
+            ext_rows = asyncio.run(_probe_extra(
+                matrix, cfg["timeout"], cfg["probes"],
+                cfg["max_concurrency"], cfg["tls_check"], cfg["sni"]))
+            if ext_rows:
+                clean = clean + ext_rows
+                print(f"      多端口扩展新增 {len(ext_rows)} 条可用端口")
+            else:
+                print("      多端口扩展：无额外端口通过可达性探测")
 
     # 4) 真实下载测速（可选）
     # 未测速时结果里不存在 speed_mbps 字段，若仍把 min_speed_mbps 传下去，
@@ -577,6 +621,35 @@ def run_single(cfg: dict, target: str) -> int:
         res["tls_ok"] is not False) and res["loss_rate"] <= cfg["max_loss_rate"]
     print("结论: " + ("目标可用 ✓" if ok else "目标不可用 ✗"))
     return 0 if ok else 1
+
+
+async def _probe_extra(matrix, timeout, probes, max_concurrency, tls_check, sni):
+    """多端口扩展：对 (基础行, 额外端口) 并发探测，返回可达的新结果行。
+
+    matrix 由 filter_mod.port_matrix 生成：基础行已通过主端口筛选
+    （TCP 可达 + TLS 通过），额外端口是待探测端口。这里只筛可达性
+    （TCP 通 + TLS 不失败），延迟/丢包阈值由测速后的 filter_clean 统一兜底。
+    新行继承基础行的 remark/isp/native/source 等元数据，仅覆盖
+    port/avg_ms/loss_rate/tls_ok 四个探测字段。
+    """
+    sem = asyncio.Semaphore(max_concurrency)
+
+    async def worker(item):
+        r, extra_port = item
+        async with sem:
+            res = await tester.probe_one(
+                r["ip"], extra_port, timeout, probes, tls_check, sni)
+        if res["avg_ms"] is None or res["tls_ok"] is False:
+            return None
+        new = dict(r)
+        new["port"] = extra_port
+        new["avg_ms"] = res["avg_ms"]
+        new["loss_rate"] = res["loss_rate"]
+        new["tls_ok"] = res["tls_ok"]
+        return new
+
+    tasks = [asyncio.ensure_future(worker(item)) for item in matrix]
+    return [x for x in await asyncio.gather(*tasks) if x is not None]
 
 
 if __name__ == "__main__":
