@@ -153,18 +153,33 @@ HTML 锚点 `#`（如 `<a href="#top">1.2.3.4</a>`）位于 IP 之前，不会�
 
 ## GitHub Actions 定时更新（可选）
 
-仓库内置 `.github/workflows/auto-run.yml`，默认**关闭**（`schedule` 段被注释）。启用方法：
+仓库内置 `.github/workflows/auto-run.yml`，**已启用**：每 2 小时第 5 分钟触发
+（`schedule: "5 */2 * * *"`，一天 12 次），并发控制保证同一时间只有一个
+workflow 运行。提交行为：**结果无变化时跳过提交**（池子稳定时可能隔多轮
+才有一个 commit，属正常，不是 CI 故障）。
 
-
-
-1. 取消 `schedule` 段注释（当前每小时第 5 分钟触发）；
-
-2. 设置仓库 `Settings → Actions → General` 允许写入权限（Workflow permissions → Read and write）；
-
-3. 提交后即会每小时自动跑一遍筛选并更新 `result/` 下的结果。
+使用前提：仓库 `Settings → Actions → General` 已允许写入权限
+（Workflow permissions → Read and write），否则 `git push` 一步会失败。
 
 说明：工作流为**单 job 全运营商**运行（一次跑出总表 + 三运营商分表），
 不使用矩阵并行——多 job 并发写同一批 `result/` 文件会导致 rebase 冲突。
+
+## 输出口径（重要）
+
+GitHub Actions 定时任务的筛选与测速在 **GitHub 托管 runner（美西）的
+vantage** 下进行，"纯净"指在该 vantage 下 TCP/TLS 可达、延迟/丢包达标、
+cf-ray 验证为 CF 边缘（公告段或外延段）。
+
+**注意**：Cloudflare 采用 Anycast 就近接入——同一个 IP，runner 与你的网络
+连接的是不同物理边缘节点，CI 记录的延迟/机房与本机测到的可能完全不同。
+实测（2026-09-30）：CI 输出的纯净 IP 在本机（中国电信）≤150ms 的占比约
+21%，且 CI 延迟与本机延迟**无相关性**——「CI 放宽延迟阈值保留更多候选」
+的方案已被实测证伪（多保留的是"美西最优"IP，中国可用率不涨）。
+
+因此 `result/` 是"**美西 vantage 纯净池**"，不是"你所在网络的最优 IP 池"。
+中国用户订阅前建议做本地二次筛选（按本机延迟取优）：本地单线程 TCP/TLS
+探测不受 CF 并发风控，可用 `main.py --single <IP>` 或轻量脚本对 CI 输出
+逐条探测，输出 ≤150ms 子集。CI 侧无需改动。
 
 ## 订阅加速访问（可选）
 
@@ -270,7 +285,7 @@ cf-ip-screener/
 │   ├── ipinfo.py         # IP 归属画像（地理位置/ISP/ASN/网络类型，带本地缓存）
 │   ├── report.py         # 报告输出（report.md / report.html）
 │   └── output.py         # txt/json 输出与摘要
-├── tests/                # 单元测试（test_fetcher.py）
+├── tests/                # 单元测试（test_fetcher.py + test_report.py）
 ├── result/               # 输出目录
 └── .github/workflows/    # 可选自动更新（单 job 全运营商）
 ```

@@ -25,3 +25,18 @@ sub:jifengwind/HHP-cf-ips
 sub:addressesapi.090227.xyz
 sub:ydxydx926
 sub:yu2130778-cpu
+# —— 10-06 复盘清理（58~69 轮 0 命中 / 第三方 v6 池；官方 ips-v6 保留）——
+sub:aihddelyy/Cloudflare_ips/main/TOPIP.txt
+sub:yuanxiawan/cfipv4db/main/cfip.txt
+sub:burylove-baby/cf-ips
+sub:zcf794743/cfip_collect
+sub:anthony11122/cf-ip
+sub:asdminss/cf-ip
+sub:baiyilevou/cf-ip
+sub:demon-hugo/CF-iP/main/cloudflare_ips-NRT.txt
+sub:demon-hugo/CF-iP/main/lax_ips.txt
+sub:nyoungo/bestIp
+sub:swjturay/cfnb-ip
+sub:einsitang/my-fast-cf-ip/master/ipv6.txt
+sub:BestCFip/main/ipv6.txt
+sub:bestcf.pages.dev/cfyes/ipv6.txt
