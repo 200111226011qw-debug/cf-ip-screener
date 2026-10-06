@@ -1,30 +1,44 @@
 [
   {
-    "ip": "104.20.9.146",
+    "ip": "104.18.33.96",
     "port": 443,
-    "avg_ms": 6.7,
+    "avg_ms": 18.3,
     "loss_rate": 0.0,
     "tls_ok": true,
-    "remark": "wetest电信FRA",
+    "remark": "CF 电信优选 | 104.18.33.96",
     "isp": "ct",
     "native": false,
-    "source": "https://cdn.jsdelivr.net/gh/suancaicc/cf-ip@main/ip.txt",
-    "speed_mbps": 131.13,
-    "colo": "MSP",
+    "source": "https://090227.pages.dev/bestcf?isp=all&ips=200",
+    "speed_mbps": 44.01,
+    "colo": "DFW",
     "net_scope": "announced"
   },
   {
-    "ip": "104.17.162.246",
-    "port": 2053,
-    "avg_ms": 7.5,
+    "ip": "188.164.248.126",
+    "port": 443,
+    "avg_ms": 18.4,
     "loss_rate": 0.0,
     "tls_ok": true,
-    "remark": "电信-LAX-2053-WS-TLS",
+    "remark": "CF 电信优选 | 188.164.248.126",
     "isp": "ct",
     "native": false,
-    "source": "https://cdn.jsdelivr.net/gh/gshtwy/CF-DNS-Clone@main/wetest-cloudflare-v4.txt",
-    "speed_mbps": 88.99,
-    "colo": "ORD",
-    "net_scope": "announced"
+    "source": "https://090227.pages.dev/bestcf?isp=all&ips=200",
+    "speed_mbps": 48.49,
+    "colo": "DFW",
+    "net_scope": "extended"
+  },
+  {
+    "ip": "8.35.211.233",
+    "port": 443,
+    "avg_ms": 18.5,
+    "loss_rate": 0.0,
+    "tls_ok": true,
+    "remark": "CF 电信优选 | 8.35.211.233",
+    "isp": "ct",
+    "native": false,
+    "source": "https://090227.pages.dev/bestcf?isp=all&ips=200",
+    "speed_mbps": 46.75,
+    "colo": "DFW",
+    "net_scope": "extended"
   }
 ]
