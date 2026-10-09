@@ -1,44 +1,16 @@
 [
   {
-    "ip": "104.20.28.156",
-    "port": 2053,
-    "avg_ms": 7.2,
-    "loss_rate": 0.0,
-    "tls_ok": true,
-    "remark": "电信-FRA-2053-WS-TLS",
-    "isp": "ct",
-    "native": false,
-    "source": "https://cdn.jsdelivr.net/gh/gshtwy/CF-DNS-Clone@main/wetest-cloudflare-v4.txt",
-    "speed_mbps": 131.6,
-    "colo": "MSP",
-    "net_scope": "announced"
-  },
-  {
-    "ip": "104.20.28.156",
-    "port": 8443,
+    "ip": "104.19.119.8",
+    "port": 443,
     "avg_ms": 8.7,
     "loss_rate": 0.0,
     "tls_ok": true,
-    "remark": "电信-FRA-8443-WS-TLS",
+    "remark": "wetest电信LAX",
     "isp": "ct",
     "native": false,
-    "source": "https://cdn.jsdelivr.net/gh/gshtwy/CF-DNS-Clone@main/wetest-cloudflare-v4.txt",
-    "speed_mbps": 100.8,
-    "colo": "MSP",
-    "net_scope": "announced"
-  },
-  {
-    "ip": "104.20.18.214",
-    "port": 2053,
-    "avg_ms": 8.9,
-    "loss_rate": 0.0,
-    "tls_ok": true,
-    "remark": "电信-FRA-2053-WS-TLS",
-    "isp": "ct",
-    "native": false,
-    "source": "https://cdn.jsdelivr.net/gh/gshtwy/CF-DNS-Clone@main/wetest-cloudflare-v4.txt",
-    "speed_mbps": 86.53,
-    "colo": "ORD",
+    "source": "https://cdn.jsdelivr.net/gh/suancaicc/cf-ip@main/ip.txt",
+    "speed_mbps": 72.25,
+    "colo": "LAX",
     "net_scope": "announced"
   }
 ]
