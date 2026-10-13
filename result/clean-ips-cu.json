@@ -1,16 +1,58 @@
 [
   {
-    "ip": "104.17.165.191",
+    "ip": "104.17.96.225",
     "port": 2053,
-    "avg_ms": 17.8,
+    "avg_ms": 9.1,
     "loss_rate": 0.0,
     "tls_ok": true,
     "remark": "联通-HKG-2053-WS-TLS",
     "isp": "cu",
     "native": false,
     "source": "https://cdn.jsdelivr.net/gh/gshtwy/CF-DNS-Clone@main/wetest-cloudflare-v4.txt",
-    "speed_mbps": 39.19,
-    "colo": "DFW",
+    "speed_mbps": 96.37,
+    "colo": "LAX",
+    "net_scope": "announced"
+  },
+  {
+    "ip": "104.17.96.225",
+    "port": 8443,
+    "avg_ms": 9.3,
+    "loss_rate": 0.0,
+    "tls_ok": true,
+    "remark": "联通-HKG-8443-WS-TLS",
+    "isp": "cu",
+    "native": false,
+    "source": "https://cdn.jsdelivr.net/gh/gshtwy/CF-DNS-Clone@main/wetest-cloudflare-v4.txt",
+    "speed_mbps": 54.08,
+    "colo": "LAX",
+    "net_scope": "announced"
+  },
+  {
+    "ip": "104.17.96.225",
+    "port": 443,
+    "avg_ms": 9.5,
+    "loss_rate": 0.0,
+    "tls_ok": true,
+    "remark": "联通-HKG-443-WS-TLS",
+    "isp": "cu",
+    "native": false,
+    "source": "https://cdn.jsdelivr.net/gh/gshtwy/CF-DNS-Clone@main/wetest-cloudflare-v4.txt",
+    "speed_mbps": 96.54,
+    "colo": "LAX",
+    "net_scope": "announced"
+  },
+  {
+    "ip": "104.17.96.225",
+    "port": 2096,
+    "avg_ms": 9.5,
+    "loss_rate": 0.0,
+    "tls_ok": true,
+    "remark": "联通-HKG-2096-WS-TLS",
+    "isp": "cu",
+    "native": false,
+    "source": "https://cdn.jsdelivr.net/gh/gshtwy/CF-DNS-Clone@main/wetest-cloudflare-v4.txt",
+    "speed_mbps": 96.55,
+    "colo": "LAX",
     "net_scope": "announced"
   }
 ]
