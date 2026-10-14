@@ -1,30 +1,16 @@
 [
   {
-    "ip": "198.41.209.181",
+    "ip": "104.17.127.102",
     "port": 443,
-    "avg_ms": 6.5,
+    "avg_ms": 8.8,
     "loss_rate": 0.0,
     "tls_ok": true,
-    "remark": "CF 移动优选",
+    "remark": "wetest移动HKG",
     "isp": "cmcc",
     "native": false,
-    "source": "https://cf.090227.xyz/cmcc?ips=200",
-    "speed_mbps": 120.11,
-    "colo": "MSP",
-    "net_scope": "announced"
-  },
-  {
-    "ip": "198.41.208.71",
-    "port": 443,
-    "avg_ms": 6.5,
-    "loss_rate": 0.0,
-    "tls_ok": true,
-    "remark": "CF 移动优选",
-    "isp": "cmcc",
-    "native": false,
-    "source": "https://cf.090227.xyz/cmcc?ips=200",
-    "speed_mbps": 126.91,
-    "colo": "MSP",
+    "source": "https://cdn.jsdelivr.net/gh/suancaicc/cf-ip@main/ip.txt",
+    "speed_mbps": 87.22,
+    "colo": "LAX",
     "net_scope": "announced"
   }
 ]
