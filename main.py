@@ -15,7 +15,7 @@
                                       # config.py 变更自动重载，不重启
 """
 
-__version__ = "2.0.0"
+__version__ = "2.1.0"
 
 import argparse
 import asyncio
@@ -27,7 +27,7 @@ import time
 import config
 from screener import (bayes, dns_push, edge_crawler, fetcher,
                       filter as filter_mod, ipinfo, logging_setup, notify,
-                      output, plugins, report, speedtest, tester)
+                      output, plugins, report, score, speedtest, tester)
 
 log = logging_setup.get_logger()
 
@@ -650,6 +650,13 @@ def run_once(args, overrides, cfg=None):
             dropped = before - len(clean)
             if dropped:
                 log.info(f"      纯净度校验剔除 {dropped} 条代理标记 IP")
+
+    # 本地综合打分（借鉴 one-ip /api/ip/health 输出契约）：
+    #   score 0-100 + status(good/moderate/poor) + 8 个 flags；无外部 API 调用
+    for r in clean:
+        r.update(score.score_result(r, r.get("ipinfo")))
+    n_good = sum(1 for r in clean if r.get("status") == "good")
+    log.info(f"      打分完成：good {n_good}/{len(clean)}")
 
     log.info("[6/6] 写结果与报告...")
     outdir = cfg["output_dir"]

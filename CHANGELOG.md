@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.1.0 — 2026-10-14
+
+借鉴 [one-ip](https://github.com/zhihui-hu/one-ip) `/api/ip/health` 的输出契约（其 score 透传第三方 ip.net.coffee；本模块**纯本地打分**，不引入外部 API）：
+
+- 新增 `screener/score.py`：基于实测信号（延迟/丢包/速度/TLS/cf-ray/原生段/ipinfo）本地计算 **0-100 综合分**
+- status 分级：`score>=75 good / >=45 moderate / <45 poor`；探测失败返回 `score=null / status=unknown`
+- 每条结果输出 8 个规范化 flags（residential/datacenter/mobile/vpn/proxy/tor/crawler/abuser），未知字段保持 `null` 不臆断为 false
+- clean-ips.json（含按运营商分文件）每条新增 4 个字段：`score`(0-100 整数或 null)、`status`(good/moderate/poor/unknown)、`checked_at`(ISO8601)、`flags`(8 字段对象)。**向后兼容**：旧字段（ip/port/avg_ms/loss_rate/tls_ok/colo/native/speed_mbps/remark/ipinfo 等）保持不变；下游解析脚本若假设固定字段集，需容忍新增字段
+- 未启用 `--ipinfo` 时，flags 中 `residential/datacenter/mobile/proxy` 为 `null`（无法判定），vpn/tor/crawler/abuser 始终为 `null`（ip-api 不提供）
+- 新增 7 个单元测试，合计 **118 passed**
+
 ## 2.0.0 — 2026-10-14
 
 升级清单全量落地（15 条建议 → 19 项，除既有单元测试外全部新增）：

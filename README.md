@@ -2,7 +2,7 @@
 
 从公开的 **Cloudflare 优选 IP 候选池** 拉取候选，并发测试 TCP 连通性、延迟、丢包率与 TLS 握手，按阈值筛选出 “纯净可用” 的 IP，并对通过者做 **真实下载测速**，输出为订阅兼容格式（`IP:端口#备注`），支持 **按运营商（电信 / 联通 / 移动）分流输出**。
 
-> **依赖定位（v2.0.0）**：核心筛选逻辑保持**纯 Python 标准库**；可选功能「CIDR 种子源抓取」「边缘网站爬虫」「Web GUI」「分布式扫描」使用 `aiohttp`（并发抓取 / Web 服务），测试框架为 `pytest` / `pytest-asyncio`。依赖清单见 `requirements.txt`。当前版本 **2.0.0**，测试规模 **111 passed**。
+> **依赖定位（v2.1.0）**：核心筛选逻辑保持**纯 Python 标准库**；可选功能「CIDR 种子源抓取」「边缘网站爬虫」「Web GUI」「分布式扫描」使用 `aiohttp`（并发抓取 / Web 服务），测试框架为 `pytest` / `pytest-asyncio`。依赖清单见 `requirements.txt`。当前版本 **2.1.0**，测试规模 **118 passed**。
 
 默认候选池（可自由增删，见 `config.py`）：
 
@@ -65,7 +65,8 @@
   * **通知机制**：`alert_webhook` 配置后扫描完成推送摘要（单 webhook 出口，可指向 Telegram / Bark / 自建端点，默认关闭）
   * **纯净度校验**：`--ipinfo` 画像后按 `purity_filter` + `purity_reject_proxy` 剔除代理 / VPN 标记 IP
   * **`--version` 与分级日志**：`python main.py --version`；`--log-file` / `--log-level` 输出分级日志并写文件（控制台纯消息、文件带时间戳）
-  * **单元测试**：核心模块（fetcher / tester / filter / bayes / notify / plugins / dns_push / 客户端导出 / 报告 / 日志）+ 此前全部契约测试，合计 **111 passed**
+  * **单元测试**：核心模块（fetcher / tester / filter / bayes / notify / plugins / dns_push / 客户端导出 / 报告 / 日志）+ 此前全部契约测试，合计 **118 passed**
+  * **本地综合打分（v2.1.0，借鉴 [one-ip](https://github.com/zhihui-hu/one-ip) `/api/ip/health` 输出契约）**：基于实测信号（延迟/丢包/速度/TLS/cf-ray/原生段/ipinfo）本地算 **0-100 分**，按 `≥75 good / ≥45 moderate / <45 poor` 分级；输出 8 个 flags（residential/datacenter/mobile/vpn/proxy/tor/crawler/abuser，未知字段返回 `null` 不臆断）。**未启用 `--ipinfo` 时，flags 中 residential/datacenter/mobile/proxy 为 `null`**。**不引入任何外部打分 API**（one-ip 透传第三方 ip.net.coffee，本模块纯本地）。clean-ips.json 每条带 `score / status / checked_at / flags` 字段（`screener/score.py`）
 
 * 输出 `IP:端口#备注` 订阅格式 txt + 结构化 JSON
 
