@@ -132,6 +132,8 @@ python main.py --isp ct --ipinfo
 
 每行 `IP:端口#备注`，可直接作为订阅 / 优选列表使用。
 
+> 备注字段保留源池原样：来自第三方池的条目沿用源站备注风格（如 `#US [279.11ms]`），内部生成的条目走 `CF筛选 | Xms | 丢包Y%` 格式；两者可能并存，订阅客户端按 `#` 之后整段解析不受影响。
+
 解析备注约定：**备注取 IP 之后的 `#` 起始内容**（如 `1.2.3.4#电信优选`）；
 HTML 锚点 `#`（如 `<a href="#top">1.2.3.4</a>`）位于 IP 之前，不会被误当分隔符。
 
@@ -239,7 +241,7 @@ cf-ray 验证为 CF 边缘（公告段或外延段）。
 
 * 启用 TLS 校验时握手必须成功
 
-* 启用测速时：测速失败（下载 0 字节/超时，典型为回源 IP 不可用）的 IP 会被剔除（参考 [XIU2/CloudflareSpeedTest](https://github.com/XIU2/CloudflareSpeedTest) 用下载速度下限过滤回源 IP 的做法），并按 `min_speed_mbps` 设速度门槛；指定 `--colo` 时仅保留地区码在白名单内的 IP
+* 启用测速时：测速失败（下载 0 字节/超时，典型为回源 IP 不可用）的 IP 会被剔除（参考 [XIU2/CloudflareSpeedTest](https://github.com/XIU2/CloudflareSpeedTest) 用下载速度下限过滤回源 IP 的做法），并按 `min_speed_mbps` 设速度门槛；指定 `--colo` 时仅保留地区码在白名单内的 IP。**速度值为单次下载的瞬时吞吐，不是长期均值**；多轮平均会成倍放大带宽占用，CI 定时任务不可行，故当前不做
 
 **关于「是否必须是 Cloudflare 官方公告段」**（2026-09-30 起语义调整）：
 
