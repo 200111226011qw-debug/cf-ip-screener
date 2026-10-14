@@ -7,7 +7,7 @@
 
 from typing import Any, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 
 
 class PoolItem(BaseModel):
@@ -129,6 +129,11 @@ class AppConfig(BaseModel):
     output_json: str = "clean-ips.json"
     output_txt_by_isp: str = "clean-ips-{isp}.txt"
     output_json_by_isp: str = "clean-ips-{isp}.json"
+
+    # 运行时标记（非配置字段，兼容 main.py 动态赋值）
+    _cf_nets_loaded: bool = PrivateAttr(default=False)
+    _cf_nets_required: bool = PrivateAttr(default=False)
+    _cf_net_enabled: bool = PrivateAttr(default=False)
 
     # ------------------------------------------------------------------
     # 兼容层：dict 接口 (v2.2 过渡期)
