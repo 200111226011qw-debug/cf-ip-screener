@@ -18,6 +18,22 @@ class PoolItem(BaseModel):
     mirror_of: Optional[str] = None
     native: Optional[bool] = None
 
+    # 兼容层（v2.2 过渡期，v2.3 末移除）
+    def __getitem__(self, key: str) -> Any:
+        try:
+            return getattr(self, key)
+        except AttributeError as e:
+            raise KeyError(key) from e
+
+    def __contains__(self, key: str) -> bool:
+        return key in type(self).model_fields
+
+    def get(self, key: str, default: Any = None) -> Any:
+        return getattr(self, key, default)
+
+    def __setitem__(self, key: str, value: Any) -> None:
+        setattr(self, key, value)
+
 
 class SeedSourceItem(BaseModel):
     """种子源健康检查条目。"""
@@ -25,6 +41,22 @@ class SeedSourceItem(BaseModel):
     name: str
     url: str
     expected_format: Literal["ip_port", "cidr", "text_only"] = "ip_port"
+
+    # 兼容层（v2.2 过渡期，v2.3 末移除）
+    def __getitem__(self, key: str) -> Any:
+        try:
+            return getattr(self, key)
+        except AttributeError as e:
+            raise KeyError(key) from e
+
+    def __contains__(self, key: str) -> bool:
+        return key in type(self).model_fields
+
+    def get(self, key: str, default: Any = None) -> Any:
+        return getattr(self, key, default)
+
+    def __setitem__(self, key: str, value: Any) -> None:
+        setattr(self, key, value)
 
 
 class AppConfig(BaseModel):
