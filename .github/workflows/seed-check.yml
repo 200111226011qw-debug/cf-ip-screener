@@ -1,0 +1,42 @@
+name: seed-health
+
+# 种子源健康检查：每天一次（03:00 UTC），探活 + 格式嗅探 + 报告。
+# 异常源（dead / format_changed / html_returned）时退出码 1，
+# CI 标记失败即信号（GitHub 会发失败通知），不自动改 config。
+# 手动触发：仓库 Actions 页 → seed-health → Run workflow。
+
+on:
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  seed-health:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: 检出仓库
+        uses: actions/checkout@v4
+
+      - name: 配置 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: 运行种子源健康检查
+        run: |
+          if [ -f check_seeds.py ]; then
+            python check_seeds.py
+          else
+            DIR=$(find . -maxdepth 2 -name check_seeds.py -exec dirname {} \; | head -1)
+            if [ -n "$DIR" ]; then
+              cd "$DIR"
+              python check_seeds.py
+            else
+              echo "::error::找不到 check_seeds.py，无法定位项目根目录"
+              exit 1
+            fi
+          fi

@@ -39,6 +39,8 @@
 
 * **边缘网站爬虫（可选，默认关闭）**：针对 HTML 网页型源的结构化爬取（现有 `pools` 只处理纯文本/JSON）。内置 wetest.vip「优选地址」表格页（IPv4/IPv6）与 zoroaaa.github.io/cf-bestip 优选页，支持 **HTML 表格「优选地址」列 + 正文 IP:端口/裸 IP 双解析**（`screener/edge_crawler.py`）；抓取层复用 `aiohttp`，坏源自动跳过，总量受 `edge_sites_limit` 硬上限（`config.py` 置 `edge_sites_enabled: True` 开启，`edge_sites` 可增删页面）。另已接入 6 个带地区标记的边缘优选文本池（LancelotRar / kinghui-001 / HandsomeMJZ / cmliu，含 `[IPv6]:端口` 格式），随 `pools` 每轮生效
 
+* **种子源健康检查（运维工具）**：`python check_seeds.py` 对 `config.py` 的 `seed_sources` 清单做探活 + 格式嗅探（`ip_port` / `cidr` / `text_only` 三种预期格式），输出人类可读报告（存活 / 失效 / 格式变更 / 返回 HTML）。只读前 4KB、串行执行、**不抓候选、不改 config**，与筛选主流程完全解耦；异常时退出码 1。CI 中 `seed-health` workflow 每天 03:00 UTC 自动跑一次，异常即失败通知（`screener/seed_health.py`，纯标准库）
+
 * **IP 归属画像（可选）**：`--ipinfo` 对候选结果批量查询地理位置 / ISP / ASN / 网络类型（机房/云、移动/蜂窝、代理标记、运营商网络），用公开 ip-api.com 接口；`--single` 单目标模式与批量模式统一，默认均关闭，加 `--ipinfo` 开启
 
 * **抓取容错**：单池抓取失败自动重试（指数退避，`fetch_retries` / `fetch_retry_delay` 可调），单池失败不影响整体；支持 JSON 数组/对象格式的候选池

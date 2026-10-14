@@ -211,6 +211,33 @@ DEFAULT_CONFIG = {
     "edge_sites_limit": 500,       # 每轮硬上限（防网页源膨胀吃光测速预算）
     "edge_sites_concurrency": 4,
 
+    # ========== 种子源健康检查（运维工具，默认不参与筛选主流程） ==========
+    # 只做探活 + 格式嗅探 + 报告，不抓候选、不灌候选池、不改筛选逻辑。
+    # 跑法：python check_seeds.py（CLI 入口）。
+    # expected_format 三种取值：
+    #   - ip_port  ：每行应为 IP:端口 或 IP:端口#备注
+    #   - cidr     ：每行应为 IP/掩码 或纯 IP
+    #   - text_only：只要不是 HTML、内容非空即可
+    "seed_sources": [
+        {"name": "bestcf_hk",
+         "url": "https://bestcf.pages.dev/random-region/HK/all.txt",
+         "expected_format": "ip_port"},
+        {"name": "bestcf_jp",
+         "url": "https://bestcf.pages.dev/random-region/JP/all.txt",
+         "expected_format": "ip_port"},
+        {"name": "kinghui_best",
+         "url": "https://raw.githubusercontent.com/HandsomeMJZ/cfip/main/best_ips.txt",
+         "expected_format": "ip_port"},
+        {"name": "lord_alfred_v4",
+         "url": "https://raw.githubusercontent.com/lord-alfred/ipranges/main/cloudflare/ipv4.txt",
+         "expected_format": "cidr"},
+        {"name": "tyoyo1_v4",
+         "url": "https://raw.githubusercontent.com/TYOYO1/CF-ASN/main/ASN-CIDR/13335/ipv4-aggregated.txt",
+         "expected_format": "cidr"},
+    ],
+    "seed_check_timeout": 15,        # 单源超时（秒）
+    "seed_check_sample_lines": 20,   # 嗅探时看前多少行
+
     # ========== 连通性测试参数 ==========
     "timeout": 3.0,          # 单次 TCP/TLS 探测超时（秒）
     "probes": 3,             # 每个 IP 的 TCP 探测次数（用于估算丢包）
