@@ -1,5 +1,43 @@
 # Changelog
 
+## 2.2.0-rc1 — 2026-10-14
+
+预发布版本，待 Mihomo 手动验证 clash.yaml 后转正。
+
+### PR 1：原子写入（screener/atomic.py）
+- 所有输出文件改用 atomic_write（.tmp + os.replace），避免中断时留下半截文件
+- 跨平台行尾统一为 LF
+- 输出行为黄金文件锁定（tests/golden/），后续改动字节对比兜底
+
+### PR 2.5：tester.py 测试覆盖（12% → 69%）
+- 补 parse_proxy_url / probe_one 开关组合 / TCP 超时 / loopback / TLS 失败路径
+- 183 passed
+
+### PR 2：有界 wait_closed
+- 三个 probe 函数（tcp/tls/http）close 后用 asyncio.wait_for(wait_closed, 0.5s) 包一层
+- 超时主动 abort() 释放 FD，避免 FIN_WAIT_2 堆积
+- 行为验证：延迟波动 -2.6%（< 20% 噪声阈值）
+- 192 passed
+
+### PR 3.5：config 字段审计
+- 74 字段自动提取 + Pydantic 写法对照
+- PR 3 决策清单（coerce / extra=ignore / 保持现有默认值）
+
+### PR 3：Pydantic v2 配置模型
+- 新增 screener/config_model.py：PoolItem / SeedSourceItem / AppConfig
+- load() 返回 AppConfig 实例，dict 兼容层（__getitem__/__contains__/get）保证现有 cfg["key"] 调用不变
+- 兼容层 v2.3 末移除
+- 200 passed
+
+### PR 4：Clash YAML Jinja2 模板
+- clash_proxies.yaml 输出改用 Jinja2 模板（screener/templates/clash.yaml.j2）
+- 输出格式与 golden 字节一致
+- **clash.yaml 是 trojan 骨架**：password 字段为占位符 "YOUR_PASSWORD"，需用户自行填写
+
+### 已知待验证
+- clash.yaml 尚未在真实 Mihomo 中加载验证（本机无 docker/Mihomo）
+- Docker 镜像四步验收仍待执行
+
 ## 2.1.1 — 2026-10-14
 
 端到端测试补全（把 v2.0.0 里"接口已落但未验证"的模块补到可测）：
