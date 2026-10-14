@@ -8,7 +8,16 @@
 - 新增 `tests/test_webui.py`（5 个用例）：`GET /` 返回 200 含启动按钮和报告入口、`POST /scan` 不真起 subprocess（monkeypatch Popen）、`GET /report` 在文件缺失/存在两种形态下都正确响应、`--help` 正常
 - `screener/webui.py` 抽出 `_make_app()` 便于测试；版本号从硬编码 `v2.0.0` 改为动态读 `main.__version__`
 - 合计 **128 passed**（118 → 128）
-- Docker 构建/运行验收待有 docker 的环境执行（本机无 docker daemon）；Dockerfile / compose 配置文件已就位
+
+**依赖边界说明**：`aiohttp` 原本只用于 CIDR 种子源并发抓取；本轮 Web GUI 测试用 `aiohttp.TestClient` 直调应用（不起真端口），因此 aiohttp 同时是 Web GUI 运行时和测试依赖。Web GUI **不是**纯标准库 `http.server` 实现。
+
+**Docker 支持状态（待验证，勿误认为已可用）**：`Dockerfile`、`docker-compose.yml`、`.dockerignore` 均已就位，但以下 4 条端到端验收**尚未在任何环境跑过**：
+1. `docker build -t cf-ip-screener .` 成功
+2. `docker run --rm cf-ip-screener --version` 输出 `2.1.1`
+3. 镜像内 `pytest` 全绿
+4. `docker compose up` 能按 6h 轮次正常启动、不立即退出
+
+本机无 docker daemon，上述验证需在装好 Docker Desktop / Linux docker engine 的环境执行。跑通前请不要把 Docker 部署写进使用文档的"已验证功能"清单。
 
 ## 2.1.0 — 2026-10-14
 
