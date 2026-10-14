@@ -19,6 +19,11 @@ _TLS_CTX = ssl.create_default_context()
 _TLS_CTX.check_hostname = False
 _TLS_CTX.verify_mode = ssl.CERT_NONE
 
+# close_notify 等待上限（秒）。正常网络下 close_notify 回执在 1 个 RTT 内返回；
+# 0.5s ≈ 3 个 RTT 余量，覆盖重传但不拖累 FD 释放。对端不回 close_notify 时
+# 超时后主动 abort()，避免 socket 在 FIN_WAIT_2 / CLOSE_WAIT 堆积。
+_CLOSE_TIMEOUT = 0.5
+
 
 def parse_proxy_url(proxy_url: str) -> dict:
     """解析 "http://user:pass@host:port"（或裸 host:port）为 dict。
@@ -81,7 +86,10 @@ async def _tcp_probe(ip: str, port: int, timeout: float, proxy: dict = None):
             )
         writer.close()
         try:
-            await writer.wait_closed()
+            await asyncio.wait_for(writer.wait_closed(), timeout=_CLOSE_TIMEOUT)
+        except asyncio.TimeoutError:
+            if writer.transport is not None:
+                writer.transport.abort()
         except Exception:
             pass
         return (loop.time() - start) * 1000
@@ -114,7 +122,10 @@ async def _tls_probe(ip: str, port: int, timeout: float, sni: str,
             )
             writer.close()
         try:
-            await writer.wait_closed()
+            await asyncio.wait_for(writer.wait_closed(), timeout=_CLOSE_TIMEOUT)
+        except asyncio.TimeoutError:
+            if writer.transport is not None:
+                writer.transport.abort()
         except Exception:
             pass
         return True
@@ -150,7 +161,10 @@ async def _http_probe(ip: str, port: int, timeout: float, sni: str,
             pass
         writer.close()
         try:
-            await writer.wait_closed()
+            await asyncio.wait_for(writer.wait_closed(), timeout=_CLOSE_TIMEOUT)
+        except asyncio.TimeoutError:
+            if writer.transport is not None:
+                writer.transport.abort()
         except Exception:
             pass
         return (loop.time() - start) * 1000 if head else None

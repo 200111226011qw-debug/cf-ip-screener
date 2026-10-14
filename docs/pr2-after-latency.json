@@ -1,0 +1,21 @@
+{
+  "generated_at": "2026-10-14T08:10:50+00:00",
+  "phase": "after",
+  "git_commit": "uncommitted-pr2",
+  "python_version": "3.13.13",
+  "platform": "win32",
+  "baseline_compare": {
+    "before_avg_ms": 194.6,
+    "after_avg_ms": 189.5,
+    "delta_pct": -2.6,
+    "threshold_pct": 20.0,
+    "verdict": "pass: 差异在网络噪声范围内，有界 close 未引入额外延迟"
+  },
+  "results": [
+    {"ip": "104.16.132.229", "port": 443, "avg_ms": 189.5, "loss_rate": 0.0, "tls_ok": true, "http_ms": null},
+    {"ip": "110.242.68.66", "port": 443, "avg_ms": null, "loss_rate": 1.0, "tls_ok": null, "http_ms": null},
+    {"ip": "202.108.22.5", "port": 443, "avg_ms": null, "loss_rate": 1.0, "tls_ok": null, "http_ms": null},
+    {"ip": "180.101.50.242", "port": 443, "avg_ms": null, "loss_rate": 1.0, "tls_ok": null, "http_ms": null},
+    {"ip": "203.119.168.10", "port": 443, "avg_ms": null, "loss_rate": 1.0, "tls_ok": null, "http_ms": null}
+  ]
+}
