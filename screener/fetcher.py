@@ -22,6 +22,25 @@ import config
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " \
      "(KHTML, like Gecko) Chrome/120.0 Safari/537.36"
 
+# UA 轮换池（升级清单：随机化请求行为，降低被源站风控的风险）
+UA_LIST = [
+    UA,
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/121.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 "
+    "(KHTML, like Gecko) Version/17.0 Safari/605.1.15",
+    "Mozilla/5.0 (X11; Linux x86_64; rv:122.0) Gecko/20100101 Firefox/122.0",
+    "cf-ip-screener/2.0 (+https://github.com/200111226011qw-debug/cf-ip-screener)",
+    "curl/8.5.0",
+]
+
+
+def _pick_ua(rotate: bool = True) -> str:
+    """随机选一个 UA；rotate=False 时回退到主 UA（可复现测试用）。"""
+    if rotate and UA_LIST:
+        return random.choice(UA_LIST)
+    return UA
+
 # 形如 1.2.3.4:443
 _RE_IPV4_PORT = re.compile(r"\b(\d{1,3}(?:\.\d{1,3}){3}):(\d{2,5})\b")
 # 形如 1.2.3.4
@@ -51,12 +70,20 @@ _JSON_PORT_KEYS = ("port", "Port")
 
 
 def fetch(url: str, timeout: float = 15, retries: int = 2,
-          retry_delay: float = 2.0) -> str:
-    """下载候选池内容并解码为文本；失败自动重试（指数退避）。"""
+          retry_delay: float = 2.0, jitter: float = 0.0,
+          rotate_ua: bool = True) -> str:
+    """下载候选池内容并解码为文本；失败自动重试（指数退避）。
+
+    jitter：抓取前随机 sleep(0~jitter) 秒，打散请求节奏（反风控）；
+    rotate_ua：每次请求随机选 UA。
+    """
+    if jitter > 0:
+        time.sleep(random.uniform(0, jitter))
+    ua = _pick_ua(rotate_ua)
     last_err = None
     for attempt in range(retries + 1):
         try:
-            req = urllib.request.Request(url, headers={"User-Agent": UA})
+            req = urllib.request.Request(url, headers={"User-Agent": ua})
             with urllib.request.urlopen(req, timeout=timeout) as resp:
                 raw = resp.read()
             # 按编码尝试解码：latin-1 永不抛错，只做兜底；优先 utf-8/gbk
@@ -313,12 +340,14 @@ def _tail_remark(line: str, match_end: int) -> str:
 
 def fetch_pool(pool: dict, default_port: int = 443, timeout: float = 15,
                cidr_sample: int = 64, retries: int = 2,
-               retry_delay: float = 2.0):
+               retry_delay: float = 2.0, jitter: float = 0.0,
+               rotate_ua: bool = True):
     """抓取单个池并解析，返回 {(ip, port): {'remark','isp'}}。
 
     失败时抛异常，由调用方记录到池级统计（不影响整体流程）。
     """
-    content = fetch(pool["url"], timeout, retries, retry_delay)
+    content = fetch(pool["url"], timeout, retries, retry_delay,
+                    jitter, rotate_ua)
     return parse_candidates(content, default_port, pool.get("isp"), cidr_sample)
 
 
@@ -404,8 +433,9 @@ async def _collect_cidr_nets(sources, timeout: float = 8, retries: int = 1,
     """
     nets = set()
     connector = aiohttp.TCPConnector(limit=concurrency)
+    ua = _pick_ua(True)
     async with aiohttp.ClientSession(
-            headers={"User-Agent": UA}, connector=connector) as session:
+            headers={"User-Agent": ua}, connector=connector) as session:
         tasks = [_fetch_cidr_text(session, url, timeout, retries, retry_delay)
                  for url in sources]
         results = await asyncio.gather(*tasks, return_exceptions=True)

@@ -2,7 +2,7 @@
 
 从公开的 **Cloudflare 优选 IP 候选池** 拉取候选，并发测试 TCP 连通性、延迟、丢包率与 TLS 握手，按阈值筛选出 “纯净可用” 的 IP，并对通过者做 **真实下载测速**，输出为订阅兼容格式（`IP:端口#备注`），支持 **按运营商（电信 / 联通 / 移动）分流输出**。
 
-> **依赖定位**：核心筛选逻辑保持**纯 Python 标准库**；可选功能「CIDR 种子源抓取」与「边缘网站爬虫」使用 `aiohttp`（并发抓取），测试框架为 `pytest` / `pytest-asyncio`。依赖清单见 `requirements.txt`。
+> **依赖定位（v2.0.0）**：核心筛选逻辑保持**纯 Python 标准库**；可选功能「CIDR 种子源抓取」「边缘网站爬虫」「Web GUI」「分布式扫描」使用 `aiohttp`（并发抓取 / Web 服务），测试框架为 `pytest` / `pytest-asyncio`。依赖清单见 `requirements.txt`。当前版本 **2.0.0**，测试规模 **111 passed**。
 
 默认候选池（可自由增删，见 `config.py`）：
 
@@ -48,6 +48,24 @@
 * **测速并发调优**：低延迟候选优先调度、单次超时按候选延迟自适应放大、分段探测（先下载 `probe_bytes` 默认 1MB 快速评估，未达 `--min-speed` 门槛提前放弃），结果更贴近真实带宽且更省时
 
 * **报告输出**：每次运行自动生成 `report.md` 与 `report.html`（含各池命中率、解析→保留→纯净漏斗、延迟/速度分布、机房地区分布、纯净 IP 明细）
+
+* **v2.0.0 升级特性（升级清单全量落地）**：
+  * **反检测**：UA 轮换（内置 UA 池，`rotate_ua`）+ 抓取前随机抖动（`request_jitter_max`，秒），降低被 Cloudflare / ISP 风控概率
+  * **探测增强**：`latency_warmup` 多轮延迟跳过首次握手（结果更贴近真实体验）；`http_check` HTTP/1.1 首字节探测（`GET /cdn-cgi/trace`）；代理池探测（`proxy_enabled` + `proxies`，HTTP CONNECT 隧道 + Basic Auth）
+  * **动态并发**：`auto_concurrency` 按候选量分级（≤100→50 / ≤500→100 / 其余 200），避免本地网络阻塞或触发 ISP 限制
+  * **贝叶斯优先**：`bayes_priority` 用 **Thompson Sampling** 从历史结果（`history.json`）分配测速预算——自动平衡“探索新 IP”与“利用已知好 IP”（`screener/bayes.py`）
+  * **DNS 自动化（安全形态）**：`dns_push_enabled` 默认关闭；凭证仅从环境变量读取（`DNSPOD_ID`/`DNSPOD_TOKEN`、`ALIYUN_AK`/`ALIYUN_SK`）；未启用 / 无凭证 / 无域名一律**不发任何请求**（`screener/dns_push.py`）
+  * **客户端配置导出**：自动生成 `clash_proxies.yaml` / `xray_outbounds.json` / `singbox_outbounds.json` 骨架（trojan 协议，server 填筛选 IP，凭证字段留占位，前 100 条）
+  * **配置热重载**：`--watch` 循环模式，每轮后检查 `config.py` 变更自动重载，不重启（`--interval` 调轮间隔，默认 `watch_interval`）
+  * **插件化系统**：`plugins_enabled` 开启后扫描 `screener/plugins/*.py`，第三方可注册候选源 / 测试器 / 筛选器（见示例 `example_custom_source.py`）
+  * **分布式扫描**：`python -m screener.distributed worker --port 8000` 起探测服务；master 模式把候选分片并发发给多个 worker 汇总（`python -m screener.distributed master --workers ...`）
+  * **Docker 容器化**：`docker build -t cf-ip-screener .` / `docker compose up --build`（默认每 6 小时热重载跑一轮，`result/` 与 `config.py` 挂载卷）
+  * **本地 Web GUI**：`python -m screener.webui` 起本地页面（默认 127.0.0.1:8080），状态页 + 启动扫描按钮 + 查看交互式报告
+  * **交互式报告**：`report.html` 引入 ECharts 5（延迟 / 速度分布柱图）+ IP 明细表点击表头排序（jsdelivr CDN，离线打开时图表降级为无脚本静态页）
+  * **通知机制**：`alert_webhook` 配置后扫描完成推送摘要（单 webhook 出口，可指向 Telegram / Bark / 自建端点，默认关闭）
+  * **纯净度校验**：`--ipinfo` 画像后按 `purity_filter` + `purity_reject_proxy` 剔除代理 / VPN 标记 IP
+  * **`--version` 与分级日志**：`python main.py --version`；`--log-file` / `--log-level` 输出分级日志并写文件（控制台纯消息、文件带时间戳）
+  * **单元测试**：核心模块（fetcher / tester / filter / bayes / notify / plugins / dns_push / 客户端导出 / 报告 / 日志）+ 此前全部契约测试，合计 **111 passed**
 
 * 输出 `IP:端口#备注` 订阅格式 txt + 结构化 JSON
 
@@ -146,6 +164,11 @@ HTML 锚点 `#`（如 `<a href="#top">1.2.3.4</a>`）位于 IP 之前，不会�
 | `--single TARGET`       | -      | 单目标快速检测：`IP[:端口]` 或 `域名[:端口]`，实测 TCP/TLS/延迟/丢包/测速/机房（归属画像需加 `--ipinfo`）（借鉴 ProxyIP 检测站的“真实链路验证”思路，不做静态解析） |
 | `--ipinfo`              | 关      | 开启 IP 归属画像（地理位置/ISP/ASN/网络类型，公开 ip-api.com 接口，免费额度约 45 次/分钟，串行查询 + 本地缓存）；批量模式与 `--single` 单目标模式通用，默认均关闭 |
 | `--outdir DIR`          | result | 输出目录                  |
+| `--version`             | -      | 显示版本号（v2.0.0）       |
+| `--log-file PATH`       | -      | 日志文件路径（开启分级日志 + 文件记录） |
+| `--log-level LV`        | INFO   | 日志级别 DEBUG/INFO/WARNING/ERROR |
+| `--watch`               | 关      | 热重载循环模式：每轮后检查 `config.py` 变更自动重载，不重启 |
+| `--interval N`          | 3600   | `--watch` 模式轮间隔秒数    |
 
 ## 配置
 
@@ -264,6 +287,35 @@ cf-ray 验证为 CF 边缘（公告段或外延段）。
 * 已存在的 `(IP, 端口)` 组合不重复探测（候选池自带该端口的行已测过则跳过）。
 * 参考 CF 官方 HTTPS 端口全集：`443 / 2053 / 2083 / 2087 / 2096 / 8443`。
 * ⚠️ CI workflow 保持默认 443：全端口会放大探测量，需先在本地验证预算，确有必要再改 workflow 传 `--ports`。
+
+## 进阶使用（v2.0.0）
+
+```bash
+# 热重载循环（改 config.py 自动生效，不重启）
+python main.py --watch --interval 3600
+
+# 分级日志 + 文件记录
+python main.py --log-file run.log --log-level DEBUG
+
+# 本地 Web GUI（状态页 / 启动扫描 / 查看交互报告）
+python -m screener.webui --port 8080
+
+# 分布式扫描：先起 worker（多台机器各一个），再跑 master 分片汇总
+python -m screener.distributed worker --port 8000
+python -m screener.distributed master \
+  --workers http://10.0.0.2:8000,http://10.0.0.3:8000 \
+  --candidates candidates.json
+
+# Docker 容器化
+docker build -t cf-ip-screener .
+docker run --rm -v "$PWD/result:/app/result" cf-ip-screener
+# 或 compose（默认每 6 小时一轮）
+docker compose up --build
+```
+
+**通知**：`config.py` 置 `alert_webhook` 为 webhook 地址（Telegram Bot API / Bark / 自建端点），扫描完成后推送结果摘要（默认空 = 关闭）。
+
+**DNS 自动化**：默认关闭。启用需三件事齐备——`dns_push_enabled: True`、`dns_domain` / `dns_sub` 配置、环境变量凭证（DNSPod：`DNSPOD_ID` / `DNSPOD_TOKEN`；阿里云：`ALIYUN_AK` / `ALIYUN_SK`）。缺任一项都不会发任何请求。
 
 ## 测试
 

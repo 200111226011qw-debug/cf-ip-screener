@@ -238,6 +238,59 @@ DEFAULT_CONFIG = {
     "seed_check_timeout": 15,        # 单源超时（秒）
     "seed_check_sample_lines": 20,   # 嗅探时看前多少行
 
+    # ========== 反检测与抓取行为（10-14 升级清单） ==========
+    "rotate_ua": True,               # UA 轮换（内置 UA 池，随机选取）
+    "request_jitter_max": 0.0,       # 抓取前随机延迟上限（秒，0=关闭；反风控）
+
+    # ========== 延迟与协议探测（升级清单） ==========
+    "latency_warmup": False,         # 多轮延迟：跳过首次握手（warmup），
+                                     # 结果更贴近真实长连接体验
+    "http_check": False,             # HTTP/1.1 首字节延迟探测（默认关，
+                                     # 避免每候选多发请求拖慢 CI）
+    "auto_concurrency": False,       # 动态并发：按候选量分级调整
+                                     # 连通性/测速并发，避免本地网络阻塞
+
+    # ========== 纯净度校验与代理池（升级清单） ==========
+    "purity_filter": False,          # 启用纯净度校验：画像后剔除
+                                     # proxy=true 的 IP（ip-api 免费字段）
+    "purity_reject_proxy": True,     # 配合 purity_filter：剔除代理标记
+    "proxy_enabled": False,          # 走 HTTP CONNECT 代理池探测
+    "proxies": [],                   # "http://user:pass@host:port" 列表
+                                     # （tester 探测时轮换，防本机 IP 被限流）
+
+    # ========== 通知与 DNS 自动化（升级清单） ==========
+    "alert_webhook": "",             # 扫描完成通知 webhook（空=关闭），
+                                     # POST JSON 摘要 {clean, elapsed, top}
+    "dns_push_enabled": False,       # DNS 自动化：凭证从环境变量读取
+                                     # （DNSPOD_ID/DNSPOD_TOKEN 或
+                                     # ALIYUN_AK/ALIYUN_SK），未配置/未启用
+                                     # 一律不触发，绝不擅自写 DNS 记录
+    "dns_provider": "dnspod",        # dnspod | aliyun
+    "dns_domain": "",                # 如 example.com
+    "dns_sub": "cf",                 # 记录名（如 cf.example.com 的 A 记录）
+    "dns_record_type": "A",
+    "dns_ttl": 600,
+
+    # ========== 贝叶斯优先与历史（升级清单） ==========
+    "bayes_priority": False,         # Thompson Sampling 分配测速预算：
+                                     # 从历史结果对每个候选 Beta(α,β) 采样，
+                                     # 高分者优先测速（探索 vs 利用）
+    "history_file": "history.json",  # 历史结果（output_dir 下），
+                                     # 每轮追加 {ip:port: {ok, fail}}
+
+    # ========== 客户端配置导出（升级清单） ==========
+    "client_export": True,           # 生成 clash / xray / sing-box 配置骨架
+                                     # （server 填干净 IP，协议凭证字段留占位）
+
+    # ========== 热重载 watch 模式（升级清单） ==========
+    "watch_interval": 3600,          # --watch 模式轮间隔（秒）：每轮后检查
+                                     # config.py mtime，变更自动重载不重启
+
+    # ========== 插件化（升级清单） ==========
+    "plugins_enabled": False,        # 开启后 main 扫描 screener/plugins/*.py
+                                     # 并入第三方候选源（示例见
+                                     # screener/plugins/example_custom_source.py）
+
     # ========== 连通性测试参数 ==========
     "timeout": 3.0,          # 单次 TCP/TLS 探测超时（秒）
     "probes": 3,             # 每个 IP 的 TCP 探测次数（用于估算丢包）

@@ -1,9 +1,17 @@
 # -*- coding: utf-8 -*-
-"""并发连通性测试：TCP 连接 + 可选 TLS 握手，估算延迟与丢包率。"""
+"""并发连通性测试：TCP 连接 + 可选 TLS 握手，估算延迟与丢包率。
+
+升级清单新增能力（均默认关闭，不改变现有 CI 行为）：
+- warmup：多轮延迟跳过首次握手（更贴近真实长连接体验）
+- http_check：HTTP/1.1 首字节延迟探测（多协议评估）
+- proxy：HTTP CONNECT 代理隧道（走代理池，防本机 IP 被限流/封锁）
+"""
 
 import asyncio
+import base64
 import ssl
 import time
+import urllib.parse
 
 # 模块级缓存：SSLContext 线程/协程安全，可全局共享，
 # 避免每个 IP 都 create_default_context()（会读系统 CA 库，开销大）
@@ -12,14 +20,65 @@ _TLS_CTX.check_hostname = False
 _TLS_CTX.verify_mode = ssl.CERT_NONE
 
 
-async def _tcp_probe(ip: str, port: int, timeout: float):
-    """单次 TCP 连接探测，成功返回毫秒延迟，失败返回 None。"""
+def parse_proxy_url(proxy_url: str) -> dict:
+    """解析 "http://user:pass@host:port"（或裸 host:port）为 dict。
+
+    返回 {"host", "port", "user", "pass"}；无认证时 user/pass 为空串。
+    """
+    u = urllib.parse.urlsplit(proxy_url if "://" in proxy_url
+                              else "http://" + proxy_url)
+    return {
+        "host": u.hostname,
+        "port": u.port or 8080,
+        "user": u.username or "",
+        "pass": u.password or "",
+    }
+
+
+async def _open_proxy_tunnel(proxy: dict, host: str, port: int,
+                             timeout: float):
+    """HTTP CONNECT 隧道：连接代理并建立到目标 host:port 的隧道。
+
+    成功返回 (reader, writer)，失败抛异常（由调用方转为 None）。
+    """
+    reader, writer = await asyncio.wait_for(
+        asyncio.open_connection(proxy["host"], proxy["port"]), timeout)
+    auth = ""
+    if proxy.get("user"):
+        token = base64.b64encode(
+            f"{proxy['user']}:{proxy.get('pass', '')}".encode()).decode()
+        auth = f"Proxy-Authorization: Basic {token}\r\n"
+    req = (f"CONNECT {host}:{port} HTTP/1.1\r\n"
+           f"Host: {host}:{port}\r\n{auth}\r\n")
+    writer.write(req.encode())
+    await writer.drain()
+    buf = b""
+    while b"\r\n\r\n" not in buf:
+        chunk = await asyncio.wait_for(reader.read(4096), timeout)
+        if not chunk:
+            raise ConnectionError("proxy closed during CONNECT")
+        buf += chunk
+    status = buf.split(b"\r\n", 1)[0].decode(errors="ignore")
+    if " 200 " not in " " + status:
+        writer.close()
+        raise ConnectionError(f"CONNECT failed: {status}")
+    return reader, writer
+
+
+async def _tcp_probe(ip: str, port: int, timeout: float, proxy: dict = None):
+    """单次 TCP 连接探测，成功返回毫秒延迟，失败返回 None。
+
+    proxy 非空时走 HTTP CONNECT 隧道（隧道建立耗时计入延迟）。
+    """
     loop = asyncio.get_running_loop()
     start = loop.time()
     try:
-        reader, writer = await asyncio.wait_for(
-            asyncio.open_connection(ip, port), timeout
-        )
+        if proxy:
+            _reader, writer = await _open_proxy_tunnel(proxy, ip, port, timeout)
+        else:
+            reader, writer = await asyncio.wait_for(
+                asyncio.open_connection(ip, port), timeout
+            )
         writer.close()
         try:
             await writer.wait_closed()
@@ -30,17 +89,30 @@ async def _tcp_probe(ip: str, port: int, timeout: float):
         return None
 
 
-async def _tls_probe(ip: str, port: int, timeout: float, sni: str) -> bool:
+async def _tls_probe(ip: str, port: int, timeout: float, sni: str,
+                     proxy: dict = None) -> bool:
     """TLS 握手探测：能完成握手即视为通过（用于过滤非真实可用节点）。
 
     仅校验握手成功，不校验证书链（不少优选节点证书为泛域名/自签）。
+    走代理时在 CONNECT 隧道上做 start_tls（open_connection(sock=...)）。
     """
     try:
-        reader, writer = await asyncio.wait_for(
-            asyncio.open_connection(ip, port, ssl=_TLS_CTX, server_hostname=sni),
-            timeout,
-        )
-        writer.close()
+        if proxy:
+            _reader, writer = await _open_proxy_tunnel(proxy, ip, port, timeout)
+            sock = writer.transport.get_extra_info("socket")
+            _sr, swriter = await asyncio.wait_for(
+                asyncio.open_connection(sock=sock, ssl=_TLS_CTX,
+                                        server_hostname=sni),
+                timeout,
+            )
+            swriter.close()
+        else:
+            reader, writer = await asyncio.wait_for(
+                asyncio.open_connection(ip, port, ssl=_TLS_CTX,
+                                        server_hostname=sni),
+                timeout,
+            )
+            writer.close()
         try:
             await writer.wait_closed()
         except Exception:
@@ -50,19 +122,64 @@ async def _tls_probe(ip: str, port: int, timeout: float, sni: str) -> bool:
         return False
 
 
+async def _http_probe(ip: str, port: int, timeout: float, sni: str,
+                      proxy: dict = None):
+    """HTTP/1.1 GET /cdn-cgi/trace 首字节延迟（毫秒），失败返回 None。
+
+    多协议评估：TCP/TLS 之外再看 HTTP 响应首字节，更全面评估 IP 质量。
+    走代理时在 CONNECT 隧道上发明文 HTTP（对 HTTPS 端口会失败→None，合理）。
+    """
+    loop = asyncio.get_running_loop()
+    start = loop.time()
+    try:
+        if proxy:
+            reader, writer = await _open_proxy_tunnel(proxy, ip, port, timeout)
+        else:
+            reader, writer = await asyncio.wait_for(
+                asyncio.open_connection(ip, port), timeout)
+        req = (f"GET /cdn-cgi/trace HTTP/1.1\r\n"
+               f"Host: {sni}\r\nUser-Agent: cf-ip-screener/2.0\r\n"
+               f"Connection: close\r\n\r\n")
+        writer.write(req.encode())
+        await writer.drain()
+        head = await asyncio.wait_for(reader.read(1), timeout)
+        # 有限读完剩余响应头/体，释放连接
+        try:
+            await asyncio.wait_for(reader.read(8192), min(timeout, 2))
+        except Exception:
+            pass
+        writer.close()
+        try:
+            await writer.wait_closed()
+        except Exception:
+            pass
+        return (loop.time() - start) * 1000 if head else None
+    except Exception:
+        return None
+
+
 async def probe_one(ip: str, port: int, timeout: float, probes: int,
-                    tls_check: bool, sni: str) -> dict:
-    """对单个 IP 做多次 TCP 探测，返回延迟/丢包/TLS 结果。"""
+                    tls_check: bool, sni: str, warmup: bool = False,
+                    http_check: bool = False, proxy: dict = None) -> dict:
+    """对单个 IP 做多次 TCP 探测，返回延迟/丢包/TLS/HTTP 结果。
+
+    warmup=True：多测一轮，首轮成功结果丢弃（跳过首次握手开销）；
+    http_check=True：再发一次 HTTP 请求测首字节延迟；
+    proxy 非空：全部探测走该代理。
+    """
     latencies = []
     fail_streak = 0
-    for _ in range(probes):
-        lat = await _tcp_probe(ip, port, timeout)
+    total = probes + (1 if warmup else 0)
+    for i in range(total):
+        lat = await _tcp_probe(ip, port, timeout, proxy)
         if lat is None:
             fail_streak += 1
             # 连丢 2 次直接判死，省掉剩余探测（避免空转）
             if fail_streak >= 2:
                 break
         else:
+            if warmup and i == 0:
+                continue  # warmup 轮：不进入平均
             latencies.append(lat)
             fail_streak = 0
 
@@ -70,7 +187,10 @@ async def probe_one(ip: str, port: int, timeout: float, probes: int,
     avg_ms = sum(latencies) / len(latencies) if latencies else None
     tls_ok = None
     if tls_check and latencies:
-        tls_ok = await _tls_probe(ip, port, timeout, sni)
+        tls_ok = await _tls_probe(ip, port, timeout, sni, proxy)
+    http_ms = None
+    if http_check and latencies:
+        http_ms = await _http_probe(ip, port, timeout, sni, proxy)
 
     return {
         "ip": ip,
@@ -78,11 +198,13 @@ async def probe_one(ip: str, port: int, timeout: float, probes: int,
         "avg_ms": round(avg_ms, 1) if avg_ms is not None else None,
         "loss_rate": round(loss_rate, 2),
         "tls_ok": tls_ok,
+        "http_ms": round(http_ms, 1) if http_ms is not None else None,
     }
 
 
 async def run(candidates, timeout=3.0, probes=3, max_concurrency=200,
-              tls_check=True, sni="www.cloudflare.com", on_progress=None):
+              tls_check=True, sni="www.cloudflare.com", on_progress=None,
+              warmup=False, http_check=False, proxy=None):
     """并发测试全部候选，返回结果列表。candidates 为 {(ip, port): remark}。"""
     sem = asyncio.Semaphore(max_concurrency)
     results = []
@@ -90,7 +212,8 @@ async def run(candidates, timeout=3.0, probes=3, max_concurrency=200,
     async def worker(item):
         (ip, port), remark = item
         async with sem:
-            res = await probe_one(ip, port, timeout, probes, tls_check, sni)
+            res = await probe_one(ip, port, timeout, probes, tls_check, sni,
+                                  warmup, http_check, proxy)
         res["remark"] = remark
         return res
 

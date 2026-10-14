@@ -1,0 +1,9 @@
+# 容器内不需要：git 历史、测试产物、本地运行缓存
+.git
+.github
+tests
+__pycache__
+*.pyc
+result
+*.log
+.ipinfo-cache.json

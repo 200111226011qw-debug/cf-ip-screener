@@ -101,6 +101,74 @@ def write_all(clean, outdir: str, cfg: dict) -> dict:
     return written
 
 
+def write_client_configs(clean, outdir: str) -> dict:
+    """生成 Clash / Xray / sing-box 配置骨架（升级清单：一键使用）。
+
+    server 填筛选结果 IP；协议凭证字段（password/uuid）留占位符，
+    用户按自己的节点协议填写后即可整体粘贴进客户端配置。
+    返回 {路径: 条数}。
+    """
+    written = {}
+    if not clean:
+        return written
+
+    clash = os.path.join(outdir, "clash_proxies.yaml")
+    xray = os.path.join(outdir, "xray_outbounds.json")
+    sing = os.path.join(outdir, "singbox_outbounds.json")
+
+    clash_lines = [
+        "# CF 优选 IP 代理骨架（server 已填筛选结果，password 请自行填写）",
+        "# 用法：把 proxies 段复制进 Clash 配置；协议可用 trojan/vmess/ss",
+        "proxies:",
+    ]
+    xray_items = []
+    sing_items = []
+    for r in clean[:100]:
+        ip, port = r["ip"], r["port"]
+        name = f"CF-{ip}:{port}"
+        clash_lines.append(
+            f"  - name: \"{name}\"\n"
+            f"    type: trojan\n"
+            f"    server: {ip}\n"
+            f"    port: {port}\n"
+            f"    password: \"YOUR_PASSWORD\"\n"
+            f"    sni: www.cloudflare.com\n"
+            f"    skip-cert-verify: true")
+        xray_items.append({
+            "tag": name,
+            "protocol": "trojan",
+            "settings": {"servers": [{
+                "address": ip, "port": port,
+                "password": "YOUR_PASSWORD", "level": 1}]},
+            "streamSettings": {
+                "network": "tcp",
+                "security": "tls",
+                "tlsSettings": {"serverName": "www.cloudflare.com",
+                                "allowInsecure": True}},
+        })
+        sing_items.append({
+            "type": "trojan",
+            "tag": name,
+            "server": ip,
+            "server_port": port,
+            "password": "YOUR_PASSWORD",
+            "tls": {"enabled": True, "server_name": "www.cloudflare.com",
+                    "insecure": True},
+        })
+
+    with open(clash, "w", encoding="utf-8") as f:
+        f.write("\n".join(clash_lines) + "\n")
+    with open(xray, "w", encoding="utf-8") as f:
+        json.dump({"outbounds": xray_items}, f, ensure_ascii=False, indent=2)
+    with open(sing, "w", encoding="utf-8") as f:
+        json.dump({"outbounds": sing_items}, f, ensure_ascii=False, indent=2)
+
+    written[clash] = len(clean[:100])
+    written[xray] = len(clean[:100])
+    written[sing] = len(clean[:100])
+    return written
+
+
 def print_summary(clean, total_tested: int, total_candidates: int):
     print()
     print(f"候选总数: {total_candidates}  已测试: {total_tested}  "

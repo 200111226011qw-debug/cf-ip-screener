@@ -1,0 +1,15 @@
+# cf-ip-screener 容器编排（升级清单：容器化部署）
+# 用法：docker compose up --build   （默认每 6 小时跑一轮，可改 interval）
+services:
+  screener:
+    build: .
+    image: cf-ip-screener:latest
+    container_name: cf-ip-screener
+    restart: unless-stopped
+    command: ["python", "main.py", "--watch", "--interval", "21600"]
+    volumes:
+      - ./result:/app/result
+      - ./config.py:/app/config.py
+    environment:
+      # 反检测 / 纯净度 / DNS 推送可按需开启（DNS 凭证不写进配置）
+      - CF_IP_SCREENER_LOG_LEVEL=INFO

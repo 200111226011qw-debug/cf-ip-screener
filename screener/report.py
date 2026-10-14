@@ -7,6 +7,7 @@
 
 import datetime
 import html
+import json
 import os
 
 import config
@@ -234,27 +235,73 @@ def build_report(cfg, pool_stats, clean, total_tested, total_candidates,
                 f"<span class='bar-num'>{n}</span></div>")
         return "".join(bars)
 
+    # 交互图表脚本块（普通字符串，避免 f-string 花括号转义地狱）
+    interactive_js = """<script>
+const LAT = %s;
+const SPD = %s;
+
+function renderChart(el, labels, values, yName) {
+  const chart = echarts.init(document.getElementById(el));
+  chart.setOption({
+    tooltip: { trigger: 'axis', triggerOn: 'click', renderMode: 'richText', confine: true },
+    grid: { left: 48, right: 24, top: 16, bottom: 36, containLabel: true },
+    xAxis: { type: 'category', data: labels, axisLabel: { fontSize: 11 } },
+    yAxis: { type: 'value', name: yName, axisLabel: { fontSize: 11 } },
+    series: [{ type: 'bar', data: values, barMaxWidth: 46 }]
+  });
+  window.addEventListener('resize', function () { chart.resize(); });
+}
+
+renderChart('chart-lat', LAT.map(function (d) { return d[0]; }),
+            LAT.map(function (d) { return d[1]; }), '数量');
+renderChart('chart-spd', SPD.map(function (d) { return d[0]; }),
+            SPD.map(function (d) { return d[1]; }), '数量');
+
+// 明细表点击表头排序（data-num=1 数值列按数值，其余按文本）
+document.querySelectorAll('#ip-table th').forEach(function (th) {
+  th.addEventListener('click', function () {
+    const idx = Array.prototype.indexOf.call(th.parentNode.children, th);
+    const numeric = th.getAttribute('data-num') === '1';
+    const tbody = document.querySelector('#ip-table');
+    const rows = Array.prototype.slice.call(tbody.querySelectorAll('tr'));
+    const body = rows.slice(1);
+    const dir = tbody.getAttribute('data-sort') === 'asc' ? 'desc' : 'asc';
+    tbody.setAttribute('data-sort', dir);
+    body.sort(function (a, b) {
+      const av = a.children[idx].innerText;
+      const bv = b.children[idx].innerText;
+      if (numeric) {
+        const an = parseFloat(av) || 0, bn = parseFloat(bv) || 0;
+        return dir === 'asc' ? an - bn : bn - an;
+      }
+      return dir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
+    });
+    body.forEach(function (r) { tbody.appendChild(r); });
+  });
+});
+</script>""" % (json.dumps(lat_dist, ensure_ascii=False),
+           json.dumps(spd_dist, ensure_ascii=False))
+
     html_page = f"""<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>CF 优选 IP 筛选报告</title>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
 <style>
   body {{ font-family: "Segoe UI", "Microsoft YaHei", sans-serif; margin: 24px; background: #f7f8fa; color: #222; }}
   h1 {{ font-size: 22px; }} h2 {{ font-size: 17px; margin-top: 28px; border-bottom: 2px solid #e3e6ea; padding-bottom: 6px; }}
   .meta {{ color: #666; font-size: 13px; line-height: 1.7; }}
   table {{ border-collapse: collapse; width: 100%; background: #fff; font-size: 13px; }}
   th, td {{ border: 1px solid #e3e6ea; padding: 6px 10px; text-align: left; }}
-  th {{ background: #eef1f5; }}
+  th {{ background: #eef1f5; cursor: pointer; user-select: none; }}
+  th::after {{ content: " ⇅"; font-size: 10px; color: #999; }}
   td.num {{ text-align: right; font-variant-numeric: tabular-nums; }}
   td.url {{ word-break: break-all; }}
   .ok {{ color: #1a7f37; font-weight: 600; }}
   .bad {{ color: #b42318; font-weight: 600; }}
-  .bar {{ display: flex; align-items: center; margin: 4px 0; }}
-  .bar-label {{ width: 90px; font-size: 12px; color: #555; }}
-  .bar-fill {{ display: inline-block; height: 14px; background: #4a7dd9; border-radius: 3px; }}
-  .bar-num {{ margin-left: 8px; font-size: 12px; }}
+  .chart {{ height: 260px; background: #fff; border: 1px solid #e3e6ea; border-radius: 4px; }}
   .grid {{ display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }}
   @media (max-width: 900px) {{ .grid {{ grid-template-columns: 1fr; }} }}
 </style>
@@ -278,23 +325,25 @@ def build_report(cfg, pool_stats, clean, total_tested, total_candidates,
 <div class="grid">
 <div>
 <h2>延迟分布 (ms)</h2>
-{_bars(lat_dist)}
+<div id="chart-lat" class="chart"></div>
 </div>
 <div>
 <h2>速度分布 (MB/s)</h2>
-{_bars(spd_dist)}
+<div id="chart-spd" class="chart"></div>
 </div>
 </div>
 
 <h2>机房地区分布</h2>
 {_bars(colo_top) if colo_top else '<p>（未识别到机房码）</p>'}
 
-<h2>纯净 IP 明细</h2>
-<table>
-<tr><th>IP:端口</th><th>延迟(ms)</th><th>丢包</th><th>TLS</th><th>速度(MB/s)</th><th>机房</th><th>原生</th><th>段</th></tr>
+<h2>纯净 IP 明细（点击表头排序）</h2>
+<table id="ip-table">
+<tr><th data-num="0">IP:端口</th><th data-num="1">延迟(ms)</th><th data-num="1">丢包</th><th>TLS</th><th data-num="1">速度(MB/s)</th><th>机房</th><th>原生</th><th>段</th></tr>
 {_rows()}
 </table>
 <p style="font-size:12px;color:#888;">完整明细见 result/clean-ips.txt 与 clean-ips.json。</p>
+
+{interactive_js}
 </body>
 </html>
 """
