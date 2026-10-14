@@ -7,6 +7,7 @@ import re
 import unicodedata
 
 import config
+from screener.atomic import atomic_write
 
 # 源站备注里的时间戳（如 "| 09-28 20:01"）：剥离后避免同一 IP 每次
 # 抓取备注都不同，导致 result/ 反复 diff、CI 白 commit
@@ -53,22 +54,18 @@ def to_subscribe_line(r: dict) -> str:
     return f"{r['ip']}:{r['port']}#{remark}"
 
 
-def _ensure_dir(path: str):
-    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
-
-
 def write_txt(clean, path: str):
-    _ensure_dir(path)
-    with open(path, "w", encoding="utf-8") as f:
-        for r in clean:
-            f.write(to_subscribe_line(r) + "\n")
+    lines = [to_subscribe_line(r) for r in clean]
+    content = "\n".join(lines)
+    if lines:
+        content += "\n"
+    atomic_write(path, content)
     return path
 
 
 def write_json(clean, path: str):
-    _ensure_dir(path)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(clean, f, ensure_ascii=False, indent=2)
+    content = json.dumps(clean, ensure_ascii=False, indent=2)
+    atomic_write(path, content)
     return path
 
 
@@ -156,12 +153,11 @@ def write_client_configs(clean, outdir: str) -> dict:
                     "insecure": True},
         })
 
-    with open(clash, "w", encoding="utf-8") as f:
-        f.write("\n".join(clash_lines) + "\n")
-    with open(xray, "w", encoding="utf-8") as f:
-        json.dump({"outbounds": xray_items}, f, ensure_ascii=False, indent=2)
-    with open(sing, "w", encoding="utf-8") as f:
-        json.dump({"outbounds": sing_items}, f, ensure_ascii=False, indent=2)
+    atomic_write(clash, "\n".join(clash_lines) + "\n")
+    atomic_write(xray, json.dumps({"outbounds": xray_items},
+                                  ensure_ascii=False, indent=2))
+    atomic_write(sing, json.dumps({"outbounds": sing_items},
+                                  ensure_ascii=False, indent=2))
 
     written[clash] = len(clean[:100])
     written[xray] = len(clean[:100])

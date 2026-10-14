@@ -1,0 +1,28 @@
+[
+  {
+    "ip": "104.16.1.1",
+    "port": 443,
+    "avg_ms": 12.3,
+    "loss_rate": 0.0,
+    "tls_ok": true,
+    "speed_mbps": 85.2,
+    "colo": "SJC",
+    "native": true,
+    "isp": "ct",
+    "remark": "电信优选",
+    "ipinfo": {
+      "country": "US",
+      "city": "San Jose",
+      "network_type": "residential",
+      "as": "AS13335"
+    }
+  },
+  {
+    "ip": "2400:cb00::1",
+    "port": 443,
+    "avg_ms": 15.0,
+    "loss_rate": 0.0,
+    "tls_ok": true,
+    "isp": "ct"
+  }
+]

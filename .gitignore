@@ -23,3 +23,7 @@ result-local/
 
 # 池 FAIL 连续观察状态（定时任务跨轮计数）
 pool-fail-watch.json
+
+# pytest
+.coverage
+.pytest_cache/

@@ -1,0 +1,22 @@
+{
+  "generated_at": "2026-10-14T15:13:07",
+  "fixture_count": 7,
+  "files": [
+    "by_isp/clean-ips-cmcc.json",
+    "by_isp/clean-ips-cmcc.txt",
+    "by_isp/clean-ips-ct.json",
+    "by_isp/clean-ips-ct.txt",
+    "by_isp/clean-ips-cu.json",
+    "by_isp/clean-ips-cu.txt",
+    "by_isp/clean-ips-other.json",
+    "by_isp/clean-ips-other.txt",
+    "by_isp/clean-ips.json",
+    "by_isp/clean-ips.txt",
+    "clash_proxies.yaml",
+    "clean.json",
+    "clean.txt",
+    "print_summary.txt",
+    "singbox_outbounds.json",
+    "xray_outbounds.json"
+  ]
+}

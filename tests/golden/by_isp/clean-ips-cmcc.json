@@ -1,0 +1,13 @@
+[
+  {
+    "ip": "1.1.1.1",
+    "port": 2053,
+    "avg_ms": 30.0,
+    "loss_rate": 0.2,
+    "tls_ok": null,
+    "speed_mbps": 120.0,
+    "colo": "HKG",
+    "isp": "cmcc",
+    "remark": "移动优选"
+  }
+]

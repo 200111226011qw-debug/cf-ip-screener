@@ -1,0 +1,2 @@
+# 黄金文件禁用 git 自动行尾转换，保证 PR 1 前后字节级对比一致
+tests/golden/** -text

@@ -1,0 +1,26 @@
+[
+  {
+    "ip": "8.8.8.8",
+    "port": 443,
+    "avg_ms": 20.1,
+    "loss_rate": 0.1,
+    "tls_ok": false,
+    "isp": ""
+  },
+  {
+    "ip": "64.181.227.82",
+    "port": 443,
+    "avg_ms": 279.11,
+    "loss_rate": 0.0,
+    "tls_ok": null,
+    "remark": "US [279.11ms]"
+  },
+  {
+    "ip": "104.16.1.1",
+    "port": 443,
+    "avg_ms": 10.0,
+    "loss_rate": 0.0,
+    "tls_ok": null,
+    "remark": "节点A"
+  }
+]
