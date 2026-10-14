@@ -1,0 +1,51 @@
+{
+  "generated_at": "2026-10-14T08:08:32+00:00",
+  "git_commit": "5a23d1c",
+  "python_version": "3.13.13",
+  "platform": "win32",
+  "network_context": "湖南益阳家用宽带；5 个目标中 4 个 TCP 不通（百度/京东/阿里 IP 的 443 均被阻断，疑似本地防火墙或运营商策略），仅 104.16.132.229 可达",
+  "targets_file": "docs/pr2-baseline-targets.txt",
+  "note": "v1 baseline 使用境外 IP（1.1.1.1/8.8.8.8 等）在当前网络下全部不通；v2 改用国内 IP 仍仅 1 个可达。对比时以 104.16.132.229 为唯一有效数据点。",
+  "results": [
+    {
+      "ip": "104.16.132.229",
+      "port": 443,
+      "avg_ms": 194.6,
+      "loss_rate": 0.0,
+      "tls_ok": true,
+      "http_ms": null
+    },
+    {
+      "ip": "110.242.68.66",
+      "port": 443,
+      "avg_ms": null,
+      "loss_rate": 1.0,
+      "tls_ok": null,
+      "http_ms": null
+    },
+    {
+      "ip": "202.108.22.5",
+      "port": 443,
+      "avg_ms": null,
+      "loss_rate": 1.0,
+      "tls_ok": null,
+      "http_ms": null
+    },
+    {
+      "ip": "180.101.50.242",
+      "port": 443,
+      "avg_ms": null,
+      "loss_rate": 1.0,
+      "tls_ok": null,
+      "http_ms": null
+    },
+    {
+      "ip": "203.119.168.10",
+      "port": 443,
+      "avg_ms": null,
+      "loss_rate": 1.0,
+      "tls_ok": null,
+      "http_ms": null
+    }
+  ]
+}

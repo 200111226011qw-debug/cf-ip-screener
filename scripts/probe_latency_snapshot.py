@@ -22,11 +22,11 @@ sys.path.insert(0, ROOT)
 from screener.tester import probe_one  # noqa: E402
 
 TARGETS = [
-    ("1.1.1.1", 443),
-    ("8.8.8.8", 443),
-    ("9.9.9.9", 443),
     ("104.16.132.229", 443),
-    ("142.250.185.78", 443),
+    ("110.242.68.66", 443),
+    ("202.108.22.5", 443),
+    ("180.101.50.242", 443),
+    ("203.119.168.10", 443),
 ]
 
 
@@ -45,7 +45,7 @@ async def main():
         "platform": sys.platform,
         "results": results,
     }
-    out_path = os.path.join(ROOT, "docs", "pr2-baseline-latency.json")
+    out_path = os.path.join(ROOT, "docs", "pr2-baseline-latency-v2.json")
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(out, f, ensure_ascii=False, indent=2)
     print(f"\n已写入 {out_path}")
