@@ -2,7 +2,7 @@
 
 从公开的 **Cloudflare 优选 IP 候选池** 拉取候选，并发测试 TCP 连通性、延迟、丢包率与 TLS 握手，按阈值筛选出 “纯净可用” 的 IP，并对通过者做 **真实下载测速**，输出为订阅兼容格式（`IP:端口#备注`），支持 **按运营商（电信 / 联通 / 移动）分流输出**。
 
-> **依赖定位**：核心筛选逻辑保持**纯 Python 标准库**；仅可选功能「CIDR 种子源抓取」使用 `aiohttp`（并发拉取多个纯文本 CIDR 源），测试框架为 `pytest` / `pytest-asyncio`。依赖清单见 `requirements.txt`。
+> **依赖定位**：核心筛选逻辑保持**纯 Python 标准库**；可选功能「CIDR 种子源抓取」与「边缘网站爬虫」使用 `aiohttp`（并发抓取），测试框架为 `pytest` / `pytest-asyncio`。依赖清单见 `requirements.txt`。
 
 默认候选池（可自由增删，见 `config.py`）：
 
@@ -36,6 +36,8 @@
 * **官方原生段**：内置 Cloudflare 公告的全部 IP 段（IPv4 + IPv6），CIDR 大段自动随机抽样（`cidr_sample` 可调），筛出的官方段 IP 标记「原生」，避免第三方池混入的回源/反代 IP
 
 * **CIDR 种子源（可选，默认关闭）**：可接入 lord-alfred/ipranges、TYOYO1/CF-ASN 等纯文本 CIDR 聚合库作为底层候选池，与 bestcf 类「IP:端口」优选池互补。开启后每轮按 **段级 + 段内两层抽样**（`cidr_seed_segments` × `cidr_seed_per_segment`，总量受 `cidr_seed_limit` 硬上限）混入候选；抓取层使用 `aiohttp` 并发拉取（见 `requirements.txt`）。注意公告段 ≠ 全可用 IP，命中率预期低于优选池，产出靠测速过滤（`config.py` 置 `cidr_seed_enabled: True` 开启）
+
+* **边缘网站爬虫（可选，默认关闭）**：针对 HTML 网页型源的结构化爬取（现有 `pools` 只处理纯文本/JSON）。内置 wetest.vip「优选地址」表格页（IPv4/IPv6）与 zoroaaa.github.io/cf-bestip 优选页，支持 **HTML 表格「优选地址」列 + 正文 IP:端口/裸 IP 双解析**（`screener/edge_crawler.py`）；抓取层复用 `aiohttp`，坏源自动跳过，总量受 `edge_sites_limit` 硬上限（`config.py` 置 `edge_sites_enabled: True` 开启，`edge_sites` 可增删页面）。另已接入 6 个带地区标记的边缘优选文本池（LancelotRar / kinghui-001 / HandsomeMJZ / cmliu，含 `[IPv6]:端口` 格式），随 `pools` 每轮生效
 
 * **IP 归属画像（可选）**：`--ipinfo` 对候选结果批量查询地理位置 / ISP / ASN / 网络类型（机房/云、移动/蜂窝、代理标记、运营商网络），用公开 ip-api.com 接口；`--single` 单目标模式与批量模式统一，默认均关闭，加 `--ipinfo` 开启
 

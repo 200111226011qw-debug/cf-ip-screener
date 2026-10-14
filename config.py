@@ -91,6 +91,13 @@ DEFAULT_CONFIG = {
         # —— 官方原生段 ——
         {"url": "https://www.cloudflare.com/ips-v4", "native": True},
         {"url": "https://www.cloudflare.com/ips-v6", "native": True},
+        # —— 边缘优选池（2026-10-14 新接入：带地区标记 / IPv6 方括号）——
+        {"url": "https://raw.githubusercontent.com/LancelotRar/best-cf-ips/main/best-cf-ip-collected.txt"},
+        {"url": "https://raw.githubusercontent.com/kinghui-001/cfip/main/best_ips.txt"},
+        {"url": "https://raw.githubusercontent.com/kinghui-001/cfip/main/full_ips.txt"},
+        {"url": "https://raw.githubusercontent.com/HandsomeMJZ/cfip/main/best_ips.txt"},
+        {"url": "https://raw.githubusercontent.com/cmliu/WorkerVless2sub/main/addressesapi.txt"},
+        {"url": "https://raw.githubusercontent.com/cmliu/WorkerVless2sub/main/addressesipv6api.txt"},
     ],
 
     # 裸 IP（未带端口）时默认测试的端口
@@ -174,7 +181,7 @@ DEFAULT_CONFIG = {
     # 两层抽样避免"对全量 CIDR 均匀随机抽 500 个 IP"可能整轮抽到
     # 一批质量差的段；同时段内抽样保证单个段不会占满候选池。
     # 注意：公告段 ≠ 全可用 IP，命中率预期低于第三方优选池，
-    # 产出靠下游测速过滤。仍为纯标准库实现，不引入第三方依赖。
+    # 产出靠下游测速过滤。抓取层依赖 aiohttp（见 requirements.txt）。
     # 默认关闭：不改变现有 CI 行为；学习/探索时置 True 开启。
     "cidr_seed_sources": [
         "https://raw.githubusercontent.com/lord-alfred/ipranges/main/cloudflare/ipv4.txt",
@@ -186,6 +193,23 @@ DEFAULT_CONFIG = {
     "cidr_seed_limit": 500,        # 每轮硬上限（段级×段内后截断）
     "cidr_seed_segments": 40,      # 每轮抽的段数
     "cidr_seed_per_segment": 12,   # 每段抽的 IP 数
+
+    # ========== 边缘网站爬虫（可选，默认关闭） ==========
+    # 针对 HTML 网页型源的爬取（现有 pools 只处理纯文本/JSON，
+    # 官方原生段也是文本；网页源需要解析 HTML 结构）。
+    # 支持两类页面：
+    #   - HTML 表格（wetest.vip「优选地址」列，裸 IP，用 default_port）
+    #   - 页面正文中的 IP:端口 / 裸 IP（zoroaaa.github.io 等）
+    # 抓取层复用 aiohttp（与 CIDR 种子源同一套并发/重试/坏源跳过）。
+    # 默认关闭：不改变现有 CI 行为；置 True 开启。
+    "edge_sites_enabled": False,
+    "edge_sites": [
+        "https://wetest.vip/page/cloudflare/address_v4.html",
+        "https://wetest.vip/page/cloudflare/address_v6.html",
+        "https://zoroaaa.github.io/cf-bestip/",
+    ],
+    "edge_sites_limit": 500,       # 每轮硬上限（防网页源膨胀吃光测速预算）
+    "edge_sites_concurrency": 4,
 
     # ========== 连通性测试参数 ==========
     "timeout": 3.0,          # 单次 TCP/TLS 探测超时（秒）

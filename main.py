@@ -18,8 +18,8 @@ import os
 import time
 
 import config
-from screener import (fetcher, filter as filter_mod, ipinfo, output,
-                      report, speedtest, tester)
+from screener import (edge_crawler, fetcher, filter as filter_mod, ipinfo,
+                      output, report, speedtest, tester)
 
 
 def parse_args():
@@ -316,6 +316,24 @@ def main():
         for key, meta in seed_cands.items():
             if key not in candidates:
                 candidates[key] = dict(meta, source="cidr-seed")
+    # —— 边缘网站爬虫（可选 HTML 网页源，默认关闭）——
+    # 与池候选并列的独立来源：aiohttp 并发爬取网页 + HTML 解析。
+    # 不进 pool_stats，单独打印一行（与 CIDR 种子源一致）。
+    if cfg.get("edge_sites_enabled"):
+        edge_cands = edge_crawler.fetch_edge_candidates(
+            cfg.get("edge_sites", []),
+            cfg["default_port"],
+            int(cfg.get("edge_sites_limit", 500)),
+            cfg["fetch_timeout"],
+            cfg.get("fetch_retries", 2),
+            cfg.get("fetch_retry_delay", 2.0),
+            int(cfg.get("edge_sites_concurrency", 4)),
+        )
+        print(f"      [edge-site] 网页源爬取完成：{len(edge_cands)} 个候选"
+              + (" [边缘网站]" if edge_cands else "（无候选）"))
+        for key, meta in edge_cands.items():
+            if key not in candidates:
+                candidates[key] = dict(meta, source="edge-site")
     if not candidates:
         print("错误: 所有候选池均未解析到 IP，请检查网络或更换候选池。")
         return 1
