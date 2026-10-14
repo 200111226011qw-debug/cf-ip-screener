@@ -9,6 +9,8 @@ jobs:
   validate:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -26,13 +28,17 @@ jobs:
       - name: Download mihomo (latest amd64)
         run: |
           set -euo pipefail
-          URL=$(curl -fsSL https://api.github.com/repos/MetaCubeX/mihomo/releases/latest \
-            | jq -r '.assets[]
-              | select(.name | startswith("mihomo-linux-amd64-"))
-              | select(.name | endswith(".gz"))
-              | select(.name | contains("compatible") | not)
-              | .browser_download_url' \
-            | head -1)
+          RESP=$(curl -fsSL https://api.github.com/repos/MetaCubeX/mihomo/releases/latest)
+          URL=$(echo "$RESP" | jq -r '.assets[]
+            | select(.name | startswith("mihomo-linux-amd64-"))
+            | select(.name | endswith(".gz"))
+            | select(.name | contains("compatible") | not)
+            | .browser_download_url' | head -1)
+          if [ -z "$URL" ]; then
+            echo "No matching mihomo asset. Available assets:" >&2
+            echo "$RESP" | jq -r '.assets[].name' >&2
+            exit 1
+          fi
           echo "Downloading: $URL"
           curl -fsSL -o mihomo.gz "$URL"
           gunzip -f mihomo.gz
