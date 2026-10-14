@@ -164,6 +164,29 @@ DEFAULT_CONFIG = {
     # CIDR 段抽样数：小段全展开，大段（如官方 /17、/20）随机抽样这么多地址
     "cidr_sample": 64,
 
+    # ========== CIDR 种子源（底层候选池，可选，默认关闭） ==========
+    # 与第三方优选池不同：这些是 Cloudflare 全球公告段的全量 CIDR 列表，
+    # 不含端口、不分地区。启用后每轮：
+    #   1. 抓取各源纯文本 → 收集全部 CIDR 前缀（段级集合）
+    #   2. 随机抽 cidr_seed_segments 个段（段级抽样）
+    #   3. 每段用 _expand_cidr 抽 cidr_seed_per_segment 个 IP（段内抽样）
+    #   4. 总候选受 cidr_seed_limit 硬上限截断
+    # 两层抽样避免"对全量 CIDR 均匀随机抽 500 个 IP"可能整轮抽到
+    # 一批质量差的段；同时段内抽样保证单个段不会占满候选池。
+    # 注意：公告段 ≠ 全可用 IP，命中率预期低于第三方优选池，
+    # 产出靠下游测速过滤。仍为纯标准库实现，不引入第三方依赖。
+    # 默认关闭：不改变现有 CI 行为；学习/探索时置 True 开启。
+    "cidr_seed_sources": [
+        "https://raw.githubusercontent.com/lord-alfred/ipranges/main/cloudflare/ipv4.txt",
+        "https://raw.githubusercontent.com/lord-alfred/ipranges/main/cloudflare/ipv6.txt",
+        "https://raw.githubusercontent.com/TYOYO1/CF-ASN/main/ASN-CIDR/13335/ipv4-aggregated.txt",
+        "https://raw.githubusercontent.com/TYOYO1/CF-ASN/main/ASN-CIDR/13335/ipv6-aggregated.txt",
+    ],
+    "cidr_seed_enabled": False,
+    "cidr_seed_limit": 500,        # 每轮硬上限（段级×段内后截断）
+    "cidr_seed_segments": 40,      # 每轮抽的段数
+    "cidr_seed_per_segment": 12,   # 每段抽的 IP 数
+
     # ========== 连通性测试参数 ==========
     "timeout": 3.0,          # 单次 TCP/TLS 探测超时（秒）
     "probes": 3,             # 每个 IP 的 TCP 探测次数（用于估算丢包）

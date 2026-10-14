@@ -240,5 +240,50 @@ class TestPortMatrix(unittest.TestCase):
         self.assertIs(base, r)  # 直接继承基础行（元数据不复制）
 
 
+class TestCidrSeeds(unittest.TestCase):
+    """fetch_cidr_seeds 的同步纯函数部分：文本解析 + 两层抽样。
+
+    异步抓取层（aiohttp）的测试见 tests/test_cidr_async.py（pytest-asyncio）。
+    """
+
+    def test_parse_cidr_text(self):
+        """纯文本 + HAProxy ACL 行都能提取；重复与垃圾行过滤。"""
+        text = ("10.0.0.0/24\nnot-a-cidr\n10.0.0.0/24\n"
+                "allow 173.245.48.0/20;\n")
+        self.assertEqual(
+            fetcher._parse_cidr_text(text),
+            {"10.0.0.0/24", "173.245.48.0/20"})
+
+    def test_two_layer_sample(self):
+        """段级 5 段 × 段内 4 个 = 20 个候选；全部落在抽样段内。"""
+        nets = {f"10.0.{i}.0/24" for i in range(20)}
+        got = fetcher._sample_cidr_seeds(
+            nets, default_port=443, segments=5, per_segment=4, limit=100)
+        self.assertEqual(len(got), 20)
+        for ip, port in got:
+            self.assertTrue(ip.startswith("10.0."))
+            self.assertEqual(port, 443)
+
+    def test_limit_cap(self):
+        """段数多时总量被 limit 硬截断，绝不超上限。"""
+        nets = {f"10.0.{i}.0/24" for i in range(200)}
+        got = fetcher._sample_cidr_seeds(
+            nets, default_port=443, segments=200, per_segment=8, limit=50)
+        self.assertLessEqual(len(got), 50)
+
+    def test_dedup_and_single_point(self):
+        """重复段去重（set 天然去重）；/32 单点直接进入候选。"""
+        nets = {"10.0.0.0/24", "10.0.0.0/24", "172.16.1.1/32"}
+        got = fetcher._sample_cidr_seeds(
+            nets, default_port=443, segments=10, per_segment=4, limit=10)
+        # /24 段抽 4 个 + /32 单点 1 个 = 5
+        self.assertEqual(len(got), 5)
+        self.assertIn(("172.16.1.1", 443), got)
+
+    def test_empty_nets(self):
+        """空段集合返回空 dict，不抛异常。"""
+        self.assertEqual(fetcher._sample_cidr_seeds(set(), 443), {})
+
+
 if __name__ == "__main__":
     unittest.main()

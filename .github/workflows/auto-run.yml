@@ -26,6 +26,9 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: 安装依赖
+        run: python -m pip install -r requirements.txt
+
       # 定位项目根目录：main.py 必须在仓库根目录，或唯一的子目录中。
       # GitHub 网页上传若拖了整个文件夹，会把项目嵌进一层子目录，
       # 这里自动进入该子目录继续跑；找不到则列出实际结构并报错。

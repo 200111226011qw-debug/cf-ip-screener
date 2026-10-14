@@ -1,2 +1,6 @@
-# 纯 Python 标准库实现，无第三方依赖。
+# 核心筛选逻辑保持纯 Python 标准库；仅 CIDR 种子源抓取引入 aiohttp。
+# 测试框架：pytest（含 pytest-asyncio，用于异步抓取的单元测试）。
 # Python >= 3.8 即可运行。
+aiohttp>=3.9
+pytest>=7.4
+pytest-asyncio>=0.23

@@ -2,6 +2,8 @@
 
 从公开的 **Cloudflare 优选 IP 候选池** 拉取候选，并发测试 TCP 连通性、延迟、丢包率与 TLS 握手，按阈值筛选出 “纯净可用” 的 IP，并对通过者做 **真实下载测速**，输出为订阅兼容格式（`IP:端口#备注`），支持 **按运营商（电信 / 联通 / 移动）分流输出**。
 
+> **依赖定位**：核心筛选逻辑保持**纯 Python 标准库**；仅可选功能「CIDR 种子源抓取」使用 `aiohttp`（并发拉取多个纯文本 CIDR 源），测试框架为 `pytest` / `pytest-asyncio`。依赖清单见 `requirements.txt`。
+
 默认候选池（可自由增删，见 `config.py`）：
 
 
@@ -32,6 +34,8 @@
 * **按运营商分流**：电信 (ct)/ 联通 (cu)/ 移动 (cmcc) 分文件输出，可按运营商过滤
 
 * **官方原生段**：内置 Cloudflare 公告的全部 IP 段（IPv4 + IPv6），CIDR 大段自动随机抽样（`cidr_sample` 可调），筛出的官方段 IP 标记「原生」，避免第三方池混入的回源/反代 IP
+
+* **CIDR 种子源（可选，默认关闭）**：可接入 lord-alfred/ipranges、TYOYO1/CF-ASN 等纯文本 CIDR 聚合库作为底层候选池，与 bestcf 类「IP:端口」优选池互补。开启后每轮按 **段级 + 段内两层抽样**（`cidr_seed_segments` × `cidr_seed_per_segment`，总量受 `cidr_seed_limit` 硬上限）混入候选；抓取层使用 `aiohttp` 并发拉取（见 `requirements.txt`）。注意公告段 ≠ 全可用 IP，命中率预期低于优选池，产出靠测速过滤（`config.py` 置 `cidr_seed_enabled: True` 开启）
 
 * **IP 归属画像（可选）**：`--ipinfo` 对候选结果批量查询地理位置 / ISP / ASN / 网络类型（机房/云、移动/蜂窝、代理标记、运营商网络），用公开 ip-api.com 接口；`--single` 单目标模式与批量模式统一，默认均关闭，加 `--ipinfo` 开启
 

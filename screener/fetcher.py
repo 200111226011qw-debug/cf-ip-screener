@@ -7,12 +7,15 @@
 - 每次抓取记录池级统计（原始行数/候选数/耗时/错误），供报告输出。
 """
 
+import asyncio
 import ipaddress
 import json
 import random
 import re
 import time
 import urllib.request
+
+import aiohttp
 
 import config
 
@@ -354,3 +357,101 @@ def fetch_cf_nets(force=False):
                 pass
     _CF_NETS_CACHE = nets
     return nets
+
+
+# ============================================================
+# CIDR 种子源（底层候选池，可选；aiohttp 并发抓取）
+# ============================================================
+def _parse_cidr_text(content: str):
+    """从文本中提取全部合法 CIDR 前缀（去重）。纯函数，可单测。"""
+    nets = set()
+    for line in content.splitlines():
+        m = _RE_CIDR.search(line)
+        if not m:
+            continue
+        try:
+            ipaddress.ip_network(m.group(1), strict=False)
+            nets.add(m.group(1))
+        except ValueError:
+            continue
+    return nets
+
+
+async def _fetch_cidr_text(session, url: str, timeout: float = 8,
+                           retries: int = 1, retry_delay: float = 2.0):
+    """单个源：aiohttp 拉取 + 提取合法 CIDR 段。失败自动重试（指数退避）。"""
+    last_err = None
+    for attempt in range(retries + 1):
+        try:
+            async with session.get(
+                    url, timeout=aiohttp.ClientTimeout(total=timeout)) as resp:
+                resp.raise_for_status()
+                text = await resp.text()
+            return _parse_cidr_text(text)
+        except Exception as e:
+            last_err = e
+            if attempt < retries:
+                await asyncio.sleep(retry_delay * (2 ** attempt))
+    raise last_err if last_err else RuntimeError("fetch cidr source failed")
+
+
+async def _collect_cidr_nets(sources, timeout: float = 8, retries: int = 1,
+                             retry_delay: float = 2.0, concurrency: int = 4):
+    """并发抓取所有源，返回全部合法 CIDR 段集合。源失败自动跳过。
+
+    gather(..., return_exceptions=True)：单个源失败不拖垮整体，
+    失败源在结果回收时打印告警（行为与原标准库版一致）。
+    """
+    nets = set()
+    connector = aiohttp.TCPConnector(limit=concurrency)
+    async with aiohttp.ClientSession(
+            headers={"User-Agent": UA}, connector=connector) as session:
+        tasks = [_fetch_cidr_text(session, url, timeout, retries, retry_delay)
+                 for url in sources]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+    for url, res in zip(sources, results):
+        if isinstance(res, Exception):
+            print(f"      [cidr-seed] 抓取失败（跳过）: {url} -> {res}")
+            continue
+        nets.update(res)
+    return nets
+
+
+def _sample_cidr_seeds(nets, default_port: int = 443, segments: int = 40,
+                       per_segment: int = 12, limit: int = 500):
+    """段级 + 段内两层抽样（同步纯函数，可单测）。
+
+    1. 段级：随机抽 ``segments`` 个段（排序后抽样保证同一轮可复现）；
+    2. 段内：每段用 ``_expand_cidr`` 抽 ``per_segment`` 个 IP
+       （/32 单点、/31 双点直接全进；宽段防护在 _expand_cidr 内部）；
+    3. 总量受 ``limit`` 硬上限顺序截断。
+    返回 {(ip, port): {'remark': '', 'isp': ''}}，与 fetch_pool 同构。
+    """
+    if not nets:
+        return {}
+    seg_list = random.sample(sorted(nets), min(segments, len(nets)))
+    candidates = {}
+    for cidr in seg_list:
+        for ip, port in _expand_cidr(cidr, default_port, per_segment):
+            candidates.setdefault((ip, port), {"remark": "", "isp": ""})
+        if len(candidates) >= limit:
+            break
+    if len(candidates) > limit:
+        candidates = dict(list(candidates.items())[:limit])
+    return candidates
+
+
+def fetch_cidr_seeds(sources, default_port: int = 443, segments: int = 40,
+                     per_segment: int = 12, limit: int = 500,
+                     timeout: float = 8, retries: int = 1,
+                     retry_delay: float = 2.0, concurrency: int = 4):
+    """同步入口：aiohttp 并发拉取 + 两层抽样。
+
+    与第三方优选池的差异：公告段 ≠ 全可用 IP，命中率预期低，
+    产出靠下游测速过滤（自建扫描种子源的性质）。
+    注意：调用点不能处于已运行的事件循环中（asyncio.run 要求）——
+    main.py 在候选收集阶段调用，此时无活动循环，安全。
+    """
+    nets = asyncio.run(_collect_cidr_nets(
+        sources, timeout, retries, retry_delay, concurrency))
+    return _sample_cidr_seeds(nets, default_port, segments, per_segment, limit)

@@ -293,6 +293,29 @@ def main():
         pool_stats.append(stat)
         print(f"      {url}  -> 解析到 {len(parsed)} 个候选，保留 {kept} 个"
               + (" [原生段]" if native else ""))
+    # —— CIDR 种子源（可选底层候选池，默认关闭）——
+    # 与池候选并列的独立来源：段级 + 段内两层抽样，总量受硬上限截断。
+    # 不进 pool_stats（避免治理脚本把种子源当池统计），单独打印一行。
+    if cfg.get("cidr_seed_enabled"):
+        seed_cands = fetcher.fetch_cidr_seeds(
+            cfg.get("cidr_seed_sources", []),
+            cfg["default_port"],
+            int(cfg.get("cidr_seed_segments", 40)),
+            int(cfg.get("cidr_seed_per_segment", 12)),
+            int(cfg.get("cidr_seed_limit", 500)),
+            cfg["fetch_timeout"],
+            cfg.get("fetch_retries", 2),
+            cfg.get("fetch_retry_delay", 2.0),
+        )
+        seg_n = int(cfg.get("cidr_seed_segments", 40))
+        per_n = int(cfg.get("cidr_seed_per_segment", 12))
+        cap = int(cfg.get("cidr_seed_limit", 500))
+        print(f"      [cidr-seed] 两层抽样完成：{len(seed_cands)} 个候选"
+              f"（段级 {seg_n} × 段内 {per_n}，上限 {cap}）"
+              + (" [种子源]" if seed_cands else "（无候选）"))
+        for key, meta in seed_cands.items():
+            if key not in candidates:
+                candidates[key] = dict(meta, source="cidr-seed")
     if not candidates:
         print("错误: 所有候选池均未解析到 IP，请检查网络或更换候选池。")
         return 1
