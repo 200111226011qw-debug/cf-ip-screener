@@ -27,16 +27,17 @@ jobs:
           head -20 result/clash_proxies.yaml
       - name: Download mihomo (latest amd64)
         run: |
-          set -euo pipefail
+          set -euxo pipefail
           RESP=$(curl -fsSL https://api.github.com/repos/MetaCubeX/mihomo/releases/latest)
+          echo "--- available assets ---"
+          echo "$RESP" | jq -r '.assets[].name'
           URL=$(echo "$RESP" | jq -r '.assets[]
             | select(.name | startswith("mihomo-linux-amd64-"))
             | select(.name | endswith(".gz"))
             | select(.name | contains("compatible") | not)
             | .browser_download_url' | head -1)
           if [ -z "$URL" ]; then
-            echo "No matching mihomo asset. Available assets:" >&2
-            echo "$RESP" | jq -r '.assets[].name' >&2
+            echo "No matching mihomo asset." >&2
             exit 1
           fi
           echo "Downloading: $URL"
