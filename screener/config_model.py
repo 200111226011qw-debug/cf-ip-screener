@@ -1,0 +1,154 @@
+# -*- coding: utf-8 -*-
+"""Pydantic v2 配置模型（PR 3）。
+
+按 docs/config-fields-audit.md 逐字段定义。
+兼容层（__getitem__ / __contains__ / get）为 v2.2 过渡期提供，v2.3 末移除。
+"""
+
+from typing import Any, Literal, Optional
+
+from pydantic import BaseModel, ConfigDict, Field
+
+
+class PoolItem(BaseModel):
+    """候选池条目。"""
+    model_config = ConfigDict(extra="ignore")
+    url: str
+    isp: Optional[Literal["ct", "cu", "cmcc"]] = None
+    mirror_of: Optional[str] = None
+    native: Optional[bool] = None
+
+
+class SeedSourceItem(BaseModel):
+    """种子源健康检查条目。"""
+    model_config = ConfigDict(extra="ignore")
+    name: str
+    url: str
+    expected_format: Literal["ip_port", "cidr", "text_only"] = "ip_port"
+
+
+class AppConfig(BaseModel):
+    """全局配置模型。"""
+    model_config = ConfigDict(extra="ignore")
+
+    # 候选池
+    pools: list[PoolItem] = Field(default_factory=list)
+    default_port: int = Field(443, ge=1, le=65535)
+    ports: str = "443"
+
+    # 抓取
+    fetch_timeout: int = Field(8, ge=1)
+    fetch_retries: int = Field(2, ge=0)
+    fetch_retry_delay: float = Field(2.0, ge=0)
+    fetch_concurrency: int = Field(8, ge=1)
+    max_candidates_per_pool: int = Field(3000, ge=0)
+
+    # 段校验
+    require_cf_net: bool = True
+    cf_net_strict: bool = False
+    require_cf_ray: bool = True
+
+    # 测速
+    speed_max_candidates: int = Field(300, ge=0)
+    cidr_sample: int = Field(64, ge=1)
+
+    # CIDR 种子
+    cidr_seed_sources: list[str] = Field(default_factory=list)
+    cidr_seed_enabled: bool = False
+    cidr_seed_limit: int = Field(500, ge=1)
+    cidr_seed_segments: int = Field(40, ge=1)
+    cidr_seed_per_segment: int = Field(12, ge=1)
+
+    # 边缘爬虫
+    edge_sites_enabled: bool = False
+    edge_sites: list[str] = Field(default_factory=list)
+    edge_sites_limit: int = Field(500, ge=1)
+    edge_sites_concurrency: int = Field(4, ge=1)
+
+    # 种子源健康检查
+    seed_sources: list[SeedSourceItem] = Field(default_factory=list)
+    seed_check_timeout: int = Field(15, ge=1)
+    seed_check_sample_lines: int = Field(20, ge=1)
+
+    # 反检测
+    rotate_ua: bool = True
+    request_jitter_max: float = Field(0.0, ge=0)
+
+    # 探测行为
+    latency_warmup: bool = False
+    http_check: bool = False
+    auto_concurrency: bool = False
+    purity_filter: bool = False
+    purity_reject_proxy: bool = True
+    proxy_enabled: bool = False
+    proxies: list[str] = Field(default_factory=list)
+
+    # 通知 / DNS
+    alert_webhook: str = ""
+    dns_push_enabled: bool = False
+    dns_provider: Literal["dnspod", "aliyun"] = "dnspod"
+    dns_domain: str = ""
+    dns_sub: str = "cf"
+    dns_record_type: Literal["A", "AAAA"] = "A"
+    dns_ttl: int = Field(600, ge=60)
+
+    # 贝叶斯 / 历史
+    bayes_priority: bool = False
+    history_file: str = "history.json"
+    client_export: bool = True
+    watch_interval: int = Field(3600, ge=60)
+    plugins_enabled: bool = False
+
+    # 连通性探测
+    timeout: float = Field(3.0, ge=0.1)
+    probes: int = Field(3, ge=1)
+    max_concurrency: int = Field(200, ge=1)
+    tls_check: bool = True
+    sni: str = "www.cloudflare.com"
+
+    # 筛选阈值
+    max_latency_ms: int = Field(400, ge=1)
+    max_loss_rate: float = Field(0.34, ge=0, le=1)
+    top_n: int = Field(50, ge=1)
+
+    # 测速
+    speed_test: bool = True
+    speed_url: str = "https://speed.cloudflare.com/__down?bytes=10485760"
+    speed_timeout: int = Field(10, ge=1)
+    speed_concurrency: int = Field(8, ge=1)
+    min_speed_mbps: int = Field(0, ge=0)
+    probe_bytes: int = Field(1048576, ge=0)
+    colo_filter: str = ""
+    isp_filter: str = ""
+    ipinfo: bool = False
+    limit: int = Field(0, ge=0)
+
+    # 输出
+    output_dir: str = "result"
+    output_txt: str = "clean-ips.txt"
+    output_json: str = "clean-ips.json"
+    output_txt_by_isp: str = "clean-ips-{isp}.txt"
+    output_json_by_isp: str = "clean-ips-{isp}.json"
+
+    # ------------------------------------------------------------------
+    # 兼容层：dict 接口 (v2.2 过渡期)
+    #
+    # 为 PR 3 阶段引入：允许现有 cfg["key"] / cfg.get(...) 调用继续工作，
+    # 不需要一次性迁移 134 处 main.py 调用点。
+    #
+    # 移除计划：v2.3 末。届时所有 cfg["key"] 需迁移为 cfg.key。
+    # 追踪：docs/migration-plan.md § PR 3
+    #
+    # 新增代码请使用属性访问 (cfg.key)，不要用这些方法。
+    # ------------------------------------------------------------------
+    def __getitem__(self, key: str) -> Any:
+        try:
+            return getattr(self, key)
+        except AttributeError as e:
+            raise KeyError(key) from e
+
+    def __contains__(self, key: str) -> bool:
+        return key in type(self).model_fields
+
+    def get(self, key: str, default: Any = None) -> Any:
+        return getattr(self, key, default)

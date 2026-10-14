@@ -364,10 +364,16 @@ def classify_isp(remark: str, pool_isp=None) -> str:
 
 
 def load(overrides=None):
-    """返回一份合并了命令行覆盖项的配置副本。"""
+    """返回合并了命令行覆盖项的配置（AppConfig 实例）。
+
+    v2.2 起返回 Pydantic 模型而非 dict，但通过 __getitem__/__contains__/get
+    兼容层，现有 cfg["key"] / cfg.get(...) 调用不受影响。
+    """
+    from screener.config_model import AppConfig
+
     cfg = dict(DEFAULT_CONFIG)
     if overrides:
         for key, value in overrides.items():
             if value is not None:
                 cfg[key] = value
-    return cfg
+    return AppConfig.model_validate(cfg)
