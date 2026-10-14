@@ -1,0 +1,11 @@
+# CF 优选 IP 代理骨架（server 已填筛选结果，password 请自行填写）
+# 用法：把 proxies 段复制进 Clash 配置；协议可用 trojan/vmess/ss
+proxies:
+{% for r in nodes %}  - name: "CF-{{ r.ip }}:{{ r.port }}"
+    type: trojan
+    server: {{ r.ip }}
+    port: {{ r.port }}
+    password: "YOUR_PASSWORD"
+    sni: www.cloudflare.com
+    skip-cert-verify: true
+{% endfor %}

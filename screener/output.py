@@ -113,24 +113,22 @@ def write_client_configs(clean, outdir: str) -> dict:
     xray = os.path.join(outdir, "xray_outbounds.json")
     sing = os.path.join(outdir, "singbox_outbounds.json")
 
-    clash_lines = [
-        "# CF 优选 IP 代理骨架（server 已填筛选结果，password 请自行填写）",
-        "# 用法：把 proxies 段复制进 Clash 配置；协议可用 trojan/vmess/ss",
-        "proxies:",
-    ]
+    nodes = clean[:100]
+
+    # Clash YAML：Jinja2 模板（screener/templates/clash.yaml.j2）
+    from jinja2 import Environment, FileSystemLoader, select_autoescape
+    template_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "templates")
+    env = Environment(loader=FileSystemLoader(template_dir), autoescape=False)
+    clash_tpl = env.get_template("clash.yaml.j2")
+    clash_text = clash_tpl.render(nodes=nodes)
+    atomic_write(clash, clash_text)
+
+    # Xray / sing-box JSON：保留 json.dumps（结构固定，用户自定义场景少）
     xray_items = []
     sing_items = []
-    for r in clean[:100]:
+    for r in nodes:
         ip, port = r["ip"], r["port"]
         name = f"CF-{ip}:{port}"
-        clash_lines.append(
-            f"  - name: \"{name}\"\n"
-            f"    type: trojan\n"
-            f"    server: {ip}\n"
-            f"    port: {port}\n"
-            f"    password: \"YOUR_PASSWORD\"\n"
-            f"    sni: www.cloudflare.com\n"
-            f"    skip-cert-verify: true")
         xray_items.append({
             "tag": name,
             "protocol": "trojan",
@@ -153,15 +151,14 @@ def write_client_configs(clean, outdir: str) -> dict:
                     "insecure": True},
         })
 
-    atomic_write(clash, "\n".join(clash_lines) + "\n")
     atomic_write(xray, json.dumps({"outbounds": xray_items},
                                   ensure_ascii=False, indent=2))
     atomic_write(sing, json.dumps({"outbounds": sing_items},
                                   ensure_ascii=False, indent=2))
 
-    written[clash] = len(clean[:100])
-    written[xray] = len(clean[:100])
-    written[sing] = len(clean[:100])
+    written[clash] = len(nodes)
+    written[xray] = len(nodes)
+    written[sing] = len(nodes)
     return written
 
 
