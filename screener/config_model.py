@@ -152,3 +152,6 @@ class AppConfig(BaseModel):
 
     def get(self, key: str, default: Any = None) -> Any:
         return getattr(self, key, default)
+
+    def __setitem__(self, key: str, value: Any) -> None:
+        setattr(self, key, value)
