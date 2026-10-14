@@ -2,7 +2,8 @@
 """Pydantic v2 配置模型（PR 3）。
 
 按 docs/config-fields-audit.md 逐字段定义。
-兼容层（__getitem__ / __contains__ / get）为 v2.2 过渡期提供，v2.3 末移除。
+兼容层（__getitem__ / __contains__ / get / __setitem__）为 v2.2 过渡期提供，
+v2.3 末移除。
 """
 
 from typing import Any, Literal, Optional
@@ -10,7 +11,33 @@ from typing import Any, Literal, Optional
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 
 
-class PoolItem(BaseModel):
+class DictCompatMixin:
+    """dict-like 访问兼容层（v2.2 过渡期，v2.3 末移除）。
+
+    让 Pydantic 模型支持 obj["k"]、obj.get("k")、"k" in obj、obj["k"] = v，
+    与原 dict 行为保持一致。新增代码请使用属性访问 (obj.k)。
+    """
+
+    def __getitem__(self, key: str) -> Any:
+        try:
+            return getattr(self, key)
+        except AttributeError as e:
+            raise KeyError(key) from e
+
+    def __contains__(self, key: str) -> bool:
+        return key in type(self).model_fields
+
+    def get(self, key: str, default: Any = None) -> Any:
+        return getattr(self, key, default)
+
+    def __setitem__(self, key: str, value: Any) -> None:
+        if key in type(self).model_fields or key in type(self).__private_attributes__:
+            setattr(self, key, value)
+        else:
+            raise KeyError(f"unknown config key: {key}")
+
+
+class PoolItem(DictCompatMixin, BaseModel):
     """候选池条目。"""
     model_config = ConfigDict(extra="ignore")
     url: str
@@ -18,48 +45,16 @@ class PoolItem(BaseModel):
     mirror_of: Optional[str] = None
     native: Optional[bool] = None
 
-    # 兼容层（v2.2 过渡期，v2.3 末移除）
-    def __getitem__(self, key: str) -> Any:
-        try:
-            return getattr(self, key)
-        except AttributeError as e:
-            raise KeyError(key) from e
 
-    def __contains__(self, key: str) -> bool:
-        return key in type(self).model_fields
-
-    def get(self, key: str, default: Any = None) -> Any:
-        return getattr(self, key, default)
-
-    def __setitem__(self, key: str, value: Any) -> None:
-        setattr(self, key, value)
-
-
-class SeedSourceItem(BaseModel):
+class SeedSourceItem(DictCompatMixin, BaseModel):
     """种子源健康检查条目。"""
     model_config = ConfigDict(extra="ignore")
     name: str
     url: str
     expected_format: Literal["ip_port", "cidr", "text_only"] = "ip_port"
 
-    # 兼容层（v2.2 过渡期，v2.3 末移除）
-    def __getitem__(self, key: str) -> Any:
-        try:
-            return getattr(self, key)
-        except AttributeError as e:
-            raise KeyError(key) from e
 
-    def __contains__(self, key: str) -> bool:
-        return key in type(self).model_fields
-
-    def get(self, key: str, default: Any = None) -> Any:
-        return getattr(self, key, default)
-
-    def __setitem__(self, key: str, value: Any) -> None:
-        setattr(self, key, value)
-
-
-class AppConfig(BaseModel):
+class AppConfig(DictCompatMixin, BaseModel):
     """全局配置模型。"""
     model_config = ConfigDict(extra="ignore")
 
@@ -166,29 +161,3 @@ class AppConfig(BaseModel):
     _cf_nets_loaded: bool = PrivateAttr(default=False)
     _cf_nets_required: bool = PrivateAttr(default=False)
     _cf_net_enabled: bool = PrivateAttr(default=False)
-
-    # ------------------------------------------------------------------
-    # 兼容层：dict 接口 (v2.2 过渡期)
-    #
-    # 为 PR 3 阶段引入：允许现有 cfg["key"] / cfg.get(...) 调用继续工作，
-    # 不需要一次性迁移 134 处 main.py 调用点。
-    #
-    # 移除计划：v2.3 末。届时所有 cfg["key"] 需迁移为 cfg.key。
-    # 追踪：docs/migration-plan.md § PR 3
-    #
-    # 新增代码请使用属性访问 (cfg.key)，不要用这些方法。
-    # ------------------------------------------------------------------
-    def __getitem__(self, key: str) -> Any:
-        try:
-            return getattr(self, key)
-        except AttributeError as e:
-            raise KeyError(key) from e
-
-    def __contains__(self, key: str) -> bool:
-        return key in type(self).model_fields
-
-    def get(self, key: str, default: Any = None) -> Any:
-        return getattr(self, key, default)
-
-    def __setitem__(self, key: str, value: Any) -> None:
-        setattr(self, key, value)
