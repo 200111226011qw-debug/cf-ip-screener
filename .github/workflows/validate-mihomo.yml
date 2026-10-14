@@ -1,0 +1,38 @@
+name: Validate Clash YAML with Mihomo
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install Python deps
+        run: pip install -r requirements.txt
+      - name: Generate clash.yaml (10 candidates, no speedtest)
+        run: python main.py --limit 10 --no-speed
+      - name: Verify clash.yaml exists
+        run: |
+          test -f result/clash_proxies.yaml
+          echo "--- head of clash.yaml ---"
+          head -20 result/clash_proxies.yaml
+      - name: Download mihomo (latest amd64)
+        run: |
+          set -euo pipefail
+          URL=$(curl -fsSL https://api.github.com/repos/MetaCubeX/mihomo/releases/latest \
+            | jq -r '.assets[] | select(.name | test("^mihomo-linux-amd64-v[0-9.]+\\.gz$")) | .browser_download_url' \
+            | head -1)
+          echo "Downloading: $URL"
+          curl -fsSL -o mihomo.gz "$URL"
+          gunzip -f mihomo.gz
+          chmod +x mihomo
+          ./mihomo -v
+      - name: Validate config with mihomo (-t test mode)
+        run: ./mihomo -t -f result/clash_proxies.yaml
