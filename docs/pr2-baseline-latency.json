@@ -1,0 +1,50 @@
+{
+  "generated_at": "2026-10-14T07:47:42+00:00",
+  "git_commit": "f0ee858",
+  "python_version": "3.13.13",
+  "platform": "win32",
+  "network_context": "湖南益阳家用宽带；5 个目标中 4 个 TCP 不通（疑似运营商阻断/防火墙），仅 104.16.132.229 可达",
+  "targets_file": "docs/pr2-baseline-targets.txt",
+  "results": [
+    {
+      "ip": "1.1.1.1",
+      "port": 443,
+      "avg_ms": null,
+      "loss_rate": 1.0,
+      "tls_ok": null,
+      "http_ms": null
+    },
+    {
+      "ip": "8.8.8.8",
+      "port": 443,
+      "avg_ms": null,
+      "loss_rate": 1.0,
+      "tls_ok": null,
+      "http_ms": null
+    },
+    {
+      "ip": "9.9.9.9",
+      "port": 443,
+      "avg_ms": null,
+      "loss_rate": 1.0,
+      "tls_ok": null,
+      "http_ms": null
+    },
+    {
+      "ip": "104.16.132.229",
+      "port": 443,
+      "avg_ms": 184.2,
+      "loss_rate": 0.0,
+      "tls_ok": true,
+      "http_ms": null
+    },
+    {
+      "ip": "142.250.185.78",
+      "port": 443,
+      "avg_ms": null,
+      "loss_rate": 1.0,
+      "tls_ok": null,
+      "http_ms": null
+    }
+  ]
+}
