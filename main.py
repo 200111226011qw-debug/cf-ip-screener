@@ -15,7 +15,7 @@
                                       # config.py 变更自动重载，不重启
 """
 
-__version__ = "2.1.0"
+__version__ = "2.1.1"
 
 import argparse
 import asyncio

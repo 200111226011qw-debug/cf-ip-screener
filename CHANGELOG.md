@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.1.1 — 2026-10-14
+
+端到端测试补全（把 v2.0.0 里"接口已落但未验证"的模块补到可测）：
+
+- 新增 `tests/test_distributed.py`（5 个用例）：worker `/probe` 成功 / 失败 500、master 分片并发汇总、worker 故障时 master 不崩（return_exceptions=True 容错）、`--help` 正常
+- 新增 `tests/test_webui.py`（5 个用例）：`GET /` 返回 200 含启动按钮和报告入口、`POST /scan` 不真起 subprocess（monkeypatch Popen）、`GET /report` 在文件缺失/存在两种形态下都正确响应、`--help` 正常
+- `screener/webui.py` 抽出 `_make_app()` 便于测试；版本号从硬编码 `v2.0.0` 改为动态读 `main.__version__`
+- 合计 **128 passed**（118 → 128）
+- Docker 构建/运行验收待有 docker 的环境执行（本机无 docker daemon）；Dockerfile / compose 配置文件已就位
+
 ## 2.1.0 — 2026-10-14
 
 借鉴 [one-ip](https://github.com/zhihui-hu/one-ip) `/api/ip/health` 的输出契约（其 score 透传第三方 ip.net.coffee；本模块**纯本地打分**，不引入外部 API）：

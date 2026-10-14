@@ -25,6 +25,11 @@ import config
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REPORT_PATH = os.path.join(REPO_ROOT, "result", "report.html")
 
+try:
+    from main import __version__ as _VERSION
+except Exception:  # pragma: no cover - 兜底
+    _VERSION = "unknown"
+
 
 async def index(request):
     cfg = config.DEFAULT_CONFIG
@@ -44,7 +49,7 @@ async def index(request):
 </style></head><body>
 <h1>cf-ip-screener Web GUI</h1>
 <div class="card">
-  <p class="sw">版本 v2.0.0 · 候选池 {len(cfg.get('pools', []))} 个</p>
+  <p class="sw">版本 v{_VERSION} · 候选池 {len(cfg.get('pools', []))} 个</p>
   <ul>{rows}</ul>
   <p class="sw">开关状态：
     cidr_seed={cfg.get('cidr_seed_enabled')} ·
@@ -88,16 +93,21 @@ async def report(request):
                         content_type="text/plain")
 
 
+def _make_app():
+    """构造 aiohttp 应用（测试可直接拿到，不必起真端口）。"""
+    app = web.Application()
+    app.router.add_get("/", index)
+    app.router.add_post("/scan", scan)
+    app.router.add_get("/report", report)
+    return app
+
+
 def main():
     ap = argparse.ArgumentParser(description="cf-ip-screener Web GUI")
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--port", type=int, default=8080)
     args = ap.parse_args()
-    app = web.Application()
-    app.router.add_get("/", index)
-    app.router.add_post("/scan", scan)
-    app.router.add_get("/report", report)
-    web.run_app(app, host=args.host, port=args.port)
+    web.run_app(_make_app(), host=args.host, port=args.port)
 
 
 if __name__ == "__main__":
