@@ -1,9 +1,9 @@
 # CF 优选 IP 筛选报告
 
-- 时间: 2026-10-15 14:30:57
+- 时间: 2026-10-15 15:02:22
 - 候选池: 61 个 (成功 61 / 失败 0 / 跳过 0)
-- 解析候选: 12219 → 保留(去重后) 12219 → 已测 10200 → 纯净 32
-- 耗时: 174.2s
+- 解析候选: 12211 → 保留(去重后) 12211 → 已测 10661 → 纯净 41
+- 耗时: 171.3s
 
 ## 池命中率
 
@@ -25,9 +25,9 @@
 | https://raw.githubusercontent.com/gshtwy/CF-DNS-Clone/refs/heads/main/wetest-cloudflare-v4.txt | - | - | 75 | 75 | 0 | OK |
 | https://raw.githubusercontent.com/svip-s/cloudflare_ip/refs/heads/main/best_ips.txt | - | - | 7 | 7 | 0 | OK |
 | https://raw.githubusercontent.com/svip-s/cloudflare_ip/main/full_ips.txt | - | - | 472 | 472 | 0 | OK |
-| https://raw.githubusercontent.com/XIU2/CloudflareSpeedTest/master/ip.txt | - | - | 1600 | 1600 | 9 | OK |
-| https://raw.githubusercontent.com/LancelotRar/best-cf-ips/main/best-cf-ip-scanned-top400.txt | - | - | 400 | 400 | 6 | OK |
-| https://raw.githubusercontent.com/sanzang-tango/best-cf-ip/main/best-cf-ipv4.txt | - | - | 287 | 287 | 2 | OK |
+| https://raw.githubusercontent.com/XIU2/CloudflareSpeedTest/master/ip.txt | - | - | 1600 | 1600 | 13 | OK |
+| https://raw.githubusercontent.com/LancelotRar/best-cf-ips/main/best-cf-ip-scanned-top400.txt | - | - | 400 | 400 | 5 | OK |
+| https://raw.githubusercontent.com/sanzang-tango/best-cf-ip/main/best-cf-ipv4.txt | - | - | 287 | 287 | 5 | OK |
 | https://raw.githubusercontent.com/mall994/cloudflare-best-ip/main/best-ips.txt | - | - | 129 | 129 | 1 | OK |
 | https://raw.githubusercontent.com/vipmc838/cf_best_ip/main/cloudflare_bestip.txt | - | - | 70 | 70 | 0 | OK |
 | https://raw.githubusercontent.com/suancaicc/cf-ip/main/ip.txt | - | - | 15 | 15 | 0 | OK |
@@ -42,29 +42,29 @@
 | https://bestcf.pages.dev/s5gy/all.txt | - | - | 206 | 206 | 0 | OK |
 | https://raw.githubusercontent.com/Coolapk-Code9527/Cloudflare-IP/main/ip.txt | - | - | 30 | 30 | 0 | OK |
 | https://raw.githubusercontent.com/einsitang/my-fast-cf-ip/master/fastips.txt | - | - | 20 | 20 | 0 | OK |
-| https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Clash/Cloudflare/Cloudflare.list | - | - | 1408 | 1408 | 6 | OK |
+| https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Clash/Cloudflare/Cloudflare.list | - | - | 1408 | 1408 | 4 | OK |
 | https://raw.githubusercontent.com/uezer/cf-prefer-ips/main/best.txt | - | - | 20 | 20 | 0 | OK |
 | https://raw.githubusercontent.com/aihddelyy/Cloudflare_ips/main/CF.txt | - | - | 4 | 4 | 0 | OK |
 | https://cdn.jsdelivr.net/gh/joname1/BestCFip@main/ipv4.txt | - | - | 80 | 80 | 0 | OK |
 | https://cdn.jsdelivr.net/gh/hubbylei/bestcf@main/bestcf.txt | - | - | 10 | 10 | 0 | OK |
 | https://cdn.jsdelivr.net/gh/gshtwy/CF-DNS-Clone@main/wetest-cloudflare-v4.txt | - | - | 75 | 75 | 0 | OK |
-| https://cdn.jsdelivr.net/gh/svip-s/cloudflare_ip@main/best_ips.txt | - | - | 55 | 55 | 0 | OK |
-| https://cdn.jsdelivr.net/gh/svip-s/cloudflare_ip@main/full_ips.txt | - | - | 475 | 475 | 0 | OK |
-| https://cdn.jsdelivr.net/gh/XIU2/CloudflareSpeedTest@master/ip.txt | - | - | 1600 | 1600 | 2 | OK |
+| https://cdn.jsdelivr.net/gh/svip-s/cloudflare_ip@main/best_ips.txt | - | - | 59 | 59 | 0 | OK |
+| https://cdn.jsdelivr.net/gh/svip-s/cloudflare_ip@main/full_ips.txt | - | - | 458 | 458 | 0 | OK |
+| https://cdn.jsdelivr.net/gh/XIU2/CloudflareSpeedTest@master/ip.txt | - | - | 1600 | 1600 | 4 | OK |
 | https://cdn.jsdelivr.net/gh/LancelotRar/best-cf-ips@main/best-cf-ip-scanned-top400.txt | - | - | 400 | 400 | 0 | OK |
-| https://cdn.jsdelivr.net/gh/sanzang-tango/best-cf-ip@main/best-cf-ipv4.txt | - | - | 297 | 297 | 0 | OK |
+| https://cdn.jsdelivr.net/gh/sanzang-tango/best-cf-ip@main/best-cf-ipv4.txt | - | - | 286 | 286 | 0 | OK |
 | https://cdn.jsdelivr.net/gh/mall994/cloudflare-best-ip@main/best-ips.txt | - | - | 129 | 129 | 0 | OK |
-| https://cdn.jsdelivr.net/gh/suancaicc/cf-ip@main/ip.txt | - | - | 15 | 15 | 0 | OK |
+| https://cdn.jsdelivr.net/gh/suancaicc/cf-ip@main/ip.txt | - | - | 20 | 20 | 0 | OK |
 | https://cdn.jsdelivr.net/gh/KafeMars/best-ips-domains@main/cf-bestips.txt | - | - | 20 | 20 | 0 | OK |
 | https://cdn.jsdelivr.net/gh/aihddelyy/Cloudflare_ips@main/CFST.txt | - | - | 10 | 10 | 0 | OK |
 | https://cdn.jsdelivr.net/gh/yuanxiawan/cfipv4db@main/high_score_ips.txt | - | - | 15 | 15 | 0 | OK |
 | https://cdn.jsdelivr.net/gh/zy1078/cf-IP@master/ip.txt | - | - | 15 | 15 | 0 | OK |
 | https://cdn.jsdelivr.net/gh/ymyuuu/IPDB@main/bestcf.txt | - | - | 15 | 15 | 0 | OK |
-| https://ipdb.api.030101.xyz/?type=cfv4%3Bproxy | - | - | 1683 | 1683 | 2 | OK |
-| https://ipdb.api.030101.xyz/?type=bestcf&country=true | - | - | 10 | 10 | 2 | OK |
-| https://www.cloudflare.com/ips-v4 | - | 原生 | 960 | 960 | 2 | OK |
+| https://ipdb.api.030101.xyz/?type=cfv4%3Bproxy | - | - | 1683 | 1683 | 1 | OK |
+| https://ipdb.api.030101.xyz/?type=bestcf&country=true | - | - | 10 | 10 | 0 | OK |
+| https://www.cloudflare.com/ips-v4 | - | 原生 | 960 | 960 | 7 | OK |
 | https://www.cloudflare.com/ips-v6 | - | 原生 | 448 | 448 | 0 | OK |
-| https://raw.githubusercontent.com/LancelotRar/best-cf-ips/main/best-cf-ip-collected.txt | - | - | 47 | 47 | 0 | OK |
+| https://raw.githubusercontent.com/LancelotRar/best-cf-ips/main/best-cf-ip-collected.txt | - | - | 58 | 58 | 0 | OK |
 | https://raw.githubusercontent.com/kinghui-001/cfip/main/best_ips.txt | - | - | 23 | 23 | 0 | OK |
 | https://raw.githubusercontent.com/kinghui-001/cfip/main/full_ips.txt | - | - | 472 | 472 | 0 | OK |
 | https://raw.githubusercontent.com/HandsomeMJZ/cfip/main/best_ips.txt | - | - | 7 | 7 | 0 | OK |
@@ -74,7 +74,7 @@
 ## 延迟分布 (ms)
 | 区间 | 数量 |
 | --- | --- |
-| <50 | 32 |
+| <50 | 41 |
 | <100 | 0 |
 | <200 | 0 |
 | <300 | 0 |
@@ -86,47 +86,59 @@
 | <1 | 0 |
 | <3 | 0 |
 | <5 | 0 |
-| <10 | 0 |
-| >=10 | 32 |
+| <10 | 1 |
+| >=10 | 40 |
 
 ## 机房地区分布 (Top)
 | 机房 | 数量 |
 | --- | --- |
-| DFW | 32 |
+| MSP | 33 |
+| STL | 6 |
+| HAM | 1 |
+| FUK | 1 |
 
 ## 纯净 IP 明细
 
 | IP:端口 | 延迟(ms) | 丢包 | TLS | 速度(MB/s) | 机房 | 原生 | 段 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| 104.18.57.53:443 | 17.6 | 0% | OK | 37.64 | DFW | - | 公告段 |
-| 188.114.96.2:443 | 17.7 | 0% | OK | 37.82 | DFW | - | 公告段 |
-| 198.41.196.142:443 | 17.7 | 0% | OK | 37.82 | DFW | - | 公告段 |
-| 198.41.211.206:443 | 17.7 | 0% | OK | 38.63 | DFW | - | 公告段 |
-| 172.64.229.119:443 | 17.7 | 0% | OK | 36.89 | DFW | - | 公告段 |
-| 104.24.1.250:443 | 17.7 | 0% | OK | 36.83 | DFW | - | 公告段 |
-| 162.159.232.64:443 | 17.7 | 0% | OK | 36.93 | DFW | - | 公告段 |
-| 188.114.97.142:443 | 17.7 | 0% | OK | 38.47 | DFW | - | 公告段 |
-| 172.66.146.39:443 | 17.7 | 0% | OK | 37.59 | DFW | - | 公告段 |
-| 188.114.99.35:443 | 17.7 | 0% | OK | 39.90 | DFW | - | 公告段 |
-| 162.159.130.147:443 | 17.7 | 0% | OK | 36.71 | DFW | - | 公告段 |
-| 172.67.64.175:443 | 17.7 | 0% | OK | 38.32 | DFW | - | 公告段 |
-| 104.17.97.206:443 | 17.7 | 0% | OK | 36.42 | DFW | - | 公告段 |
-| 190.93.244.161:443 | 17.7 | 0% | OK | 38.33 | DFW | 是 | 公告段 |
-| 104.24.13.121:443 | 17.7 | 0% | OK | 38.90 | DFW | 是 | 公告段 |
-| 141.101.121.179:443 | 17.8 | 0% | OK | 37.59 | DFW | - | 公告段 |
-| 172.64.229.4:443 | 17.8 | 0% | OK | 39.98 | DFW | - | 公告段 |
-| 172.66.150.21:443 | 17.8 | 0% | OK | 37.04 | DFW | - | 公告段 |
-| 172.67.179.110:443 | 17.8 | 0% | OK | 35.43 | DFW | - | 公告段 |
-| 172.67.224.7:443 | 17.8 | 0% | OK | 37.80 | DFW | - | 公告段 |
-| 172.64.159.61:443 | 17.8 | 0% | OK | 38.31 | DFW | - | 公告段 |
-| 104.16.171.81:443 | 17.8 | 0% | OK | 39.38 | DFW | - | 公告段 |
-| 104.16.62.149:443 | 17.8 | 0% | OK | 38.97 | DFW | - | 公告段 |
-| 104.17.66.109:443 | 17.8 | 0% | OK | 40.08 | DFW | - | 公告段 |
-| 104.17.237.250:443 | 17.8 | 0% | OK | 37.56 | DFW | - | 公告段 |
-| 104.16.0.4:443 | 17.8 | 0% | OK | 37.68 | DFW | - | 公告段 |
-| 104.17.0.8:443 | 17.8 | 0% | OK | 36.01 | DFW | - | 公告段 |
-| 162.159.18.24:443 | 17.8 | 0% | OK | 37.20 | DFW | - | 公告段 |
-| 104.21.31.255:443 | 17.8 | 0% | OK | 35.84 | DFW | - | 公告段 |
-| 162.159.245.101:443 | 17.8 | 0% | OK | 36.33 | DFW | - | 公告段 |
-| 190.93.247.210:443 | 17.8 | 0% | OK | 38.22 | DFW | - | 公告段 |
-| 108.162.198.116:443 | 17.8 | 0% | OK | 37.49 | DFW | - | 公告段 |
+| 173.245.58.137:443 | 6.1 | 0% | OK | 103.56 | MSP | - | 公告段 |
+| 172.64.190.253:443 | 6.1 | 0% | OK | 78.66 | MSP | - | 公告段 |
+| 172.64.184.231:443 | 6.1 | 0% | OK | 98.58 | MSP | - | 公告段 |
+| 172.64.147.9:443 | 6.1 | 0% | OK | 105.74 | MSP | - | 公告段 |
+| 172.64.151.127:443 | 6.1 | 0% | OK | 64.45 | MSP | - | 公告段 |
+| 104.18.39.78:443 | 6.1 | 0% | OK | 83.53 | MSP | - | 公告段 |
+| 104.18.46.37:443 | 6.1 | 0% | OK | 80.12 | MSP | - | 公告段 |
+| 162.159.0.2:443 | 6.1 | 0% | OK | 105.14 | MSP | - | 公告段 |
+| 172.64.75.45:443 | 6.1 | 0% | OK | 111.76 | MSP | - | 公告段 |
+| 173.245.59.250:443 | 6.1 | 0% | OK | 83.36 | MSP | 是 | 公告段 |
+| 173.245.49.63:443 | 6.1 | 0% | OK | 108.46 | MSP | 是 | 公告段 |
+| 108.162.196.181:443 | 6.1 | 0% | OK | 103.46 | MSP | 是 | 公告段 |
+| 162.159.34.127:443 | 6.1 | 0% | OK | 99.51 | MSP | 是 | 公告段 |
+| 108.162.192.3:443 | 6.2 | 0% | OK | 79.78 | MSP | - | 公告段 |
+| 162.159.95.61:443 | 6.2 | 0% | OK | 124.03 | MSP | - | 公告段 |
+| 162.159.44.158:443 | 6.2 | 0% | OK | 119.42 | MSP | - | 公告段 |
+| 172.64.148.139:443 | 6.2 | 0% | OK | 49.65 | STL | - | 公告段 |
+| 172.64.156.56:443 | 6.2 | 0% | OK | 112.79 | MSP | - | 公告段 |
+| 172.64.188.249:443 | 6.2 | 0% | OK | 116.93 | MSP | - | 公告段 |
+| 172.64.155.35:443 | 6.2 | 0% | OK | 83.59 | MSP | - | 公告段 |
+| 172.64.190.71:443 | 6.2 | 0% | OK | 90.87 | MSP | - | 公告段 |
+| 172.64.155.109:443 | 6.2 | 0% | OK | 115.46 | MSP | - | 公告段 |
+| 104.18.36.93:443 | 6.2 | 0% | OK | 55.69 | MSP | - | 公告段 |
+| 172.64.32.3:443 | 6.2 | 0% | OK | 99.08 | MSP | - | 公告段 |
+| 172.64.32.2:443 | 6.2 | 0% | OK | 118.13 | MSP | - | 公告段 |
+| 173.245.58.245:443 | 6.2 | 0% | OK | 124.45 | MSP | - | 公告段 |
+| 173.245.58.205:443 | 6.2 | 0% | OK | 107.86 | MSP | - | 公告段 |
+| 173.245.49.199:443 | 6.2 | 0% | OK | 140.37 | MSP | - | 公告段 |
+| 173.245.58.167:443 | 6.2 | 0% | OK | 113.71 | MSP | - | 公告段 |
+| 198.41.193.162:443 | 6.2 | 0% | OK | 64.01 | MSP | - | 公告段 |
+| 108.162.195.9:443 | 6.2 | 0% | OK | 110.05 | MSP | - | 公告段 |
+| 173.245.49.52:443 | 6.2 | 0% | OK | 118.60 | MSP | 是 | 公告段 |
+| 108.162.196.127:443 | 6.2 | 0% | OK | 66.76 | MSP | 是 | 公告段 |
+| 198.41.196.142:443 | 6.2 | 0% | OK | 99.46 | MSP | - | 公告段 |
+| 162.159.133.212:443 | 6.4 | 0% | OK | 36.34 | STL | - | 公告段 |
+| 141.101.90.97:443 | 6.5 | 0% | OK | 11.75 | HAM | 是 | 公告段 |
+| 172.64.152.57:443 | 6.6 | 0% | OK | 49.57 | STL | - | 公告段 |
+| 172.65.90.89:443 | 6.6 | 0% | OK | 7.67 | FUK | - | 公告段 |
+| 162.159.137.209:443 | 6.9 | 0% | OK | 43.02 | STL | - | 公告段 |
+| 172.64.152.196:443 | 7.0 | 0% | OK | 44.37 | STL | - | 公告段 |
+| 104.18.63.2:443 | 7.2 | 0% | OK | 32.89 | STL | - | 公告段 |
