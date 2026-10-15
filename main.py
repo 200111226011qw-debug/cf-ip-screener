@@ -433,7 +433,7 @@ def run_once(args, overrides, cfg=None):
                 port = item.get("port", cfg["default_port"])
                 if not ip:
                     continue
-                key = f"{ip}:{port}"
+                key = (ip, port)
                 if key not in candidates:
                     candidates[key] = {
                         "ip": ip,
