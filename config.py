@@ -8,6 +8,7 @@ DEFAULT_CONFIG = {
     #  - isp 字段可选：ct=电信 / cu=联通 / cmcc=移动，用于按运营商归类，
     #    不带 isp 的池视为混合池（按备注关键词自动归类）
     "pools": [
+        {"url": "https://ip.ehb.cc.cd/"},
         # —— BestCF 家族（bestcf.pages.dev）——
         {"url": "https://bestcf.pages.dev/wetest/ipv4.txt"},
         {"url": "https://bestcf.pages.dev/cfyes/ipv4.txt"},
