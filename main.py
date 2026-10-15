@@ -21,6 +21,7 @@ import argparse
 import asyncio
 import concurrent.futures as futures
 import os
+import json
 import random
 import time
 
@@ -419,6 +420,33 @@ def run_once(args, overrides, cfg=None):
                     candidates[key] = dict(meta, source=f"plugin:{name}")
                     n_add += 1
             log.info(f"      插件候选源 [{name}] 并入 {n_add} 条")
+
+    # —— 上次合格节点重筛：把旧结果里的 IP 也加入候选，走完整探测流程 ——
+    prev_json = os.path.join(cfg.get("output_dir", "result"), cfg.get("output_json", "clean-ips.json"))
+    prev_count = 0
+    if os.path.exists(prev_json):
+        try:
+            with open(prev_json, "r", encoding="utf-8") as f:
+                prev_clean = json.load(f)
+            for item in prev_clean:
+                ip = item.get("ip")
+                port = item.get("port", cfg["default_port"])
+                if not ip:
+                    continue
+                key = f"{ip}:{port}"
+                if key not in candidates:
+                    candidates[key] = {
+                        "ip": ip,
+                        "port": port,
+                        "isp": item.get("isp"),
+                        "source": "previous",
+                    }
+                    prev_count += 1
+            if prev_count:
+                log.info(f"      [previous] 从上次结果并入 {prev_count} 个旧节点参与重筛")
+        except Exception as e:
+            log.warning(f"      [previous] 读取上次结果失败（不影响本次）: {e}")
+
     if not candidates:
         log.error("错误: 所有候选池均未解析到 IP，请检查网络或更换候选池。")
         return 1
