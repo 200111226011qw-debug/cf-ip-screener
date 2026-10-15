@@ -138,7 +138,7 @@ async def test_probe_one_switches(monkeypatch, tls_check, http_check,
     _patch_tcp(monkeypatch, [10.0, 10.0, 10.0])
 
     async def fake_tls(ip, port, timeout, sni, proxy=None):
-        return True
+        return True, "TLSv1.3|test-cipher"
     async def fake_http(ip, port, timeout, sni, proxy=None):
         return 50.0
 

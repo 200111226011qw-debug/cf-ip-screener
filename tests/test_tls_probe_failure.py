@@ -30,7 +30,7 @@ async def test_tls_probe_rejects_plain_tcp():
     port = server.sockets[0].getsockname()[1]
     try:
         result = await _tls_probe("127.0.0.1", port, timeout=1.0, sni="localhost")
-        assert result is False
+        assert result[0] is False
     finally:
         server.close()
         await server.wait_closed()

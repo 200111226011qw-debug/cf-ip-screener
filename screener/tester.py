@@ -98,12 +98,14 @@ async def _tcp_probe(ip: str, port: int, timeout: float, proxy: dict = None):
 
 
 async def _tls_probe(ip: str, port: int, timeout: float, sni: str,
-                     proxy: dict = None) -> bool:
-    """TLS 握手探测：能完成握手即视为通过（用于过滤非真实可用节点）。
+                     proxy: dict = None) -> tuple[bool, str]:
+    """TLS 握手探测：返回 (是否成功, 指纹字符串)。
 
+    指纹基于 TLS 版本 + 密码套件生成，用于识别服务器特征（JARM 简化版）。
     仅校验握手成功，不校验证书链（不少优选节点证书为泛域名/自签）。
     走代理时在 CONNECT 隧道上做 start_tls（open_connection(sock=...)）。
     """
+    fp = ""
     try:
         if proxy:
             _reader, writer = await _open_proxy_tunnel(proxy, ip, port, timeout)
@@ -113,6 +115,10 @@ async def _tls_probe(ip: str, port: int, timeout: float, sni: str,
                                         server_hostname=sni),
                 timeout,
             )
+            try:
+                ssl_obj = swriter.get_extra_info("ssl_object")
+            except Exception:
+                ssl_obj = None
             swriter.close()
         else:
             reader, writer = await asyncio.wait_for(
@@ -120,6 +126,10 @@ async def _tls_probe(ip: str, port: int, timeout: float, sni: str,
                                         server_hostname=sni),
                 timeout,
             )
+            try:
+                ssl_obj = writer.get_extra_info("ssl_object")
+            except Exception:
+                ssl_obj = None
             writer.close()
         try:
             await asyncio.wait_for(writer.wait_closed(), timeout=_CLOSE_TIMEOUT)
@@ -128,9 +138,15 @@ async def _tls_probe(ip: str, port: int, timeout: float, sni: str,
                 writer.transport.abort()
         except Exception:
             pass
-        return True
+        # 生成简化指纹：TLS版本 + cipher 套件名
+        if ssl_obj is not None:
+            ver = ssl_obj.version() or "unknown"
+            cipher = ssl_obj.cipher()
+            cipher_name = cipher[0] if cipher else "unknown"
+            fp = f"{ver}|{cipher_name}"
+        return True, fp
     except Exception:
-        return False
+        return False, fp
 
 
 async def _http_probe(ip: str, port: int, timeout: float, sni: str,
@@ -200,8 +216,9 @@ async def probe_one(ip: str, port: int, timeout: float, probes: int,
     loss_rate = 1.0 - (len(latencies) / probes) if probes else 1.0
     avg_ms = sum(latencies) / len(latencies) if latencies else None
     tls_ok = None
+    tls_fp = ""
     if tls_check and latencies:
-        tls_ok = await _tls_probe(ip, port, timeout, sni, proxy)
+        tls_ok, tls_fp = await _tls_probe(ip, port, timeout, sni, proxy)
     http_ms = None
     if http_check and latencies:
         http_ms = await _http_probe(ip, port, timeout, sni, proxy)
@@ -212,6 +229,7 @@ async def probe_one(ip: str, port: int, timeout: float, probes: int,
         "avg_ms": round(avg_ms, 1) if avg_ms is not None else None,
         "loss_rate": round(loss_rate, 2),
         "tls_ok": tls_ok,
+        "tls_fp": tls_fp,
         "http_ms": round(http_ms, 1) if http_ms is not None else None,
     }
 
