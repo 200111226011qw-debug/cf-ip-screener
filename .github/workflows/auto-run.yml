@@ -57,7 +57,7 @@ jobs:
           python main.py --top-n 50
 
       - name: 上传报告 artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: result
           # 注意：path 不支持 shell 变量展开（${PROJECT_DIR:-.} 会被当字面路径），
