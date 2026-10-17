@@ -23,7 +23,7 @@ jobs:
       - name: 配置 Python
         uses: actions/setup-python@v6
         with:
-          python-version: "3.11"
+          python-version: "3.12"
 
       # 与 auto-run.yml 相同的“定位项目根目录”逻辑：
       # main.py 在仓库根目录则直接跑；网页上传嵌套时自动进入子目录。
