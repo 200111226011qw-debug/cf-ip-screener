@@ -15,7 +15,7 @@
                                       # config.py 变更自动重载，不重启
 """
 
-__version__ = "2.3.0"
+__version__ = "2.3.1"
 
 import argparse
 import asyncio
@@ -120,6 +120,10 @@ def parse_args():
                    help="强制段校验：无论是否测速都丢弃非公告段的 IP"
                         "（默认只在 --no-speed 时才强制；怀疑池被投毒、"
                         "伪造 cf-ray 时用本开关回退）")
+    p.add_argument("--verify-cert", action="store_true",
+                   help="测速 TLS 握手强制校验证书（P1-5）：只认真 CF 边缘"
+                        "出示的受信证书，挡掉伪造 cf-ray 的反代；保留外延段。"
+                        "默认关闭，首次开启请单独观察一轮")
     return p.parse_args()
 
 
@@ -156,6 +160,8 @@ def main():
         overrides["tls_check"] = False
     if args.cf_net_strict:
         overrides["cf_net_strict"] = True
+    if args.verify_cert:
+        overrides["verify_cert"] = True
     if args.watch:
         return watch_loop(args, overrides)
     return run_once(args, overrides)
@@ -600,6 +606,7 @@ def run_once(args, overrides, cfg=None):
             min_speed_mbps=cfg["min_speed_mbps"],
             colo_filter=cfg["colo_filter"].split(",") if cfg["colo_filter"] else None,
             probe_bytes=cfg.get("probe_bytes", 1024 * 1024),
+            verify_cert=cfg.get("verify_cert", False),
         )
         # 延迟分层：传入候选延迟，低延迟优先调度 + 超时自适应。
         # 注意：avg_map 在所有复测轮次间固定取自连通性阶段，绝不把速度
@@ -640,6 +647,7 @@ def run_once(args, overrides, cfg=None):
                 continue
             r["speed_mbps"] = hit["speed_mbps"]
             r["colo"] = hit["colo"]
+            r["cert_ok"] = hit.get("cert_ok")
             kept.append(r)
         first_fail = len(clean) - len(ok_keys)
         consensus_fail = len(ok_keys) - len(kept)
@@ -658,6 +666,18 @@ def run_once(args, overrides, cfg=None):
             dropped = before - len(clean)
             if dropped:
                 log.info(f"      cf-ray 校验剔除 {dropped} 条非 CF 边缘节点")
+
+        # TLS 证书身份校验（P1-5）：cf-ray 头可被任意反代伪造，唯有真 Cloudflare
+        # 边缘能出示受信 CA 签发给 speed.cloudflare.com 的证书。verify_cert=True
+        # 时，证书校验失败的节点（cert_ok=False，如挂在 CF CDN 后的住宅反代）
+        # 在测速握手阶段即已失败（速度 0），这里再做一次显式拦截并计数。
+        if cfg.get("verify_cert", False):
+            before = len(clean)
+            clean = [r for r in clean if r.get("cert_ok") is not False]
+            dropped = before - len(clean)
+            if dropped:
+                log.info(f"      TLS 证书校验剔除 {dropped} 条非 CF 身份节点"
+                      f"（证书不可信/主机名不符）")
 
         # 地区过滤：指定了 --colo 时仅保留地区码在白名单内的 IP
         if cfg["colo_filter"]:
@@ -864,12 +884,17 @@ def run_single(cfg: dict, target: str) -> int:
     # 2) 可选测速 + 机房
     if cfg["speed_test"] and res["avg_ms"] is not None:
         st = speedtest.SpeedTester(cfg["speed_url"], timeout=cfg["speed_timeout"],
-                                   concurrency=1)
+                                   concurrency=1,
+                                   verify_cert=cfg.get("verify_cert", False))
         sp = asyncio.run(st.speed_one(ip, port))
         if sp["speed_mbps"] > 0:
             log.info(f"下载速度:      {sp['speed_mbps']:.2f} MB/s ({sp['bytes']} bytes / {sp['time_s']}s)")
         else:
             log.info(f"下载速度:      测速失败（0 字节/超时，可能为回源 IP）")
+        if cfg.get("verify_cert", False):
+            cert_txt = {True: "通过（真 CF 身份）", False: "失败（证书不可信/主机名不符）"}.get(
+                sp.get("cert_ok"), "未测")
+            log.info(f"证书身份:      {cert_txt}")
         if sp.get("colo"):
             log.info(f"机房地区:      {sp['colo']}")
         else:

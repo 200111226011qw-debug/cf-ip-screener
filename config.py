@@ -160,6 +160,15 @@ DEFAULT_CONFIG = {
     # 开启后，非 CF 边缘节点（如云厂商 nginx）会被剔除
     # 注意：在 --no-speed 时无法校验，此时仅依赖 require_cf_net
     "require_cf_ray": True,
+    # 是否在测速 TLS 握手时强制校验证书（P1-5）。
+    # 背景：cf-ray 只是一个 HTTP 响应头，任何反代都能伪造，CERT_NONE 下
+    # 一个挂在 CF CDN 后的住宅反代（如 Comcast 段）也能凭伪造 cf-ray 混入。
+    # 开启后用 SNI=speed.cloudflare.com 做强校验：只有真 CF 边缘能出示受信
+    # CA 签发、覆盖该主机名的证书，伪造者无法通过。校验通过的「外延段」
+    # （非公告段但确为 CF 边缘的地址）仍保留，不影响外延段功能。
+    # 默认 False：证书校验失败会让该节点测速 0 速度，首次开启请单独观察一轮，
+    # 避免与其它筛选改动混淆。命令行 --verify-cert 可临时开启。
+    "verify_cert": False,
 
     # 进入测速的候选上限（按延迟排序取前 N）。测速是带宽密集型，
     # 8 并发下每个 10s 超时，N=300 最坏 6.25 分钟，落在 CI 30 分钟预算内。

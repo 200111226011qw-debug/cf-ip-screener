@@ -74,6 +74,8 @@ class AppConfig(DictCompatMixin, BaseModel):
     require_cf_net: bool = True
     cf_net_strict: bool = False
     require_cf_ray: bool = True
+    # 测速 TLS 握手强制校验证书（P1-5），默认关闭，开启可挡伪造 cf-ray 的反代
+    verify_cert: bool = False
 
     # 测速
     speed_max_candidates: int = Field(300, ge=0)

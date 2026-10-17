@@ -54,7 +54,8 @@ def consensus_speed(rounds, consensus_k=0.3, floor_speed=0.0):
         for key, sp in first.items():
             if sp.get("speed_mbps", 0) > 0:
                 out[key] = {"speed_mbps": sp["speed_mbps"],
-                            "colo": sp.get("colo")}
+                            "colo": sp.get("colo"),
+                            "cert_ok": sp.get("cert_ok")}
         return out
 
     # 第一轮成功节点的速度中位数 → 自适应门槛。
@@ -88,14 +89,15 @@ def consensus_speed(rounds, consensus_k=0.3, floor_speed=0.0):
         if sum(1 for s in speeds if s >= threshold) < speed_need:
             continue
         out[key] = {"speed_mbps": round(statistics.median(speeds), 2),
-                    "colo": valid_colos[0]}
+                    "colo": valid_colos[0],
+                    "cert_ok": sp0.get("cert_ok")}
     return out
 
 
 
 class SpeedTester:
     def __init__(self, url, timeout=10.0, concurrency=8, min_speed_mbps=0.0,
-                 colo_filter=None, probe_bytes=1024 * 1024):
+                 colo_filter=None, probe_bytes=1024 * 1024, verify_cert=False):
         self.url = url
         self.timeout = timeout
         self.concurrency = concurrency
@@ -107,9 +109,18 @@ class SpeedTester:
         self.host = parsed.hostname
         self.port = parsed.port or 443
         self.path = parsed.path + ("?" + parsed.query if parsed.query else "")
+        # 不校验证书的上下文：只测连通与速度，信任任何对端（含伪造 cf-ray 的反代）。
         self._ctx = ssl.create_default_context()
         self._ctx.check_hostname = False
         self._ctx.verify_mode = ssl.CERT_NONE  # 与连通性测试口径一致
+        # verify_cert=True 时改用受信上下文：TLS 握手必须出示由受信 CA 签发、
+        # 且覆盖 SNI 主机名（speed.cloudflare.com）的证书。只有真 Cloudflare
+        # 边缘能出示该证书；任何挂在 CF CDN 后的第三方反代（如 Comcast 住宅 IP
+        # 自行伪造 cf-ray 头）都无法通过 —— 用于堵住「cf-ray 头可被任意伪造」
+        # 的身份漏洞（P1-5）。create_default_context() 默认 check_hostname=True、
+        # CERT_REQUIRED 并加载系统根证书。
+        self.verify_cert = verify_cert
+        self._verify_ctx = ssl.create_default_context()
 
     def _effective_timeout(self, avg_ms):
         """按候选延迟自适应放大超时：基础超时 + 延迟折算。
@@ -138,9 +149,26 @@ class SpeedTester:
             import socket
 
             tls = None
+            # cert_ok: None=本轮未校验证书；True=握手通过且证书可信；
+            # False=证书校验失败（非真 CF 边缘，伪造 cf-ray 也救不回来）。
+            cert_ok = None
+            server_hdr = None
             try:
                 raw = socket.create_connection((ip, port), timeout=timeout)
-                tls = self._ctx.wrap_socket(raw, server_hostname=self.host)
+                ctx = self._verify_ctx if self.verify_cert else self._ctx
+                try:
+                    tls = ctx.wrap_socket(raw, server_hostname=self.host)
+                except ssl.SSLCertVerificationError:
+                    # 受信上下文下证书不可信 / 主机名不符 → 身份不成立。
+                    try:
+                        raw.close()
+                    except Exception:
+                        pass
+                    return {"speed_mbps": 0.0, "bytes": 0, "time_s": 0.0,
+                            "colo": None, "cert_ok": False, "server": None,
+                            "probe_skipped": False}
+                if self.verify_cert:
+                    cert_ok = True
                 tls.settimeout(timeout)
 
                 req = (f"GET {self.path} HTTP/1.1\r\n"
@@ -154,7 +182,8 @@ class SpeedTester:
                 status_line = fp.readline()
                 if not status_line:
                     return {"speed_mbps": 0.0, "bytes": 0, "time_s": 0.0,
-                            "colo": None, "probe_skipped": False}
+                            "colo": None, "cert_ok": cert_ok,
+                            "server": None, "probe_skipped": False}
                 parts = status_line.split(b" ", 2)
                 status = int(parts[1]) if len(parts) > 1 else 0
 
@@ -167,9 +196,14 @@ class SpeedTester:
                     if name:
                         headers[name.strip().lower()] = value.strip()
 
+                _srv = headers.get(b"server")
+                if _srv:
+                    server_hdr = _srv.decode("ascii", "ignore").strip()
+
                 if status != 200:
                     return {"speed_mbps": 0.0, "bytes": 0, "time_s": 0.0,
-                            "colo": None, "probe_skipped": False}
+                            "colo": None, "cert_ok": cert_ok,
+                            "server": server_hdr, "probe_skipped": False}
 
                 # 从 cf-ray 头提取地区码
                 colo = None
@@ -189,17 +223,21 @@ class SpeedTester:
                 if elapsed <= 0 or total <= 0:
                     return {"speed_mbps": 0.0, "bytes": total,
                             "time_s": round(elapsed, 2), "colo": colo,
+                            "cert_ok": cert_ok, "server": server_hdr,
                             "probe_skipped": skipped}
                 return {
                     "speed_mbps": round(total / 1e6 / elapsed, 2),
                     "bytes": total,
                     "time_s": round(elapsed, 2),
                     "colo": colo,
+                    "cert_ok": cert_ok,
+                    "server": server_hdr,
                     "probe_skipped": skipped,
                 }
             except Exception:
                 return {"speed_mbps": 0.0, "bytes": 0, "time_s": 0.0,
-                        "colo": None, "probe_skipped": False}
+                        "colo": None, "cert_ok": cert_ok,
+                        "server": server_hdr, "probe_skipped": False}
             finally:
                 if tls:
                     try:
@@ -213,7 +251,8 @@ class SpeedTester:
             )
         except Exception:
             return {"speed_mbps": 0.0, "bytes": 0, "time_s": 0.0,
-                    "colo": None, "probe_skipped": False}
+                    "colo": None, "cert_ok": None, "server": None,
+                    "probe_skipped": False}
 
     def _read_body(self, fp, headers, start):
         """读响应 body，自动处理三种传输方式：
