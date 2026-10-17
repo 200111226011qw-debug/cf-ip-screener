@@ -26,6 +26,19 @@ import urllib.parse
 _CF_RAY_COLO = re.compile(r"^[0-9a-f]{8,}-([A-Za-z0-9]{3})$")
 
 
+def speed_threshold(first, consensus_k=0.3, floor_speed=0.0):
+    """计算自适应速度门槛：max(硬性地板, k × 首轮成功速度中位数)。
+
+    抽出来供共识判定与日志诊断共用，避免两处口径漂移。
+    """
+    ok_speeds = sorted(sp["speed_mbps"] for sp in first.values()
+                       if sp.get("speed_mbps", 0) > 0)
+    threshold = float(floor_speed or 0.0)
+    if ok_speeds:
+        threshold = max(threshold, consensus_k * statistics.median(ok_speeds))
+    return threshold
+
+
 def consensus_speed(rounds, consensus_k=0.3, floor_speed=0.0):
     """聚合多轮测速结果，剔除只在单轮侥幸达标的偶发节点。
 
@@ -59,11 +72,7 @@ def consensus_speed(rounds, consensus_k=0.3, floor_speed=0.0):
         return out
 
     # 第一轮成功节点的速度中位数 → 自适应门槛。
-    ok_speeds = sorted(sp["speed_mbps"] for sp in first.values()
-                       if sp.get("speed_mbps", 0) > 0)
-    threshold = float(floor_speed or 0.0)
-    if ok_speeds:
-        threshold = max(threshold, consensus_k * statistics.median(ok_speeds))
+    threshold = speed_threshold(first, consensus_k, floor_speed)
 
     colo_need = n       # colo 必须 n 轮一致（隐含 n 轮都成功）
     speed_need = n - 1  # 速度允许 1 轮抖动
@@ -153,6 +162,9 @@ class SpeedTester:
             # False=证书校验失败（非真 CF 边缘，伪造 cf-ray 也救不回来）。
             cert_ok = None
             server_hdr = None
+            # 诊断用：记录从建连到失败/返回的总耗时，用于把 0 速度拆成
+            # 「秒级连接失败（非 CF / 拒绝服务）」与「吃满超时（带宽受限）」。
+            t0 = time.monotonic()
             try:
                 raw = socket.create_connection((ip, port), timeout=timeout)
                 ctx = self._verify_ctx if self.verify_cert else self._ctx
@@ -164,7 +176,8 @@ class SpeedTester:
                         raw.close()
                     except Exception:
                         pass
-                    return {"speed_mbps": 0.0, "bytes": 0, "time_s": 0.0,
+                    return {"speed_mbps": 0.0, "bytes": 0,
+                            "time_s": round(time.monotonic() - t0, 2),
                             "colo": None, "cert_ok": False, "server": None,
                             "probe_skipped": False}
                 if self.verify_cert:
@@ -181,7 +194,8 @@ class SpeedTester:
                 fp = tls.makefile("rb")
                 status_line = fp.readline()
                 if not status_line:
-                    return {"speed_mbps": 0.0, "bytes": 0, "time_s": 0.0,
+                    return {"speed_mbps": 0.0, "bytes": 0,
+                            "time_s": round(time.monotonic() - t0, 2),
                             "colo": None, "cert_ok": cert_ok,
                             "server": None, "probe_skipped": False}
                 parts = status_line.split(b" ", 2)
@@ -201,7 +215,8 @@ class SpeedTester:
                     server_hdr = _srv.decode("ascii", "ignore").strip()
 
                 if status != 200:
-                    return {"speed_mbps": 0.0, "bytes": 0, "time_s": 0.0,
+                    return {"speed_mbps": 0.0, "bytes": 0,
+                            "time_s": round(time.monotonic() - t0, 2),
                             "colo": None, "cert_ok": cert_ok,
                             "server": server_hdr, "probe_skipped": False}
 
@@ -222,7 +237,8 @@ class SpeedTester:
                 elapsed = time.time() - start
                 if elapsed <= 0 or total <= 0:
                     return {"speed_mbps": 0.0, "bytes": total,
-                            "time_s": round(elapsed, 2), "colo": colo,
+                            "time_s": round(time.monotonic() - t0, 2),
+                            "colo": colo,
                             "cert_ok": cert_ok, "server": server_hdr,
                             "probe_skipped": skipped}
                 return {
@@ -235,7 +251,8 @@ class SpeedTester:
                     "probe_skipped": skipped,
                 }
             except Exception:
-                return {"speed_mbps": 0.0, "bytes": 0, "time_s": 0.0,
+                return {"speed_mbps": 0.0, "bytes": 0,
+                        "time_s": round(time.monotonic() - t0, 2),
                         "colo": None, "cert_ok": cert_ok,
                         "server": server_hdr, "probe_skipped": False}
             finally:
@@ -250,7 +267,9 @@ class SpeedTester:
                 loop.run_in_executor(None, _download), timeout + 5
             )
         except Exception:
-            return {"speed_mbps": 0.0, "bytes": 0, "time_s": 0.0,
+            # asyncio 整体超时（建连或读取吃满 timeout+5）→ 归类为超时。
+            return {"speed_mbps": 0.0, "bytes": 0,
+                    "time_s": round(timeout + 5, 2),
                     "colo": None, "cert_ok": None, "server": None,
                     "probe_skipped": False}
 

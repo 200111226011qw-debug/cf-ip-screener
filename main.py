@@ -525,6 +525,17 @@ def run_once(args, overrides, cfg=None):
         r["native"] = meta.get("native", False)
         r["source"] = meta.get("source", "")
 
+    # 身份诊断（零行为变更）：连通性 TLS 握手通过的候选里，有多少能出示受信
+    # CA 签发且覆盖 SNI 的证书。仅打印计数，不参与筛选；用于判断候选池是否被
+    # 大量「能 TLS 握手但非 CF」的主机污染（决定要不要拉高速测上限）。
+    if cfg.get("tls_check"):
+        tls_pass = sum(1 for r in results if r.get("tls_ok"))
+        cert_pass = sum(1 for r in results if r.get("cert_ok") is True)
+        if tls_pass:
+            rate = cert_pass / tls_pass * 100
+            log.info(f"      身份诊断：TLS 握手通过 {tls_pass} / 其中证书可信 "
+                  f"{cert_pass}（{rate:.1f}%）")
+
     # 3) 筛选（连通性阈值）
     log.info(f"[3/6] 按阈值筛选（延迟 ≤ {cfg['max_latency_ms']}ms，"
           f"丢包 ≤ {cfg['max_loss_rate']:.0%}）...")
@@ -626,6 +637,22 @@ def run_once(args, overrides, cfg=None):
         # 第 1 轮就失败的节点不具稳定性，直接淘汰）。
         ok_keys = [k for k in all_keys
                    if round_data[0][k].get("speed_mbps", 0) > 0]
+        # 诊断（零行为变更）：把首轮 0 速度拆成「秒级连接失败（能 TLS 握手但不
+        # 提供测速文件 / 非 CF）」与「吃满超时（runner 带宽或并发受限）」，
+        # 并打印自适应门槛 T。两类失败指向相反的调参方向，必须分开看。
+        first_sp = list(round_data[0].values())
+        zero_sp = [sp for sp in first_sp if sp.get("speed_mbps", 0) <= 0]
+        connect_fail = sum(1 for sp in zero_sp if sp.get("time_s", 0.0) < 1.0)
+        timeout_fail = len(zero_sp) - connect_fail
+        threshold_t = speedtest.speed_threshold(
+            round_data[0], float(cfg.get("speed_consensus_k", 0.3)),
+            float(cfg.get("min_speed_mbps", 0) or 0))
+        if zero_sp:
+            log.info(f"      首轮无速度 {len(zero_sp)} 条：连接失败"
+                  f"（0 字节，<1s）{connect_fail} / 超时（吃满）{timeout_fail}"
+                  f"；自适应门槛 T={threshold_t:.2f} MB/s")
+        else:
+            log.info(f"      自适应门槛 T={threshold_t:.2f} MB/s（首轮全部成功）")
         for ri in range(2, rounds_n + 1):
             if not ok_keys:
                 break
@@ -649,15 +676,11 @@ def run_once(args, overrides, cfg=None):
             r["colo"] = hit["colo"]
             r["cert_ok"] = hit.get("cert_ok")
             kept.append(r)
-        first_fail = len(clean) - len(ok_keys)
         consensus_fail = len(ok_keys) - len(kept)
         clean = kept
-        if rounds_n > 1:
-            if first_fail:
-                log.info(f"      首轮测速：{first_fail} 条下载失败/超时（0 速度）")
-            if consensus_fail:
-                log.info(f"      {rounds_n} 轮复测共识：{consensus_fail} 条"
-                      f"（colo 漂移 / 速度不达标）被剔除")
+        if rounds_n > 1 and consensus_fail:
+            log.info(f"      {rounds_n} 轮复测共识：{consensus_fail} 条"
+                  f"（colo 漂移 / 速度不达标）被剔除")
 
         # cf-ray 校验：非 CF 节点不会有此响应头（需测速才能拿到）
         if cfg.get("require_cf_ray", True):

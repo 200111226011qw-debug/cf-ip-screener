@@ -19,6 +19,11 @@ _TLS_CTX = ssl.create_default_context()
 _TLS_CTX.check_hostname = False
 _TLS_CTX.verify_mode = ssl.CERT_NONE
 
+# 诊断用受信上下文：check_hostname=True / CERT_REQUIRED（create_default_context
+# 默认即如此）。仅用于统计「连通性 TLS 握手通过的候选里，有多少能出示受信 CA
+# 签发且覆盖 SNI 的证书」，不参与任何筛选（筛选开关仍是 speedtest 的 verify_cert）。
+_TLS_VERIFY_CTX = ssl.create_default_context()
+
 # close_notify 等待上限（秒）。正常网络下 close_notify 回执在 1 个 RTT 内返回；
 # 0.5s ≈ 3 个 RTT 余量，覆盖重传但不拖累 FD 释放。对端不回 close_notify 时
 # 超时后主动 abort()，避免 socket 在 FIN_WAIT_2 / CLOSE_WAIT 堆积。
@@ -98,20 +103,22 @@ async def _tcp_probe(ip: str, port: int, timeout: float, proxy: dict = None):
 
 
 async def _tls_probe(ip: str, port: int, timeout: float, sni: str,
-                     proxy: dict = None) -> tuple[bool, str]:
+                     proxy: dict = None, ctx=None) -> tuple[bool, str]:
     """TLS 握手探测：返回 (是否成功, 指纹字符串)。
 
     指纹基于 TLS 版本 + 密码套件生成，用于识别服务器特征（JARM 简化版）。
-    仅校验握手成功，不校验证书链（不少优选节点证书为泛域名/自签）。
+    默认 ctx 仅校验握手成功，不校验证书链（不少优选节点证书为泛域名/自签）；
+    传入受信 ctx（_TLS_VERIFY_CTX）时握手成功即代表证书链与主机名可信。
     走代理时在 CONNECT 隧道上做 start_tls（open_connection(sock=...)）。
     """
+    ssl_ctx = ctx or _TLS_CTX
     fp = ""
     try:
         if proxy:
             _reader, writer = await _open_proxy_tunnel(proxy, ip, port, timeout)
             sock = writer.transport.get_extra_info("socket")
             _sr, swriter = await asyncio.wait_for(
-                asyncio.open_connection(sock=sock, ssl=_TLS_CTX,
+                asyncio.open_connection(sock=sock, ssl=ssl_ctx,
                                         server_hostname=sni),
                 timeout,
             )
@@ -122,7 +129,7 @@ async def _tls_probe(ip: str, port: int, timeout: float, sni: str,
             swriter.close()
         else:
             reader, writer = await asyncio.wait_for(
-                asyncio.open_connection(ip, port, ssl=_TLS_CTX,
+                asyncio.open_connection(ip, port, ssl=ssl_ctx,
                                         server_hostname=sni),
                 timeout,
             )
@@ -217,8 +224,15 @@ async def probe_one(ip: str, port: int, timeout: float, probes: int,
     avg_ms = sum(latencies) / len(latencies) if latencies else None
     tls_ok = None
     tls_fp = ""
+    # cert_ok: 诊断字段（不参与筛选）。True=受信握手成功（真 CF 身份）；
+    # False=能握手但证书不可信/主机名不符；None=未 TLS 或未做证书诊断。
+    cert_ok = None
     if tls_check and latencies:
         tls_ok, tls_fp = await _tls_probe(ip, port, timeout, sni, proxy)
+        if tls_ok:
+            # 额外一次受信握手，仅用于统计证书通过率；失败不影响 tls_ok。
+            cert_ok, _ = await _tls_probe(
+                ip, port, timeout, sni, proxy, ctx=_TLS_VERIFY_CTX)
     http_ms = None
     if http_check and latencies:
         http_ms = await _http_probe(ip, port, timeout, sni, proxy)
@@ -230,6 +244,7 @@ async def probe_one(ip: str, port: int, timeout: float, probes: int,
         "loss_rate": round(loss_rate, 2),
         "tls_ok": tls_ok,
         "tls_fp": tls_fp,
+        "cert_ok": cert_ok,
         "http_ms": round(http_ms, 1) if http_ms is not None else None,
     }
 

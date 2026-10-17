@@ -126,18 +126,18 @@ async def test_empty_probes_returns_loss_rate_1(monkeypatch):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("tls_check,http_check,expect_tls,expect_http", [
-    (False, False, None, None),
-    (True,  False, True, None),
-    (False, True,  None, 50.0),
-    (True,  True,  True, 50.0),
+@pytest.mark.parametrize("tls_check,http_check,expect_tls,expect_http,expect_cert", [
+    (False, False, None, None, None),
+    (True,  False, True, None, True),
+    (False, True,  None, 50.0, None),
+    (True,  True,  True, 50.0, True),
 ])
 async def test_probe_one_switches(monkeypatch, tls_check, http_check,
-                                   expect_tls, expect_http):
+                                   expect_tls, expect_http, expect_cert):
     """tls_check / http_check 四组开关组合。"""
     _patch_tcp(monkeypatch, [10.0, 10.0, 10.0])
 
-    async def fake_tls(ip, port, timeout, sni, proxy=None):
+    async def fake_tls(ip, port, timeout, sni, proxy=None, ctx=None):
         return True, "TLSv1.3|test-cipher"
     async def fake_http(ip, port, timeout, sni, proxy=None):
         return 50.0
@@ -150,4 +150,23 @@ async def test_probe_one_switches(monkeypatch, tls_check, http_check,
                                http_check=http_check)
     assert r["tls_ok"] == expect_tls
     assert r["http_ms"] == expect_http
+    assert r["cert_ok"] == expect_cert
+
+
+@pytest.mark.asyncio
+async def test_cert_verify_failure_does_not_change_tls_ok(monkeypatch):
+    """诊断用受信握手失败只置 cert_ok=False，不得把 tls_ok 判为 False（不筛选）。"""
+    _patch_tcp(monkeypatch, [10.0, 10.0, 10.0])
+
+    async def fake_tls(ip, port, timeout, sni, proxy=None, ctx=None):
+        if ctx is not None:
+            return False, ""      # 受信握手（证书不可信）失败
+        return True, "TLSv1.3|test-cipher"
+
+    monkeypatch.setattr(tester, "_tls_probe", fake_tls)
+
+    r = await tester.probe_one("1.1.1.1", 443, 3.0, probes=3,
+                               tls_check=True, sni="x")
+    assert r["tls_ok"] is True
+    assert r["cert_ok"] is False
 
