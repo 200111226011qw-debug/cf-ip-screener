@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.2.0 — 2026-10-17
+
+rc1 之后的收尾：
+- 旧节点自动重筛：每次运行读取上次 clean-ips.json，把旧 IP 加入候选池一起重测，合格保留、失效淘汰
+- TLS 指纹（JARM 简化版）：TLS 握手后记录版本 + 密码套件，结果新增 `tls_fp` 字段
+- 候选池新增 ip.ehb.cc.cd 源
+- CI：所有 workflow 升级到 Node 24 actions（checkout v5 / setup-python v6 / upload-artifact v5），统一 Python 3.12
+- validate-mihomo workflow 每 4 小时定时触发，已在真实 Mihomo 中验证 clash.yaml 加载通过
+
 ## 2.2.0-rc1 — 2026-10-14
 
 预发布版本，待 Mihomo 手动验证 clash.yaml 后转正。
