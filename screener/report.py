@@ -67,7 +67,7 @@ def _bucket(values, edges):
 
 
 def build_report(cfg, pool_stats, clean, total_tested, total_candidates,
-                 elapsed, outdir):
+                 elapsed, outdir, speed_candidates=None):
     """生成 report.html 与 report.md，返回写入的文件路径列表。
 
     pool_stats: [{"url","isp","native","parsed","kept","hit","hit_ext",
@@ -121,7 +121,9 @@ def build_report(cfg, pool_stats, clean, total_tested, total_candidates,
         md.insert(1, f"> **{cf_net_note}**\n")
     md.append(f"- 时间: {now}")
     md.append(f"- 候选池: {len(pool_stats)} 个 (成功 {len(ok_pools)} / 失败 {len(failed_pools)} / 跳过 {len(skipped_pools)})")
-    md.append(f"- 解析候选: {total_parsed} → 保留(去重后) {total_kept} → 已测 {total_tested} → 纯净 {len(clean)}")
+    # 漏斗补"测速候选"层（截断后实际进入测速的数量），否则通过率被错报。
+    speed_stage = f" → 测速 {speed_candidates}" if speed_candidates is not None else ""
+    md.append(f"- 解析候选: {total_parsed} → 保留(去重后) {total_kept} → 已测 {total_tested}{speed_stage} → 纯净 {len(clean)}")
     md.append(f"- 耗时: {elapsed:.1f}s\n")
 
     md.append("## 池命中率\n")
@@ -312,7 +314,7 @@ document.querySelectorAll('#ip-table th').forEach(function (th) {
   时间: {html.escape(now)}<br>
   {cf_net_html}
   候选池: {len(pool_stats)} 个（成功 {len(ok_pools)} / 失败 {len(failed_pools)} / 跳过 {len(skipped_pools)}）<br>
-  解析候选: {total_parsed} → 保留(去重后) {total_kept} → 已测 {total_tested} → <b>纯净 {len(clean)}</b><br>
+  解析候选: {total_parsed} → 保留(去重后) {total_kept} → 已测 {total_tested}{speed_stage} → <b>纯净 {len(clean)}</b><br>
   耗时: {elapsed:.1f}s
 </div>
 

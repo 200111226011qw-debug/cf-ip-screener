@@ -22,7 +22,8 @@ EXPECTED_PARAMS = {
     "write_json": ["clean", "path"],
     "write_all": ["clean", "outdir", "cfg"],
     "write_client_configs": ["clean", "outdir"],
-    "print_summary": ["clean", "total_tested", "total_candidates"],
+    "print_summary": ["clean", "total_tested", "total_candidates",
+                      "speed_candidates"],
 }
 
 

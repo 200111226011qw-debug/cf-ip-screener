@@ -39,3 +39,34 @@ def test_report_html_contains_echarts_and_chart_divs(tmp_path):
     # 数据经 json.dumps 注入，不应残留 f-string 占位
     assert "{json.dumps" not in html
     assert "点击表头排序" in html
+
+
+def _write_report(tmp_path, **kw):
+    clean = [
+        {"ip": "104.16.1.1", "port": 443, "avg_ms": 10.0, "loss_rate": 0.0,
+         "tls_ok": True, "speed_mbps": 12.5, "colo": "HKG", "native": True},
+    ]
+    cfg = {"cf_net_strict": False, "isp_filter": "",
+           "pools": [{"url": "https://example.com/pool.txt", "isp": "ct"}],
+           "top_n": 50}
+    return report.build_report(
+        cfg, _minimal_pool_stats(), clean, 10, 20, 1.5, str(tmp_path), **kw)
+
+
+def test_funnel_shows_speed_candidate_layer(tmp_path):
+    paths = _write_report(tmp_path, speed_candidates=8)
+    for ext in ("report.md", "report.html"):
+        p = [x for x in paths if x.endswith(ext)][0]
+        with open(p, encoding="utf-8") as f:
+            content = f.read()
+        assert "测速 8" in content
+
+
+def test_funnel_omits_speed_layer_when_not_speedtested(tmp_path):
+    # --no-speed 时 speed_candidates=None，漏斗不应出现"测速"层
+    paths = _write_report(tmp_path, speed_candidates=None)
+    for ext in ("report.md", "report.html"):
+        p = [x for x in paths if x.endswith(ext)][0]
+        with open(p, encoding="utf-8") as f:
+            content = f.read()
+        assert "→ 测速" not in content

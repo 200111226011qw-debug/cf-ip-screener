@@ -162,10 +162,16 @@ def write_client_configs(clean, outdir: str) -> dict:
     return written
 
 
-def print_summary(clean, total_tested: int, total_candidates: int):
+def print_summary(clean, total_tested: int, total_candidates: int,
+                  speed_candidates: int = None):
     print()
-    print(f"候选总数: {total_candidates}  已测试: {total_tested}  "
-          f"纯净可用: {len(clean)}")
+    # 漏斗：解析候选 → 已探测 → 测速候选（截断后实际进入测速的数量）→ 纯净。
+    # 此前漏掉"测速候选"这一层，会把通过率虚高/虚低（31/300 误写成 31/10700）。
+    funnel = (f"候选总数: {total_candidates}  已测试: {total_tested}")
+    if speed_candidates is not None:
+        funnel += f"  测速候选: {speed_candidates}"
+    funnel += f"  纯净可用: {len(clean)}"
+    print(funnel)
     sample = clean[:20]
     # IP 列宽按样本动态计算（IPv6 长地址不被硬编码宽度撑破）
     ip_w = max((_disp_width(f"{r['ip']}:{r['port']}") for r in sample),

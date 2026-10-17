@@ -563,6 +563,8 @@ def run_once(args, overrides, cfg=None):
     if not cfg["speed_test"] and cfg["min_speed_mbps"] > 0:
         log.warning(f"      [warn] --no-speed 时无法测速，--min-speed "
               f"{cfg['min_speed_mbps']}MB/s 门槛本轮不生效")
+    # 实际进入测速的候选数（截断后）；--no-speed 时为 None，漏斗不显示该层。
+    speed_candidate_count = None
     if cfg["speed_test"] and clean:
         # 测速是带宽密集型，候选太多会撞 CI 超时。
         # 按延迟排序取前 N（延迟低的更可能是优质节点，性价比最高）。
@@ -585,6 +587,8 @@ def run_once(args, overrides, cfg=None):
             log.info(f"      测速候选限流：{dropped} 条未进入测速"
                   f"（speed_max_candidates={speed_cap}"
                   f"{'，Thompson 采样排序' if cfg.get('bayes_priority') else ''}）")
+        # 截断后的数量即真实进入测速的候选数，补进报告漏斗。
+        speed_candidate_count = len(clean)
         log.info(f"[4/6] 真实下载测速（{len(clean)} 个候选，"
               f"并发 {cfg['speed_concurrency']}，"
               f"{max(1, int(cfg.get('speed_rounds', 1)))} 轮复测，"
@@ -752,7 +756,8 @@ def run_once(args, overrides, cfg=None):
         written.update(client_files)
 
     output.print_summary(clean, total_tested=len(results),
-                         total_candidates=len(candidates))
+                         total_candidates=len(candidates),
+                         speed_candidates=speed_candidate_count)
     log.info(f"\n耗时 {time.time() - t0:.1f}s")
     for path, n in written.items():
         rel = os.path.relpath(path)
@@ -763,7 +768,8 @@ def run_once(args, overrides, cfg=None):
     try:
         rep_paths = report.build_report(
             cfg, pool_stats, clean, len(results), len(candidates),
-            time.time() - t0, outdir)
+            time.time() - t0, outdir,
+            speed_candidates=speed_candidate_count)
         for pth in rep_paths:
             log.info(f"  {os.path.relpath(pth)}")
     except Exception as e:
