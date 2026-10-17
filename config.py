@@ -46,7 +46,6 @@ DEFAULT_CONFIG = {
         {"url": "https://bestcf.pages.dev/s5gy/all.txt"},
         {"url": "https://raw.githubusercontent.com/Coolapk-Code9527/Cloudflare-IP/main/ip.txt"},
         {"url": "https://raw.githubusercontent.com/einsitang/my-fast-cf-ip/master/fastips.txt"},
-        {"url": "https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Clash/Cloudflare/Cloudflare.list"},
         {"url": "https://raw.githubusercontent.com/uezer/cf-prefer-ips/main/best.txt"},
         {"url": "https://raw.githubusercontent.com/aihddelyy/Cloudflare_ips/main/CF.txt"},
         # —— GitHub 池 jsDelivr 镜像（raw 不通时的备源；CI 两源皆通）——
@@ -95,9 +94,7 @@ DEFAULT_CONFIG = {
         # —— 边缘优选池（2026-10-14 新接入：带地区标记 / IPv6 方括号）——
         {"url": "https://raw.githubusercontent.com/LancelotRar/best-cf-ips/main/best-cf-ip-collected.txt"},
         {"url": "https://raw.githubusercontent.com/kinghui-001/cfip/main/best_ips.txt"},
-        {"url": "https://raw.githubusercontent.com/kinghui-001/cfip/main/full_ips.txt"},
         {"url": "https://raw.githubusercontent.com/HandsomeMJZ/cfip/main/best_ips.txt"},
-        {"url": "https://raw.githubusercontent.com/cmliu/WorkerVless2sub/main/addressesapi.txt"},
         {"url": "https://raw.githubusercontent.com/cmliu/WorkerVless2sub/main/addressesipv6api.txt"},
     ],
 
