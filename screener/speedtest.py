@@ -19,10 +19,78 @@
 import asyncio
 import re
 import ssl
+import statistics
 import time
 import urllib.parse
 
 _CF_RAY_COLO = re.compile(r"^[0-9a-f]{8,}-([A-Za-z0-9]{3})$")
+
+
+def consensus_speed(rounds, consensus_k=0.3, floor_speed=0.0):
+    """聚合多轮测速结果，剔除只在单轮侥幸达标的偶发节点。
+
+    rounds: 列表，每元素是 {key: sp_result}，key=(ip, port)。
+            rounds[0] 为全量第一轮；后续轮可只含第一轮下载成功的子集
+            （缺失视为该轮失败）。
+    consensus_k: 自适应速度门槛系数，门槛 = k × 第一轮成功节点速度中位数。
+                 随 runner 带宽自适应，避免绝对 MB/s 跨机房不可比。
+    floor_speed: 配置里的硬性最低速度门槛（与自适应门槛取 max）。
+    返回 {key: {"speed_mbps": float, "colo": str}}，仅含通过共识的候选。
+
+    判定（n 轮）：
+      - 单轮(n=1) 退化为旧逻辑：speed>0 即保留，colo 原样返回交给后续门禁；
+      - colo：n 轮都成功且非空、且全部一致（时而是 CF 边缘时而不是的剔除）；
+      - 速度：至少 n-1 轮达到门槛（允许 1 轮抖动）；
+      - 最终 speed 取 n 轮中位数、colo 取一致值。
+    """
+    if not rounds:
+        return {}
+    first = rounds[0]
+    n = len(rounds)
+
+    # 单轮退化为旧逻辑：speed>0 即保留，不做一致性/自适应过滤。
+    if n == 1:
+        out = {}
+        for key, sp in first.items():
+            if sp.get("speed_mbps", 0) > 0:
+                out[key] = {"speed_mbps": sp["speed_mbps"],
+                            "colo": sp.get("colo")}
+        return out
+
+    # 第一轮成功节点的速度中位数 → 自适应门槛。
+    ok_speeds = sorted(sp["speed_mbps"] for sp in first.values()
+                       if sp.get("speed_mbps", 0) > 0)
+    threshold = float(floor_speed or 0.0)
+    if ok_speeds:
+        threshold = max(threshold, consensus_k * statistics.median(ok_speeds))
+
+    colo_need = n       # colo 必须 n 轮一致（隐含 n 轮都成功）
+    speed_need = n - 1  # 速度允许 1 轮抖动
+    out = {}
+    for key, sp0 in first.items():
+        if sp0.get("speed_mbps", 0) <= 0:
+            continue
+        speeds = [sp0.get("speed_mbps", 0.0)]
+        colos = [sp0.get("colo")]
+        for rnd in rounds[1:]:
+            sp = rnd.get(key)
+            if sp is None:
+                speeds.append(0.0)
+                colos.append(None)
+            else:
+                speeds.append(sp.get("speed_mbps", 0.0))
+                colos.append(sp.get("colo"))
+        valid_colos = [c for c in colos if c]
+        if len(valid_colos) != colo_need:
+            continue
+        if len(set(valid_colos)) != 1:
+            continue
+        if sum(1 for s in speeds if s >= threshold) < speed_need:
+            continue
+        out[key] = {"speed_mbps": round(statistics.median(speeds), 2),
+                    "colo": valid_colos[0]}
+    return out
+
 
 
 class SpeedTester:

@@ -99,6 +99,10 @@ def parse_args():
                    help="分段测速探测字节数（默认 1MB，0=关闭分段探测直接全量下载）")
     p.add_argument("--min-speed", type=float, default=None,
                    help="最低速度 MB/s，低于此值剔除（默认 0=不限）")
+    p.add_argument("--speed-rounds", type=int, default=None,
+                   help="测速复测轮数，取多轮共识剔除偶发达标节点（默认 3；1=单轮旧逻辑）")
+    p.add_argument("--speed-consensus-k", type=float, default=None,
+                   help="自适应速度门槛系数=k×首轮成功速度中位数（默认 0.3）")
     p.add_argument("--colo", default=None,
                    help="地区过滤（IATA 机场码，逗号分隔）：HKG,SIN,NRT,LAX...（默认不限）")
     p.add_argument("--single", default=None,
@@ -140,6 +144,8 @@ def main():
         "speed_concurrency": args.speed_concurrency,
         "probe_bytes": args.probe_bytes,
         "min_speed_mbps": args.min_speed,
+        "speed_rounds": args.speed_rounds,
+        "speed_consensus_k": args.speed_consensus_k,
         "colo_filter": args.colo,
         # 布尔开关：False 视为未提供（or None），避免命令行不传时
         # 覆盖 config 里显式设置的 True
@@ -580,7 +586,9 @@ def run_once(args, overrides, cfg=None):
                   f"（speed_max_candidates={speed_cap}"
                   f"{'，Thompson 采样排序' if cfg.get('bayes_priority') else ''}）")
         log.info(f"[4/6] 真实下载测速（{len(clean)} 个候选，"
-              f"并发 {cfg['speed_concurrency']}，目标 {cfg['speed_url']}）...")
+              f"并发 {cfg['speed_concurrency']}，"
+              f"{max(1, int(cfg.get('speed_rounds', 1)))} 轮复测，"
+              f"目标 {cfg['speed_url']}）...")
         st = speedtest.SpeedTester(
             cfg["speed_url"],
             timeout=cfg["speed_timeout"],
@@ -589,20 +597,55 @@ def run_once(args, overrides, cfg=None):
             colo_filter=cfg["colo_filter"].split(",") if cfg["colo_filter"] else None,
             probe_bytes=cfg.get("probe_bytes", 1024 * 1024),
         )
-        # 延迟分层：传入候选延迟，低延迟优先调度 + 超时自适应
+        # 延迟分层：传入候选延迟，低延迟优先调度 + 超时自适应。
+        # 注意：avg_map 在所有复测轮次间固定取自连通性阶段，绝不把速度
+        # 结果回灌——否则 _effective_timeout 会随上一轮结果漂移，各轮
+        # 采样被耦合，复测不再是独立采样。
         avg_map = {r["ip"]: r["avg_ms"] for r in clean}
-        speed_results = asyncio.run(st.run(
-            [(r["ip"], r["port"]) for r in clean], avg_map=avg_map))
-        for r, sp in zip(clean, speed_results):
-            r["speed_mbps"] = sp["speed_mbps"]
-            r["colo"] = sp["colo"]
+        all_keys = [(r["ip"], r["port"]) for r in clean]
+        rounds_n = max(1, int(cfg.get("speed_rounds", 1)))
+        # 第 1 轮全量测速。
+        r1 = asyncio.run(st.run(all_keys, avg_map=avg_map))
+        round_data = [{k: sp for k, sp in zip(all_keys, r1)}]
+        for r, sp in zip(clean, r1):
             if sp.get("probe_skipped"):
                 log.info(f"      {r['ip']}:{r['port']} 分段探测未达 "
                       f"{cfg['min_speed_mbps']}MB/s 门槛，提前放弃")
+        # 第 1 轮下载成功的节点才进入后续轮（复测为剔除"偶发快"，
+        # 第 1 轮就失败的节点不具稳定性，直接淘汰）。
+        ok_keys = [k for k in all_keys
+                   if round_data[0][k].get("speed_mbps", 0) > 0]
+        for ri in range(2, rounds_n + 1):
+            if not ok_keys:
+                break
+            log.info(f"      复测第 {ri}/{rounds_n} 轮（{len(ok_keys)} 个"
+                  f"首轮成功候选）...")
+            rr = asyncio.run(st.run(ok_keys, avg_map=avg_map))
+            round_data.append({k: sp for k, sp in zip(ok_keys, rr)})
 
-        # 测速失败（下载 0 字节/超时，典型为回源 IP 不可用）剔除，
-        # 参考 XIU2/CloudflareSpeedTest 用下载速度下限过滤回源 IP 的做法
-        clean = [r for r in clean if r.get("speed_mbps", 0) > 0]
+        # 多轮共识：colo 全部轮次一致 + 速度至少 n-1 轮过自适应门槛。
+        consensus = speedtest.consensus_speed(
+            round_data,
+            consensus_k=float(cfg.get("speed_consensus_k", 0.3)),
+            floor_speed=float(cfg.get("min_speed_mbps", 0) or 0),
+        )
+        kept = []
+        for r in clean:
+            hit = consensus.get((r["ip"], r["port"]))
+            if hit is None:
+                continue
+            r["speed_mbps"] = hit["speed_mbps"]
+            r["colo"] = hit["colo"]
+            kept.append(r)
+        first_fail = len(clean) - len(ok_keys)
+        consensus_fail = len(ok_keys) - len(kept)
+        clean = kept
+        if rounds_n > 1:
+            if first_fail:
+                log.info(f"      首轮测速：{first_fail} 条下载失败/超时（0 速度）")
+            if consensus_fail:
+                log.info(f"      {rounds_n} 轮复测共识：{consensus_fail} 条"
+                      f"（colo 漂移 / 速度不达标）被剔除")
 
         # cf-ray 校验：非 CF 节点不会有此响应头（需测速才能拿到）
         if cfg.get("require_cf_ray", True):

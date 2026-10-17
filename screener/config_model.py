@@ -145,6 +145,8 @@ class AppConfig(DictCompatMixin, BaseModel):
     speed_concurrency: int = Field(8, ge=1)
     min_speed_mbps: int = Field(0, ge=0)
     probe_bytes: int = Field(1048576, ge=0)
+    speed_rounds: int = Field(3, ge=1)
+    speed_consensus_k: float = Field(0.3, ge=0.0)
     colo_filter: str = ""
     isp_filter: str = ""
     ipinfo: bool = False
