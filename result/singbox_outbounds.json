@@ -2,8 +2,8 @@
   "outbounds": [
     {
       "type": "trojan",
-      "tag": "CF-172.65.90.6:443",
-      "server": "172.65.90.6",
+      "tag": "CF-188.114.98.91:443",
+      "server": "188.114.98.91",
       "server_port": 443,
       "password": "YOUR_PASSWORD",
       "tls": {
@@ -14,8 +14,32 @@
     },
     {
       "type": "trojan",
-      "tag": "CF-104.16.247.147:443",
-      "server": "104.16.247.147",
+      "tag": "CF-188.114.99.89:443",
+      "server": "188.114.99.89",
+      "server_port": 443,
+      "password": "YOUR_PASSWORD",
+      "tls": {
+        "enabled": true,
+        "server_name": "www.cloudflare.com",
+        "insecure": true
+      }
+    },
+    {
+      "type": "trojan",
+      "tag": "CF-172.67.213.11:443",
+      "server": "172.67.213.11",
+      "server_port": 443,
+      "password": "YOUR_PASSWORD",
+      "tls": {
+        "enabled": true,
+        "server_name": "www.cloudflare.com",
+        "insecure": true
+      }
+    },
+    {
+      "type": "trojan",
+      "tag": "CF-172.64.91.220:443",
+      "server": "172.64.91.220",
       "server_port": 443,
       "password": "YOUR_PASSWORD",
       "tls": {
