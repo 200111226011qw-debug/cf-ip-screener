@@ -2,8 +2,8 @@
   "outbounds": [
     {
       "type": "trojan",
-      "tag": "CF-179.255.103.81:443",
-      "server": "179.255.103.81",
+      "tag": "CF-172.65.90.6:443",
+      "server": "172.65.90.6",
       "server_port": 443,
       "password": "YOUR_PASSWORD",
       "tls": {
@@ -14,8 +14,8 @@
     },
     {
       "type": "trojan",
-      "tag": "CF-179.255.107.184:443",
-      "server": "179.255.107.184",
+      "tag": "CF-104.16.247.147:443",
+      "server": "104.16.247.147",
       "server_port": 443,
       "password": "YOUR_PASSWORD",
       "tls": {

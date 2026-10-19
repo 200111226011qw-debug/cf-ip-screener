@@ -1,16 +1,16 @@
 # CF 优选 IP 代理骨架（server 已填筛选结果，password 请自行填写）
 # 用法：把 proxies 段复制进 Clash 配置；协议可用 trojan/vmess/ss
 proxies:
-  - name: "CF-179.255.103.81:443"
+  - name: "CF-172.65.90.6:443"
     type: trojan
-    server: 179.255.103.81
+    server: 172.65.90.6
     port: 443
     password: "YOUR_PASSWORD"
     sni: www.cloudflare.com
     skip-cert-verify: true
-  - name: "CF-179.255.107.184:443"
+  - name: "CF-104.16.247.147:443"
     type: trojan
-    server: 179.255.107.184
+    server: 104.16.247.147
     port: 443
     password: "YOUR_PASSWORD"
     sni: www.cloudflare.com
