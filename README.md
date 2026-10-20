@@ -324,6 +324,15 @@ workflow 运行。提交行为：**结果无变化时跳过提交**（池子稳�
 > 跨版本对比速度数据会失真（例如把 v2.4.0 的 60MB/s 与 v2.3.x 的 40MB/s
 > 并排看是没有意义的）。自适应门槛 `T = 0.3 × 首轮中位数` 也随之换了基准，
 > 但它是**相对**门槛（取本轮中位数的比例），不依赖绝对量级。
+>
+> ⚠️ **而且这个数是「视角相关」的**：256KB 太小，走不完 TCP 慢启动，测到
+> 的是爬坡段平均速率。同 IP 同链路的配对实测：256KB 只有 10MB 口径的
+> **约 1/10**（200ms RTT 链路上）。CI 的 RTT 只有 ~1.5ms，影响小得多；
+> **但本地跑（尤其中国住宅链路，RTT ~200ms）会严重低估**——本地二次筛选
+> 请显式用 10MB：
+> `python main.py --speed-url "https://speed.cloudflare.com/__down?bytes=10485760" --speed-rate-limit 1`
+> （体量选择是视角相关的问题，详见
+> [`docs/limiting-experiment-2026-10-21.md`](docs/limiting-experiment-2026-10-21.md)）
 
 GitHub Actions 定时任务的筛选与测速在 **GitHub 托管 runner（美西）的
 vantage** 下进行，"纯净"指在该 vantage 下 TCP/TLS 可达、延迟/丢包达标、
