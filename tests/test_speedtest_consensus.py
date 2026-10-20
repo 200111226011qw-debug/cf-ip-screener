@@ -153,6 +153,34 @@ class ConsensusDropReasonsTest(unittest.TestCase):
         r = speedtest.consensus_drop_reasons(gated, raw, consensus_k=0.3)
         self.assertEqual(r[("x", 443)], "round_failed:rate_limited")
 
+    def test_first_round_failures_are_not_consensus_drops(self):
+        """首轮就没测出速度的候选**不是**共识剔除的对象。
+
+        consensus_speed 直接跳过它们，若剔除原因统计把它们也算进去，
+        计数就会对不上（「N 条被剔除」与明细之和对不上）。
+        """
+        rounds = [
+            {("ok", 443): self._sp(100.0, "MSP"),
+             ("fail1", 443): self._sp(0.0, None, status=429,
+                                       fail_reason="rate_limited"),
+             ("fail2", 443): self._sp(0.0, None, status=403,
+                                       fail_reason="forbidden")},
+            {("ok", 443): self._sp(90.0, "MSP")},
+            {("ok", 443): self._sp(110.0, "MSP")},
+        ]
+        kept = speedtest.consensus_speed(rounds, consensus_k=0.3)
+        drops = speedtest.consensus_drop_reasons(rounds, rounds,
+                                                 consensus_k=0.3)
+        # 首轮失败的候选既不在 kept 里，也不在剔除原因里
+        self.assertNotIn(("fail1", 443), kept)
+        self.assertNotIn(("fail1", 443), drops)
+        self.assertNotIn(("fail2", 443), drops)
+        self.assertNotIn(("ok", 443), drops)
+        # 剔除条数 = kept 的补集（仅限首轮成功的候选）
+        n_first_ok = sum(1 for sp in rounds[0].values()
+                         if sp.get("speed_mbps", 0) > 0)
+        self.assertEqual(len(drops), n_first_ok - len(kept))
+
     def test_single_round_returns_empty(self):
         self.assertEqual(
             speedtest.consensus_drop_reasons([{("a", 443): self._sp(1.0, "X")}]),

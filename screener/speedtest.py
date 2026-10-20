@@ -181,6 +181,11 @@ def _eval_consensus_key(rounds, raw_rounds, key, threshold, n):
     sp0 = rounds[0].get(key)
     if sp0 is None:
         return False, "round_failed:missing"
+    # 首轮就没测出速度的候选**不是**共识剔除的对象（consensus_speed 直接
+    # 跳过它们），故不计入剔除原因——否则「首轮失败」会被误报成
+    # 「共识剔除」，计数对不上。
+    if sp0.get("speed_mbps", 0.0) <= 0:
+        return False, "round_failed:first_round"
     speeds = [sp0.get("speed_mbps", 0.0)]
     colos = [sp0.get("colo")]
     for rnd in rounds[1:]:
@@ -228,6 +233,9 @@ def consensus_drop_reasons(rounds, raw_rounds=None, consensus_k=0.3,
     threshold = speed_threshold(rounds[0], consensus_k, floor_speed)
     out = {}
     for key in rounds[0]:
+        # 只统计**首轮成功**的候选：首轮就失败的从来不是共识的对象
+        if rounds[0][key].get("speed_mbps", 0.0) <= 0:
+            continue
         keep, reason = _eval_consensus_key(rounds, raw, key, threshold, n)
         if not keep:
             out[key] = reason

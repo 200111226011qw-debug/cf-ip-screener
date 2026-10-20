@@ -759,7 +759,7 @@ def run_once(args, overrides, cfg=None):
         _net_403 = {}
         for _k, _sp in zip(all_keys, r1):
             try:
-                _n = ".".join(_k[0].split(".")[:3]) + ".0/16"
+                _n = ".".join(_k[0].split(".")[:2]) + ".0.0/16"
             except Exception:
                 continue
             _net_total[_n] = _net_total.get(_n, 0) + 1
@@ -859,6 +859,20 @@ def run_once(args, overrides, cfg=None):
             _cov = len(_b) / max(1, len(all_keys))
             log.info(f"      对照覆盖：{len(_b)}/{len(all_keys)} "
                   f"({_cov:.0%}) 测出速度（其余失败/被限流）")
+            # 幸存者偏差检查：对照侧只有少数候选测出速度（10MB 侧被限流），
+            # 若这批「幸存者」在**主口径**下就明显更快，那对照侧的绝对值
+            # 是被筛选出来的（不能当基准）；两者接近则说明被限流与节点快慢
+            # 无关，比值可信。
+            _surv = [v["speed_mbps"] for v in _a.values() if v in _b.values()]
+            _lost = [v["speed_mbps"] for v in _a.values() if v not in _b.values()]
+            if _surv and _lost:
+                import statistics as _st
+                log.info(f"      幸存者偏差检查：幸存者主口径中位 "
+                      f"{_st.median(_surv):.2f} MB/s（n={len(_surv)}） vs "
+                      f"未幸存者 {_st.median(_lost):.2f} MB/s"
+                      f"（n={len(_lost)}）"
+                      f" → 比值 {_st.median(_surv) / _st.median(_lost):.2f}"
+                      f"（接近 1 = 被限流与快慢无关，比值可信）")
             if "note" not in _cm:
                 log.info(f"      口径 A（主）{_cm['median_a']:.2f} MB/s，"
                       f"口径 B（对照）{_cm['median_b']:.2f} MB/s，"
