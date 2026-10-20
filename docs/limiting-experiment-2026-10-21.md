@@ -176,6 +176,32 @@ IP 在后跑的那遍**仍然是 403**——所以 403 是**该 IP/网段自身�
    延迟排序、再截断到 `speed_max_candidates`，网段过滤若要做应作用在
    「进入测速的候选」这一层。
 
+### 第一批采样证据（h 轮，CI runner 上实跑）
+
+```
+首轮 HTTP 状态码：200×292 403×7
+403 采样 172.65.203.68:443  Host=speed.cloudflare.com  server='cloudflare'
+                  cf-mitigated=None
+                  body='<html>\r\n<head><title>403 Forbidden</title></head>\r\n
+                        <body>\r\n<center><h1>403 Forbidden</h1></center>\r\n'
+403 网段分布：172.65.0.0/16 7/9(78%)
+```
+
+**读出来的三件事**：
+
+1. `server='cloudflare'` → 是 **Cloudflare 自己在挡**，不是第三方反代。
+2. `cf-mitigated=None` → **不是 WAF 挑战**（无 `challenge`/`block` 标记），
+   所以「bot 检测挑战」这一支被排除。
+3. 响应体是**裸的 nginx 式 403 页**（`<center><h1>403 Forbidden</h1></center>`），
+   **没有 CF 的 error code**（无 1020 / 1015 / 1006）。
+
+第 3 点很关键：**判读矩阵里最直接的那条证据（error code 1020 = 网段被 access
+rule 拒）并不成立** —— 没有 error code 就没有这条证据。剩下的可能性是
+「边缘层直接拒绝」或「探针盲区」，**必须靠 curl 对照**才能分辨。
+
+也就是说：**目前没有任何证据支持排除 172.65.0.0/16**，采样反而让「探针盲区」
+这一支更可信了。不排除，是当前唯一正确的状态。
+
 ## 403 的网段聚集：13/15 在 172.65.0.0/16
 
 g3 主口径的 15 个 403 里，**13 个**在 `172.65.0.0/16` → 明确的**网段级**
