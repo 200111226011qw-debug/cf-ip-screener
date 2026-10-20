@@ -156,6 +156,10 @@ class AppConfig(DictCompatMixin, BaseModel):
     # 测速发起速率上限（次/秒，0=不限）与突发额度
     speed_rate_limit: float = Field(0.0, ge=0.0)
     speed_rate_burst: int = Field(0, ge=0)
+    # 双体量对照（诊断）：同批候选再测一次另一种体量
+    speed_compare_url: str = ""
+    speed_compare_rate: float = Field(1.0, ge=0.0)
+    speed_compare_concurrency: int = Field(2, ge=1)
     colo_filter: str = ""
     isp_filter: str = ""
     ipinfo: bool = False

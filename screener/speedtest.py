@@ -231,6 +231,75 @@ def consensus_drop_reasons(rounds, raw_rounds=None, consensus_k=0.3,
     return out
 
 
+def _ranks(values):
+    """名次（1 起），并列取平均名次。"""
+    order = sorted(range(len(values)), key=lambda i: values[i])
+    out = [0.0] * len(values)
+    i = 0
+    while i < len(order):
+        j = i
+        while j + 1 < len(order) and values[order[j + 1]] == values[order[i]]:
+            j += 1
+        avg = (i + j) / 2.0 + 1.0
+        for k in range(i, j + 1):
+            out[order[k]] = avg
+        i = j + 1
+    return out
+
+
+def spearman(xs, ys):
+    """Spearman 秩相关系数（并列取平均名次）。样本 < 3 返回 None。"""
+    n = len(xs)
+    if n != len(ys) or n < 3:
+        return None
+    rx, ry = _ranks(xs), _ranks(ys)
+    d2 = sum((a - b) ** 2 for a, b in zip(rx, ry))
+    return 1 - 6 * d2 / (n * (n * n - 1))
+
+
+def compare_speed_sets(a, b, consensus_k=0.3):
+    """对比两套体量（或两轮）测出的速度：相对排序是否一致。
+
+    关心的是**相对**关系而非绝对值：自选门槛 `T = k × 中位数` 是相对门槛，
+    只有当 `speed_i / median` 这个归一化值在各候选间保持一致，切换口径
+    才不会改变共识的淘汰结果。
+
+    a, b: {key: speed_mbps}，只含测成功的候选。
+    返回一个 dict（指标名 → 值），供日志与测试使用。
+    """
+    common = [k for k in a if k in b]
+    out = {"n_common": len(common)}
+    if len(common) < 3:
+        out["note"] = "共同样本不足 3，无法比较"
+        return out
+    va = [a[k] for k in common]
+    vb = [b[k] for k in common]
+    ma, mb = statistics.median(va), statistics.median(vb)
+    out.update({"median_a": ma, "median_b": mb,
+                "ratio_median": (ma / mb) if mb else None,
+                "spearman": spearman(va, vb)})
+    # 归一化后的比值：偏差系数在候选间的离散度 = 口径对候选个体的依赖程度
+    ratios = []
+    for k in common:
+        na = a[k] / ma if ma else 0
+        nb = b[k] / mb if mb else 0
+        if nb:
+            ratios.append(na / nb)
+    if ratios:
+        out.update({"norm_ratio_median": statistics.median(ratios),
+                    "norm_ratio_min": min(ratios),
+                    "norm_ratio_max": max(ratios),
+                    "norm_ratio_std": statistics.pstdev(ratios)})
+    # 门槛判定一致性：谁会被共识淘汰
+    ta, tb = consensus_k * ma, consensus_k * mb
+    pa = {k for k in common if a[k] < ta}
+    pb = {k for k in common if b[k] < tb}
+    out.update({"pruned_a": len(pa), "pruned_b": len(pb),
+                "prune_disagree": len(pa ^ pb),
+                "prune_disagree_keys": sorted(pa ^ pb)[:20]})
+    return out
+
+
 def consensus_speed(rounds, consensus_k=0.3, floor_speed=0.0):
     """聚合多轮测速结果，剔除只在单轮侥幸达标的偶发节点。
 

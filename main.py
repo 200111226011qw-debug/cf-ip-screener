@@ -112,6 +112,12 @@ def parse_args():
                         "降并发请另用 --speed-concurrency")
     p.add_argument("--speed-rate-burst", type=int, default=None,
                    help="测速发起速率的突发额度（允许连发数，0=取与速率同值）")
+    p.add_argument("--speed-compare-url", default=None,
+                   help="双体量对照（诊断）：对同一批候选再测一次该 URL 的体量，"
+                        "输出相对排序一致性（Spearman）与门槛判定差异。"
+                        "用于判断换测速体量会不会改变选品")
+    p.add_argument("--speed-compare-rate", type=float, default=None,
+                   help="双体量对照的发起速率（次/秒，默认 1；10MB 侧必须限速）")
     p.add_argument("--colo", default=None,
                    help="地区过滤（IATA 机场码，逗号分隔）：HKG,SIN,NRT,LAX...（默认不限）")
     p.add_argument("--single", default=None,
@@ -161,6 +167,8 @@ def main():
         "speed_consensus_k": args.speed_consensus_k,
         "speed_rate_limit": args.speed_rate_limit,
         "speed_rate_burst": args.speed_rate_burst,
+        "speed_compare_url": args.speed_compare_url,
+        "speed_compare_rate": args.speed_compare_rate,
         "colo_filter": args.colo,
         # 布尔开关：False 视为未提供（or None），避免命令行不传时
         # 覆盖 config 里显式设置的 True
@@ -733,6 +741,16 @@ def run_once(args, overrides, cfg=None):
             _r429 = status_count.get(429, 0)
             _extra = f"（429 风控 {_r429} 条）" if _r429 else ""
             log.info(f"      首轮 HTTP 状态码：{_txt}{_extra}")
+        # 失败 IP 明细（限流归因必需）：只记 IP:port，不记其它。
+        # 有了它才能回答「这轮被 403 的 IP，上一轮是不是被 429 过」
+        # （即风控的副作用是否会持续到下一轮、污染候选池）。
+        for _code in (429, 403):
+            _ips = [f"{k[0]}:{k[1]}" for k, sp in r1.items()
+                    if sp.get("status") == _code]
+            if _ips:
+                log.info(f"      HTTP {_code} 的 IP（{len(_ips)} 个）："
+                      + " ".join(_ips[:30]) +
+                      (" …" if len(_ips) > 30 else ""))
         # 失败归因分类（fail_reason）：把「没速度」拆成可归因的类别——
         #   rate_limited  = 429（CF 风控，限流归因的关键信号）
         #   forbidden     = 403
@@ -788,6 +806,60 @@ def run_once(args, overrides, cfg=None):
         # 仍可能占着连接——实际并发可能高于信号量。
         log.info(f"      在飞下载峰值 {st.inflight_peak}"
               f"（并发上限 {cfg['speed_concurrency']}）")
+
+        # 双体量对照（诊断）：同一批候选再测一次**另一种体量**，对比两套
+        # 口径下的相对排序是否一致。这是「256KB 会不会改变选品」的唯一
+        # 干净答案——必须同批候选、同轮、同出口；分两次跑做不到（候选池
+        # 每次重抓、内容会变）。
+        _cmp_url = cfg.get("speed_compare_url") or ""
+        if _cmp_url and all_keys:
+            _cmp_rate = float(cfg.get("speed_compare_rate", 1.0) or 1.0)
+            log.info(f"      双体量对照：同批 {len(all_keys)} 个候选再测一次"
+                  f" {_cmp_url}（限速 {_cmp_rate} req/s）...")
+            _cmp = speedtest.SpeedTester(
+                _cmp_url, timeout=cfg["speed_timeout"],
+                concurrency=int(cfg.get("speed_compare_concurrency", 2) or 2),
+                rate_limit=_cmp_rate)
+            _cres = asyncio.run(_cmp.run(all_keys, avg_map=avg_map))
+            _a = {k: sp for k, sp in zip(all_keys, r1)
+                  if sp.get("speed_mbps", 0) > 0}
+            _b = {k: sp for k, sp in zip(all_keys, _cres)
+                  if sp.get("speed_mbps", 0) > 0}
+            _cm = speedtest.compare_speed_sets(
+                {k: v["speed_mbps"] for k, v in _a.items()},
+                {k: v["speed_mbps"] for k, v in _b.items()},
+                consensus_k=float(cfg.get("speed_consensus_k", 0.3)))
+            _cov = len(_b) / max(1, len(all_keys))
+            log.info(f"      对照覆盖：{len(_b)}/{len(all_keys)} "
+                  f"({_cov:.0%}) 测出速度（其余失败/被限流）")
+            if "note" not in _cm:
+                log.info(f"      口径 A（主）{_cm['median_a']:.2f} MB/s，"
+                      f"口径 B（对照）{_cm['median_b']:.2f} MB/s，"
+                      f"绝对比 {_cm['ratio_median']:.3f}")
+                log.info(f"      相对排序一致性：Spearman ρ="
+                      f"{_cm['spearman']:.3f}；归一化比值 中位="
+                      f"{_cm['norm_ratio_median']:.3f} 区间"
+                      f"[{_cm['norm_ratio_min']:.3f}, "
+                      f"{_cm['norm_ratio_max']:.3f}]")
+                log.info(f"      门槛判定（k={cfg.get('speed_consensus_k', 0.3)}"
+                      f"×中位数）：A 淘汰 {_cm['pruned_a']} / "
+                      f"B 淘汰 {_cm['pruned_b']} / "
+                      f"**判定不一致 {_cm['prune_disagree']}**")
+                if _cm["prune_disagree_keys"]:
+                    log.info("      判定不一致的候选："
+                          + " ".join(f"{k[0]}:{k[1]}"
+                                     for k in _cm["prune_disagree_keys"]))
+            # 对照侧的失败归因（10MB 侧会被限流，要看覆盖与原因）
+            _creason = {}
+            for sp in _cres:
+                _fr = sp.get("fail_reason")
+                if _fr:
+                    _creason[_fr] = _creason.get(_fr, 0) + 1
+            if _creason:
+                log.info("      对照侧失败归因："
+                      + " / ".join(f"{k} {v}" for k, v in
+                                   sorted(_creason.items(),
+                                          key=lambda kv: -kv[1])))
 
         # 多轮共识：colo 全部轮次一致 + 速度至少 n-1 轮过自适应门槛。
         consensus = speedtest.consensus_speed(
