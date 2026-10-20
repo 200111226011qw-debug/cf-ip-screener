@@ -607,6 +607,8 @@ class SpeedTester:
             "deadline_hit": False,   # 是否因到达自身截止时间而中止
             "fail_reason": None,     # 失败归因；成功为 None
             "client_ip": None,       # 对端看到的本机出口 IP（cf-meta-ip）
+            "mitigated": None,       # cf-mitigated 头（challenge / block / 空）
+            "body_head": None,       # 响应体前 100 字节（错误页的 error code）
         }
         res.update(kw)
         return res
@@ -734,10 +736,33 @@ class SpeedTester:
                     cl = 0
 
                 if status != 200:
+                    # 403/其它非 200 的**采样**：把错误页的线索带回去——
+                    #   server 头     → 区分 cloudflare / 其它
+                    #   cf-mitigated   → challenge / block（Cloudflare 的
+                    #                    WAF 挑战标记）
+                    #   响应体前 100 字节 → CF 错误页的 error code
+                    #                    （1020 access denied、1015 rate limited、
+                    #                     1006 IP banned…）
+                    #   请求的 Host    → 确认打的是 speed.cloudflare.com
+                    # 用途：判读「403 到底是什么」——是**测速端点的探针盲区**
+                    # （该 IP 对普通 CF 域名其实可用），还是**该 IP/网段真的
+                    # 被拒**。**零行为变更**：只记录，不参与任何筛选。
+                    _mitig = headers.get(b"cf-mitigated")
+                    _mitig = (_mitig.decode("ascii", "ignore").strip()
+                              if _mitig else "")
+                    _body = b""
+                    try:
+                        if tls is not None:
+                            tls.settimeout(min(timeout, 2.0))
+                        _body = fp.read(100)
+                    except Exception:
+                        _body = b""
                     return self._result(
                         time_s=round(time.perf_counter() - t0, 2),
                         colo=None, cert_ok=cert_ok, server=server_hdr,
                         status=status, cl=cl or None, client_ip=client_ip,
+                        mitigated=_mitig or None,
+                        body_head=_body.decode("utf-8", "ignore") or None,
                         fail_reason=self._fail_reason(status=status,
                                                       got_response=True))
 

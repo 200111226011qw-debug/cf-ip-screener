@@ -751,6 +751,20 @@ def run_once(args, overrides, cfg=None):
                 log.info(f"      HTTP {_code} 的 IP（{len(_ips)} 个）："
                       + " ".join(_ips[:30]) +
                       (" …" if len(_ips) > 30 else ""))
+        # 403 **采样**（每轮最多 5 条，零行为变更）：server 头 / cf-mitigated 头
+        # / 响应体前 100 字节 / 请求的 Host。
+        # 用途：判读「403 到底是什么」——是**测速端点的探针盲区**（该 IP 对
+        # 普通 CF 域名其实可用，排除它就错了），还是**该 IP/网段真的被拒**
+        # （响应体里的 CF error code 1020 access denied / 1015 rate limited /
+        # 1006 IP banned 才是直接证据）。
+        # 判读矩阵见 docs/limiting-experiment-2026-10-21.md。
+        _s403 = [(k, sp) for k, sp in zip(all_keys, r1)
+                 if sp.get("status") == 403][:5]
+        for _k, _sp in _s403:
+            log.info(f"      403 采样 {_k[0]}:{_k[1]}  Host={st.host}"
+                  f"  server={_sp.get('server')!r}"
+                  f"  cf-mitigated={_sp.get('mitigated')!r}"
+                  f"  body={(_sp.get('body_head') or '')[:100]!r}")
         # 403 的**网段聚集**诊断：若某个 /16 的 403 比例明显高于其它网段，
         # 说明是**网段级**信誉/WAF 规则（不是逐 IP 副作用）——那整个 /16
         # 都有风险，不只是当前这几个候选。应主动排除该网段，而不是等它
