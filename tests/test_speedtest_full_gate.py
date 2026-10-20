@@ -326,6 +326,30 @@ class FailReasonEndToEndTest(unittest.TestCase):
                         _http_response(b"", status=403))
         self.assertEqual(res["fail_reason"], "forbidden")
 
+    def test_429_with_short_body_is_rate_limited_not_short(self):
+        """429 的响应体本身就很短，但必须归 rate_limited，不能算短响应。
+
+        否则收满门禁的统计会混入风控节点（门禁层就脏了）。
+        """
+        res = self._run("https://speed.cloudflare.com/__down?bytes=10000",
+                        _http_response(b"rate limited", status=429))
+        self.assertEqual(res["fail_reason"], "rate_limited")
+        self.assertNotEqual(res["fail_reason"], "short_response")
+        # 429 根本不进入收满判定（连 full_ok 都不给）
+        self.assertIsNone(res["full_ok"])
+
+    def test_403_with_short_body_is_forbidden(self):
+        res = self._run("https://speed.cloudflare.com/__down?bytes=10000",
+                        _http_response(b"forbidden", status=403))
+        self.assertEqual(res["fail_reason"], "forbidden")
+        self.assertNotEqual(res["fail_reason"], "short_response")
+
+    def test_200_with_short_body_is_short_response(self):
+        res = self._run("https://speed.cloudflare.com/__down?bytes=10000",
+                        _http_response(b"x" * 4096))
+        self.assertEqual(res["fail_reason"], "short_response")
+        self.assertFalse(res["full_ok"])
+
     def test_full_response_has_no_reason(self):
         res = self._run("https://speed.cloudflare.com/__down?bytes=1000",
                         _http_response(b"x" * 1000))
@@ -357,13 +381,15 @@ class ApplyFullGateTest(unittest.TestCase):
     def _sp(self, **kw):
         base = {"speed_mbps": 1.0, "bytes": 10, "time_s": 1.0, "colo": "SJC",
                 "cert_ok": None, "server": None, "probe_skipped": False,
-                "status": 200, "cl": 10, "required_bytes": 10, "full_ok": True}
+                "status": 200, "cl": 10, "required_bytes": 10, "full_ok": True,
+                "fail_reason": None}
         base.update(kw)
         return base
 
     def test_removes_short_only(self):
         rm = {("a", 443): self._sp(),
-              ("b", 443): self._sp(full_ok=False),
+              ("b", 443): self._sp(full_ok=False,
+                                   fail_reason="short_response"),
               ("c", 443): self._sp(full_ok=None)}
         dropped, kept = speedtest.apply_full_gate(rm, True)
         self.assertEqual(dropped, 1)
@@ -372,22 +398,66 @@ class ApplyFullGateTest(unittest.TestCase):
         self.assertNotIn(("b", 443), kept)
 
     def test_disabled_keeps_all(self):
-        rm = {("b", 443): self._sp(full_ok=False)}
+        rm = {("b", 443): self._sp(full_ok=False,
+                                   fail_reason="short_response")}
         dropped, kept = speedtest.apply_full_gate(rm, False)
         self.assertEqual(dropped, 0)
         self.assertEqual(len(kept), 1)
+
+    def test_only_short_response_is_removed(self):
+        """收满剔除层只剔 short_response——429/403/超时/连不上都不归它管。
+
+        混进其它剔除原因会让「收满剔除 M」这一层失去意义，跨版本对比
+        漏斗就不干净了。
+        """
+        rm = {
+            ("ok", 443): self._sp(),
+            ("short", 443): self._sp(full_ok=False,
+                                     fail_reason="short_response"),
+            ("429", 443): self._sp(speed_mbps=0.0, status=429,
+                                   fail_reason="rate_limited"),
+            ("403", 443): self._sp(speed_mbps=0.0, status=403,
+                                   fail_reason="forbidden"),
+            ("timeout", 443): self._sp(speed_mbps=0.0, status=200,
+                                       fail_reason="timeout"),
+            ("connect", 443): self._sp(speed_mbps=0.0, status=None,
+                                       fail_reason="connect"),
+            ("http", 443): self._sp(speed_mbps=0.0, status=404,
+                                    fail_reason="http_error"),
+        }
+        dropped, kept = speedtest.apply_full_gate(rm, True)
+        self.assertEqual(dropped, 1)
+        self.assertNotIn(("short", 443), kept)
+        for k in (("ok", 443), ("429", 443), ("403", 443), ("timeout", 443),
+                  ("connect", 443), ("http", 443)):
+            self.assertIn(k, kept)
+
+    def test_gate_set_equals_short_response_set(self):
+        """门禁剔除的集合 == fail_reason 为 short_response 的集合。"""
+        rm = {("a", 443): self._sp(),
+              ("b", 443): self._sp(full_ok=False,
+                                   fail_reason="short_response"),
+              ("c", 443): self._sp(speed_mbps=0.0, status=429,
+                                   fail_reason="rate_limited")}
+        _dropped, kept = speedtest.apply_full_gate(rm, True)
+        short_set = {k for k, sp in rm.items()
+                     if sp.get("fail_reason") == "short_response"}
+        self.assertEqual(set(kept), set(rm) - short_set)
 
 
 class FullGateDecisionTest(unittest.TestCase):
     def _sp(self, **kw):
         base = {"speed_mbps": 1.0, "bytes": 10, "time_s": 1.0, "colo": "SJC",
                 "cert_ok": None, "server": None, "probe_skipped": False,
-                "status": 200, "cl": 10, "required_bytes": 10, "full_ok": True}
+                "status": 200, "cl": 10, "required_bytes": 10, "full_ok": True,
+                "fail_reason": None}
         base.update(kw)
         return base
 
     def _many(self, n, cl=None, full_ok=False):
-        return {("ip%d" % i, 443): self._sp(cl=cl, full_ok=full_ok)
+        fr = "short_response" if full_ok is False else None
+        return {("ip%d" % i, 443): self._sp(cl=cl, full_ok=full_ok,
+                                           fail_reason=fr)
                 for i in range(n)}
 
     def test_no_short_keeps_gate(self):
@@ -398,7 +468,8 @@ class FullGateDecisionTest(unittest.TestCase):
 
     def test_few_short_keeps_gate(self):
         rm = self._many(50, cl=1000, full_ok=True)
-        rm[("bad", 443)] = self._sp(cl=16, full_ok=False)
+        rm[("bad", 443)] = self._sp(cl=16, full_ok=False,
+                                    fail_reason="short_response")
         enabled, _reason, stats = speedtest.full_gate_decision(rm)
         self.assertTrue(enabled)
         self.assertEqual(stats["short"], 1)
@@ -415,7 +486,8 @@ class FullGateDecisionTest(unittest.TestCase):
         """短响应过半但长度各异 → 逐节点污染 → 门禁照常生效。"""
         rm = {}
         for i in range(50):
-            rm[("ip%d" % i, 443)] = self._sp(cl=1000 + i, full_ok=False)
+            rm[("ip%d" % i, 443)] = self._sp(cl=1000 + i, full_ok=False,
+                                             fail_reason="short_response")
         enabled, _reason, stats = speedtest.full_gate_decision(rm)
         self.assertTrue(enabled)
         self.assertEqual(stats["short"], 50)

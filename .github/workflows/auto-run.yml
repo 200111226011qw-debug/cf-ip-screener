@@ -2,6 +2,15 @@ name: 定时筛选纯净IP
 
 on:
   workflow_dispatch:          # 手动触发
+    inputs:
+      extra_args:
+        description: "追加给 main.py 的命令行参数（限流实验用，如 --limit 150 --speed-rounds 1 --speed-rate-limit 2 --speed-concurrency 2）"
+        required: false
+        default: ""
+      label:
+        description: "本次运行标签（记进日志，便于区分实验组）"
+        required: false
+        default: ""
   schedule:                   # 定时触发：每 2 小时第 5 分钟（一天 12 次）
     - cron: "5 */2 * * *"    # 一轮完整跑约 7.4 分钟，2 小时间隔保证不撞 concurrency
 
@@ -12,6 +21,7 @@ concurrency:
 
 permissions:
   contents: write
+  issues: write             # 连续空结果达阈值时开 issue 告警
 
 jobs:
   screen:
@@ -52,9 +62,29 @@ jobs:
       # 单 job 一次跑出总表 + 三运营商分表 + 其他：
       # 不拆矩阵，避免多 job 并发写同一批 result/ 文件导致 rebase 冲突
       - name: 运行筛选（全运营商）
+        env:
+          EXTRA_ARGS: ${{ inputs.extra_args }}
+          RUN_LABEL: ${{ inputs.label }}
         run: |
           cd "${PROJECT_DIR:-.}"
-          python main.py --top-n 50
+          if [ -n "$RUN_LABEL" ]; then
+            echo "### 本次运行标签: $RUN_LABEL" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ -n "$EXTRA_ARGS" ]; then
+            echo "### 追加参数: $EXTRA_ARGS" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          # tee 到 run.log 便于抓关键指标；pipefail + PIPESTATUS 保住
+          # main.py 的退出码（空结果守卫靠它让工作流失败）
+          set -o pipefail
+          # shellcheck disable=SC2086
+          python main.py --top-n 50 $EXTRA_ARGS 2>&1 | tee run.log
+          rc=${PIPESTATUS[0]}
+          {
+            echo ""
+            echo "### 关键指标"
+            grep -aE "首轮 HTTP 状态码|首轮失败归因|在飞下载峰值|出口 IP|收满门禁|已连续 .* 轮空结果|纯净可用" run.log || true
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit $rc
 
       - name: 上传报告 artifact
         # if: always()：主流程失败（如空结果守卫触发）时也要上传报告，
@@ -93,3 +123,46 @@ jobs:
           echo "--- 当前 git 状态 ---"
           git status --short | head -30
           exit 1
+
+      # 连续空结果告警：CI 变红是给「看 CI 历史的人」看的，定时任务没人盯。
+      # 这一步保证「连续 N 轮空结果」会**主动**开 issue（不看 CI 也能知道），
+      # 恢复正常后自动关闭。
+      - name: 空结果连击与告警
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          THRESHOLD: "3"
+        run: |
+          cd "${PROJECT_DIR:-.}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          STATE=".ci-state.json"
+          STREAK=0
+          if [ -f "$STATE" ]; then
+            STREAK=$(python -c "import json;print(int(json.load(open('$STATE')).get('empty_streak',0)))" 2>/dev/null || echo 0)
+          fi
+          echo "连续空结果轮数: $STREAK（阈值 $THRESHOLD）"
+          # 状态文件由 main.py 更新（只在连击数变化时重写）；这里只负责提交
+          git add -f "$STATE" 2>/dev/null || true
+          if ! git diff --cached --quiet -- "$STATE"; then
+            git commit -m "ci: 空结果连击计数 $STREAK" || true
+            git pull --rebase --autostash -X ours >/dev/null 2>&1 || true
+            git push || echo "状态文件 push 失败（不影响告警）"
+          fi
+          # 达到阈值 → 开 issue（已有同类 issue 则不重复开）
+          if [ "$STREAK" -ge "$THRESHOLD" ]; then
+            EXIST=$(gh issue list --state open --search "空结果连击" --json number --jq '.[].number' 2>/dev/null | head -1 || true)
+            if [ -z "$EXIST" ]; then
+              gh issue create \
+                --title "[告警] 连续 $STREAK 轮空结果（纯净 0 条）" \
+                --body "自动筛选已连续 $STREAK 轮产出 0 条纯净 IP。常见原因：Cloudflare 风控（429）把测速全部拦下。排障见本轮 workflow 日志的「首轮失败归因」与「在飞下载峰值」。恢复后本 issue 会自动关闭。" \
+                || echo "开 issue 失败"
+            else
+              echo "已有告警 issue #$EXIST，跳过重复创建"
+            fi
+          elif [ "$STREAK" -eq 0 ]; then
+            # 恢复正常 → 关闭告警 issue
+            for n in $(gh issue list --state open --search "空结果连击" --json number --jq '.[].number' 2>/dev/null || true); do
+              gh issue close "$n" --comment "已恢复：本轮产出正常，空结果连击归零。" || true
+            done
+          fi

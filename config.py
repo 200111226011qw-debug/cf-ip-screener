@@ -349,6 +349,13 @@ DEFAULT_CONFIG = {
     # 跑，故非零退出 = 不提交 = 保留上一轮好结果；同时让定时任务变红，
     # 把「静默产出空结果」变成「响亮失败」）。仅批量模式生效。
     "fail_on_empty_result": True,
+    # 连续空结果轮数达到该值就主动告警（开 issue）。
+    # CI 变红是给「看 CI 历史的人」看的，定时任务没人盯；这层是给
+    # 「不看 CI 历史的人」看的。两者缺一不可。
+    "empty_streak_alert_threshold": 3,
+    # 连击计数的状态文件（放仓库根，不进 result/——空结果时 result/
+    # 不会被提交，计数必须活在别处才能跨轮累计）。
+    "empty_streak_file": ".ci-state.json",
     # 地区过滤（colo）：只保留机房位于这些 IATA 机场码的 IP，逗号分隔，
     # 如 "HKG,SIN,NRT,LAX"；为空表示不限地区（参考 cf-ray 响应头提取）
     "colo_filter": "",

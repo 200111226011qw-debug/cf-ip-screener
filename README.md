@@ -201,19 +201,29 @@ HTML 锚点 `#`（如 `<a href="#top">1.2.3.4</a>`）位于 IP 之前，不会�
 
 用于判定 CF 的 429 属于**窗口型**（限请求数/速率）、**字节型**（限流量）还是
 **累计型**（总配额）。三组都用 `--speed-rounds 1`（单轮，否则复测轮本身就是
-压测、混淆变量）与 `--limit 150`（三组等量，判别类型不需要全量）：
+压测、混淆变量）与 `--limit 150`（三组等量，判别类型不需要全量）。
 
-```bash
-# (a) 基线：10MB、不限速
-python main.py --limit 150 --speed-rounds 1 --speed-url "https://speed.cloudflare.com/__down?bytes=10485760"
+**推荐顺序：先 (c)，再 (b)** —— (c) 只需 1~2 秒，而且**如果 (c) 的 429 消失，
+就直接是字节型，不用等 (b)**。(a) 复用已有数据（基线：300 候选、并发 8、
+`429×256 / 200×29 / 403×8 / 404×2 / 302×1 / 400×1`、在飞峰值 8）。
 
-# (b) 10MB、限速 2 req/s（同时降并发，否则稳态在飞数反而更高）
-python main.py --limit 150 --speed-rounds 1 --speed-rate-limit 2 --speed-concurrency 2 \
-  --speed-url "https://speed.cloudflare.com/__down?bytes=10485760"
+在 GitHub Actions 里手动触发（**必须跑在 runner 上**，才能与 (a) 同 vantage）：
 
-# (c) 256KB、不限速（字节型对照）
-python main.py --limit 150 --speed-rounds 1 --speed-url "https://speed.cloudflare.com/__down?bytes=262144"
-```
+| 组 | `extra_args` 输入框填 |
+| --- | --- |
+| (a) 基线（已有数据，可重跑核对） | `--limit 150 --speed-rounds 1 --speed-url "https://speed.cloudflare.com/__down?bytes=10485760"` |
+| (b) 限速 + 降并发 | `--limit 150 --speed-rounds 1 --speed-rate-limit 2 --speed-concurrency 2 --speed-url "https://speed.cloudflare.com/__down?bytes=10485760"` |
+| (c) 256KB（**先跑这个**） | `--limit 150 --speed-rounds 1 --speed-url "https://speed.cloudflare.com/__down?bytes=262144"` |
+
+`label` 输入框建议填组别（`a` / `b` / `c`），会进 job summary 方便区分。
+关键指标会自动汇总到 job summary（首轮状态码 / 失败归因 / 在飞峰值 / 出口 IP /
+收满门禁 / 纯净数）。
+
+> ⚠️ **出口 IP 可比性是本实验最大的风险**。不同 runner / 不同时段的出口 IP
+> 限流配额不同，429 比例的差异可能来自出口而非体量。**跑每组前先看日志里的
+> `出口 IP` 那一行**，与 (a) 相同则结论可靠；不同则必须在结论里标注
+> 「出口不同，待验证」。CI 侧无法保证出口稳定（GitHub runner 的出口 IP 会变），
+> 所以最稳妥的做法是三组在**同一台 runner** 上短时间内连续跑完。
 
 读日志的四个字段（**每组都要记下来**）：
 
@@ -222,7 +232,7 @@ python main.py --limit 150 --speed-rounds 1 --speed-url "https://speed.cloudflar
 | `首轮 HTTP 状态码：429×N` | 风控的直接信号（此前被静默归入「连接失败」） | 429 占比是主指标 |
 | `首轮失败归因：rate_limited N / timeout N / …` | 六类归因（见下） | `rate_limited` 即 429；`timeout` 含吃满超时与连接中断 |
 | `在飞下载峰值 X（并发上限 Y）` | 实际并发的 ground truth | **(b) 若峰值不是 2 → 限速器没生效，实验作废重跑** |
-| `出口 IP（cf-meta-ip）: x.x.x.x` | runner 出口地址 | **不同出口的限流配额不同，429 比例不可跨出口比较** |
+| `出口 IP: x.x.x.x` | runner 出口地址（`cf-meta-ip`；429 响应不带该头，改用 `cdn-cgi/trace` 兜底） | **不同出口的限流配额不同，429 比例不可跨出口比较** |
 | `收满门禁剔除 N 条` | 短响应节点数（`200` 但未交付满请求体量） | 三组口径必须一致 |
 
 失败归因的六个类别（`fail_reason`）：
@@ -265,6 +275,14 @@ workflow 运行。提交行为：**结果无变化时跳过提交**（池子稳�
 这是为了防住 2026-10-19 出现过的状况：连续 4 轮产出 0 条
 （CF 风控 429 把测速全拦下），工作流却一直「成功」并把好结果覆盖成空文件，
 全程无人察觉。关掉：`config.py` 的 `fail_on_empty_result = False`。
+
+**连续空结果告警**（第二层）：CI 变红是给「**看 CI 历史的人**」看的，
+而定时任务没人盯——所以再加一层主动告警：连续空结果轮数记在仓库根的
+`.ci-state.json`（**不进 `result/`**：空结果时 `result/` 不会被提交，计数
+必须活在别处才能跨轮累计），达到阈值（默认 3 轮，`empty_streak_alert_threshold`）
+时**自动开一个 GitHub issue**，恢复正常后自动关闭。报告顶部也会显式打出
+`⚠️ 已连续 N 轮空结果`。状态文件只在连击数变化时被重写 → 正常轮次不产生
+额外提交。
 
 说明：工作流为**单 job 全运营商**运行（一次跑出总表 + 三运营商分表），
 不使用矩阵并行——多 job 并发写同一批 `result/` 文件会导致 rebase 冲突。

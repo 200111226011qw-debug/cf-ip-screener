@@ -2,6 +2,8 @@
 """筛选逻辑：按阈值过滤“纯净”IP，支持运营商归类与测速门槛。"""
 
 import ipaddress
+import json
+import os
 
 
 def is_cf_ip(ip: str, nets) -> bool:
@@ -50,8 +52,45 @@ def filter_clean(results, max_latency_ms=400, max_loss_rate=0.34,
     return clean[:top_n] if top_n > 0 else clean
 
 
+def empty_streak_update(state_path, clean_count, threshold=3):
+    """维护「连续空结果轮数」，返回 (新连击数, 是否需要告警, 状态字典)。
+
+    为什么要这个：空结果守卫让 CI **变红**，但「红」是给看 CI 历史的人
+    看的——定时任务没人盯，连续 N 轮失败照样可能无人察觉（2026-10-19
+    起连续 4 轮产出 0 条，全程 success，更糟）。所以再叠一层**主动
+    告警**：连击数超过阈值就开 issue，恢复了就关掉。
+
+    状态文件放在仓库根（不进 result/）：result/ 在空结果时**不会**被提交
+    （守卫让工作流失败 → 提交步骤被跳过），计数必须活在别处才能跨轮累计。
+
+    只在连击数变化时写文件——否则每轮都会产生一个无意义的状态提交。
+    """
+    state = _load_streak_state(state_path)
+    prev_streak = state.get("empty_streak", 0)
+    streak = 0 if clean_count > 0 else int(prev_streak) + 1
+    state["empty_streak"] = streak
+    if streak != prev_streak and state_path:
+        try:
+            with open(state_path, "w", encoding="utf-8") as f:
+                json.dump(state, f, ensure_ascii=False, indent=2)
+                f.write("\n")
+        except OSError:
+            pass
+    return streak, streak >= threshold, state
+
+
+def _load_streak_state(state_path):
+    if not state_path or not os.path.exists(state_path):
+        return {}
+    try:
+        with open(state_path, encoding="utf-8") as f:
+            data = json.load(f)
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
 def split_by_isp(clean):
-    """按运营商归类：返回 {'ct': [...], 'cu': [...], 'cmcc': [...], '': [...]}。"""
     groups = {"ct": [], "cu": [], "cmcc": [], "": []}
     for r in clean:
         groups.setdefault(r.get("isp", ""), []).append(r)

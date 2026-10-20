@@ -68,7 +68,7 @@ def _bucket(values, edges):
 
 def build_report(cfg, pool_stats, clean, total_tested, total_candidates,
                  elapsed, outdir, speed_candidates=None,
-                 speed_gate_dropped=None):
+                 speed_gate_dropped=None, empty_streak=0):
     """生成 report.html 与 report.md，返回写入的文件路径列表。
 
     pool_stats: [{"url","isp","native","parsed","kept","hit","hit_ext",
@@ -120,6 +120,9 @@ def build_report(cfg, pool_stats, clean, total_tested, total_candidates,
     md.append("# CF 优选 IP 筛选报告\n")
     if cf_net_note:
         md.insert(1, f"> **{cf_net_note}**\n")
+    if empty_streak:
+        md.insert(1, f"> ⚠️ **已连续 {empty_streak} 轮空结果**"
+                    f"（本轮产出 0 条纯净 IP）\n")
     md.append(f"- 时间: {now}")
     md.append(f"- 候选池: {len(pool_stats)} 个 (成功 {len(ok_pools)} / 失败 {len(failed_pools)} / 跳过 {len(skipped_pools)})")
     # 漏斗补"测速候选"层（截断后实际进入测速的数量），否则通过率被错报。
@@ -194,6 +197,11 @@ def build_report(cfg, pool_stats, clean, total_tested, total_candidates,
     # 在 Python 3.8~3.11 的 f-string 解析下出歧义
     cf_net_html = ('<b class="bad">' + html.escape(cf_net_note) + '</b><br>'
                    if cf_net_note else '')
+    # 连续空结果告警行（报告顶部显式打出——红是给看 CI 历史的人看的，
+    # 这行是给拿到报告的人看的）
+    streak_html = ('<b class="bad">⚠️ 已连续 ' + str(empty_streak) +
+                   ' 轮空结果（本轮产出 0 条纯净 IP）</b><br>'
+                   if empty_streak else '')
 
     def _rows():
         rows = []
@@ -319,6 +327,7 @@ document.querySelectorAll('#ip-table th').forEach(function (th) {
 <div class="meta">
   时间: {html.escape(now)}<br>
   {cf_net_html}
+  {streak_html}
   候选池: {len(pool_stats)} 个（成功 {len(ok_pools)} / 失败 {len(failed_pools)} / 跳过 {len(skipped_pools)}）<br>
   解析候选: {total_parsed} → 保留(去重后) {total_kept} → 已测 {total_tested}{speed_stage}{gate_stage} → <b>纯净 {len(clean)}</b><br>
   耗时: {elapsed:.1f}s

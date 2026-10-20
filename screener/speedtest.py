@@ -38,6 +38,57 @@ import urllib.parse
 _CF_RAY_COLO = re.compile(r"^[0-9a-f]{8,}-([A-Za-z0-9]{3})$")
 
 
+def _probe_egress_ip_sync(host, timeout):
+    """同步取本机出口 IP（CF 看到的客户端地址）。返回字符串或 None。"""
+    import socket
+    import ssl as _ssl
+
+    tls = None
+    try:
+        raw = socket.create_connection((host, 443), timeout=timeout)
+        ctx = _ssl.create_default_context()
+        tls = ctx.wrap_socket(raw, server_hostname=host)
+        tls.settimeout(timeout)
+        tls.sendall(
+            (f"GET /cdn-cgi/trace HTTP/1.1\r\nHost: {host}\r\n"
+             f"User-Agent: cf-ip-screener\r\nConnection: close\r\n\r\n"
+             ).encode("utf-8"))
+        fp = tls.makefile("rb")
+        while True:                      # 跳过响应头
+            line = fp.readline()
+            if not line or line in (b"\r\n", b"\n"):
+                break
+        body = fp.read(4096).decode("utf-8", "ignore")
+        for kv in body.splitlines():
+            if kv.startswith("ip="):
+                return kv[3:].strip() or None
+        return None
+    except Exception:
+        return None
+    finally:
+        if tls is not None:
+            try:
+                tls.close()
+            except Exception:
+                pass
+
+
+async def probe_egress_ip(host="speed.cloudflare.com", timeout=5.0):
+    """取本机出口 IP；失败返回 None（调用方如实标注「不可得」）。
+
+    为什么需要独立探针：**429 响应不带 cf-meta-ip**（实测 0/24），
+    而 429 恰恰是最需要出口 IP 的场景——风控配额按出口计。若测速响应
+    全部是 429，就一个出口 IP 都拿不到。故用一次独立的 /cdn-cgi/trace
+    兜底（一次极小的请求，与测速端点不同，不吃 __down 的配额）。
+    """
+    loop = asyncio.get_running_loop()
+    try:
+        return await loop.run_in_executor(
+            None, _probe_egress_ip_sync, host, timeout)
+    except Exception:
+        return None
+
+
 class RateLimiter:
     """请求发起速率限制器（令牌桶）。
 
@@ -181,7 +232,7 @@ def short_response_stats(round_map):
         if sp.get("status") != 200:
             continue
         ok += 1
-        if sp.get("full_ok") is False:
+        if sp.get("fail_reason") == "short_response":
             short += 1
             cl = sp.get("cl")
             cls[cl] = cls.get(cl, 0) + 1
@@ -222,10 +273,17 @@ def full_gate_decision(round_map, min_samples=20, ratio=0.5, concentration=0.8):
 
 
 def apply_full_gate(round_map, enabled=True):
-    """按收满门禁剔除短响应节点，返回 (剔除数, 新字典)。"""
+    """按收满门禁剔除短响应节点，返回 (剔除数, 新字典)。
+
+    剔除条件：`fail_reason == "short_response"` —— 也就是「HTTP 200 但
+    没交付满请求体量」的节点。**只剔这一类**：429/403/超时/连不上都不
+    属于收满门禁的管辖范围（它们各有各的 fail_reason 与归因层），混进来
+    会让「收满剔除 M」这一层失去意义，跨版本对比漏斗也就不干净了。
+    """
     if not enabled:
         return 0, dict(round_map)
-    kept = {k: sp for k, sp in round_map.items() if sp.get("full_ok") is not False}
+    kept = {k: sp for k, sp in round_map.items()
+            if sp.get("fail_reason") != "short_response"}
     return len(round_map) - len(kept), kept
 
 
@@ -243,11 +301,24 @@ class SpeedTester:
                      got_response=False, failed=True):
         """把一次测速归到一个失败类别（成功返回 None）。
 
+        **优先级是显式的，按下面顺序判定**（不是靠 if-else 的书写顺序
+        隐式保证——改代码时不慎调换顺序就会串类）：
+
+          1. 先判状态码：429 → rate_limited；403 → forbidden；
+             其它非 200 → http_error。
+             **状态码优先于一切**：429 的响应体本身就很短（错误页面），
+             但它必须归 rate_limited，绝不能同时被算成 short_response
+             ——否则收满门禁的统计会混入风控节点。
+          2. 再判是否收满：200 但没交付满请求体量 → short_response。
+          3. 再判是否吃满超时：deadline_hit → timeout。
+          4. 最后：没拿到响应 → connect；拿到 200 但中途断了 → timeout。
+
         "timeout" 的口径 = **下载未在时间窗口内完成**（含 socket 读超时、
         asyncio 整体超时、下载中途连接中断），不单列新类别——它们的
         归因与调参方向相同（带宽/网络受限），而 deadline_hit 尤其不该
         被当成「对端只回了一小段」。
         """
+        # ---- 1) 状态码优先 ----
         if status == 429:
             return "rate_limited"
         if status == 403:
@@ -256,10 +327,13 @@ class SpeedTester:
             return "http_error"
         if not failed:
             return None
-        if deadline_hit:
-            return "timeout"
+        # ---- 2) 收满不足（仅 200 才可能走到这里）----
         if short:
             return "short_response"
+        # ---- 3) 吃满超时 ----
+        if deadline_hit:
+            return "timeout"
+        # ---- 4) 其它 ----
         if not got_response:
             return "connect"
         return "timeout"

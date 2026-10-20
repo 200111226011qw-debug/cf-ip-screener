@@ -160,6 +160,9 @@ class AppConfig(DictCompatMixin, BaseModel):
     limit: int = Field(0, ge=0)
     # 纯净为空时非零退出（防止空结果覆盖上一轮好产出）
     fail_on_empty_result: bool = True
+    # 连续空结果轮数告警阈值 + 连击计数状态文件
+    empty_streak_alert_threshold: int = Field(3, ge=1)
+    empty_streak_file: str = ".ci-state.json"
 
     # 输出
     output_dir: str = "result"

@@ -764,10 +764,19 @@ def run_once(args, overrides, cfg=None):
         # 限流实验必须记录：不同出口 IP 的限流配额不同，429 比例不可跨
         # 出口比较——这是「26 条样本 35% vs 300 条样本 69%」这类差异的
         # 头号候选解释。
+        # 注意：**429 响应不带 cf-meta-ip**（实测 0/24），而 429 恰恰是
+        # 最需要出口 IP 的场景 → 测速响应里没拿到时，用一次独立的
+        # /cdn-cgi/trace 兜底。
         _cip = next((sp.get("client_ip") for sp in r1
                      if sp.get("client_ip")), None)
+        _cip_src = "cf-meta-ip"
+        if not _cip:
+            _cip = asyncio.run(speedtest.probe_egress_ip())
+            _cip_src = "cdn-cgi/trace"
         if _cip:
-            log.info(f"      出口 IP（cf-meta-ip）: {_cip}")
+            log.info(f"      出口 IP（{_cip_src}）: {_cip}")
+        else:
+            log.info("      出口 IP: 不可得（cf-meta-ip 与 cdn-cgi/trace 均失败）")
         # 在飞下载峰值（实际并发 ground truth）：信号量只约束「进入
         # speed_one 的任务数」，而线程在 asyncio 超时后不会被真正取消，
         # 仍可能占着连接——实际并发可能高于信号量。
@@ -921,12 +930,27 @@ def run_once(args, overrides, cfg=None):
 
     # 7) 生成报告（池命中率/分布/明细）
     log.info("      生成报告...")
+    # 空结果连击：先更新计数，报告里才能显示「已连续 N 轮空结果」。
+    # 状态文件只在连击数变化时被重写 → 正常轮次不产生额外提交。
+    empty_streak = 0
+    _streak_file = cfg.get("empty_streak_file") or ""
+    if _streak_file:
+        try:
+            empty_streak, need_alert, _st = filter_mod.empty_streak_update(
+                _streak_file, len(clean),
+                int(cfg.get("empty_streak_alert_threshold", 3) or 3))
+            if empty_streak:
+                log.warning(f"      [warn] 已连续 {empty_streak} 轮空结果"
+                           f"（阈值 {cfg.get('empty_streak_alert_threshold', 3)}）")
+        except Exception as e:
+            log.info(f"      空结果连击计数更新失败（不影响主流程）: {e}")
     try:
         rep_paths = report.build_report(
             cfg, pool_stats, clean, len(results), len(candidates),
             time.time() - t0, outdir,
             speed_candidates=speed_candidate_count,
-            speed_gate_dropped=speed_gate_dropped)
+            speed_gate_dropped=speed_gate_dropped,
+            empty_streak=empty_streak)
         for pth in rep_paths:
             log.info(f"  {os.path.relpath(pth)}")
     except Exception as e:
