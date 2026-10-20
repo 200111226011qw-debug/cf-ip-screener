@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """403 二次验证（探针盲区回收）的单元测试。
 
 背景：测速端点（speed.cloudflare.com）对一部分 CF 边缘返回 403，但那些边缘
@@ -32,14 +32,25 @@ class SpeedMissingTest(unittest.TestCase):
                                       min_speed_mbps=0, top_n=0)
         self.assertEqual(len(out), 1)
 
-    def test_none_speed_dropped_when_threshold_set(self):
-        """速度未知 + min_speed>0 → 剔除（无法验证速度）。"""
+    def test_none_speed_skips_the_speed_gate(self):
+        """速度未知 + min_speed>0 → **不参与速度门槛**（跳过比较）。
+
+        语义选择：速度门槛是「已知速度低于 X 的剔除」；没有速度数据 ≠ 速度为 0。
+        若把 None 当 0，一开 min_speed_mbps>0 探针盲区候选就会被静默剔光，
+        安全网失效。
+        """
         out = filter_mod.filter_clean([_row(speed_mbps=None)],
+                                      min_speed_mbps=1, top_n=0)
+        self.assertEqual(len(out), 1)
+
+    def test_measured_zero_speed_still_dropped_when_threshold_set(self):
+        """速度**测出来是 0** → 照常被门槛剔除（与 None 语义不同）。"""
+        out = filter_mod.filter_clean([_row(speed_mbps=0.0)],
                                       min_speed_mbps=1, top_n=0)
         self.assertEqual(len(out), 0)
 
-    def test_zero_speed_still_dropped_when_threshold_set(self):
-        out = filter_mod.filter_clean([_row(speed_mbps=0.0)],
+    def test_measured_slow_speed_dropped(self):
+        out = filter_mod.filter_clean([_row(speed_mbps=0.5)],
                                       min_speed_mbps=1, top_n=0)
         self.assertEqual(len(out), 0)
 
@@ -51,6 +62,29 @@ class SpeedMissingTest(unittest.TestCase):
         """None < 0 会抛 TypeError——必须不抛。"""
         filter_mod.filter_clean([_row(speed_mbps=None)],
                                 min_speed_mbps=0, top_n=0)
+
+    def test_consensus_tolerates_none_speed(self):
+        """共识/门槛的路径也必须容忍 None 速度（否则 None < 0 抛 TypeError）。"""
+        rounds = [
+            {("a", 443): {"speed_mbps": 100.0, "colo": "MSP",
+                           "fail_reason": None, "full_ok": True},
+             ("b", 443): {"speed_mbps": None, "colo": "MSP",
+                          "fail_reason": None, "full_ok": True}},
+            {("a", 443): {"speed_mbps": 90.0, "colo": "MSP",
+                           "fail_reason": None, "full_ok": True},
+             ("b", 443): {"speed_mbps": None, "colo": "MSP",
+                          "fail_reason": None, "full_ok": True}},
+            {("a", 443): {"speed_mbps": 110.0, "colo": "MSP",
+                           "fail_reason": None, "full_ok": True},
+             ("b", 443): {"speed_mbps": None, "colo": "MSP",
+                          "fail_reason": None, "full_ok": True}},
+        ]
+        out = speedtest.consensus_speed(rounds, consensus_k=0.3)
+        self.assertIn(("a", 443), out)
+        self.assertNotIn(("b", 443), out)
+        # 门槛与剔除原因也不能因 None 崩掉
+        speedtest.speed_threshold(rounds[0], 0.3)
+        speedtest.consensus_drop_reasons(rounds, rounds, consensus_k=0.3)
 
 
 class FailReasonClassTest(unittest.TestCase):

@@ -160,7 +160,7 @@ def speed_threshold(first, consensus_k=0.3, floor_speed=0.0):
     抽出来供共识判定与日志诊断共用，避免两处口径漂移。
     """
     ok_speeds = sorted(sp["speed_mbps"] for sp in first.values()
-                       if sp.get("speed_mbps", 0) > 0)
+                       if (sp.get("speed_mbps") or 0) > 0)
     threshold = float(floor_speed or 0.0)
     if ok_speeds:
         threshold = max(threshold, consensus_k * statistics.median(ok_speeds))
@@ -184,9 +184,9 @@ def _eval_consensus_key(rounds, raw_rounds, key, threshold, n):
     # 首轮就没测出速度的候选**不是**共识剔除的对象（consensus_speed 直接
     # 跳过它们），故不计入剔除原因——否则「首轮失败」会被误报成
     # 「共识剔除」，计数对不上。
-    if sp0.get("speed_mbps", 0.0) <= 0:
+    if (sp0.get("speed_mbps") or 0.0) <= 0:
         return False, "round_failed:first_round"
-    speeds = [sp0.get("speed_mbps", 0.0)]
+    speeds = [(sp0.get("speed_mbps") or 0.0)]
     colos = [sp0.get("colo")]
     for rnd in rounds[1:]:
         sp = rnd.get(key)
@@ -194,7 +194,7 @@ def _eval_consensus_key(rounds, raw_rounds, key, threshold, n):
             speeds.append(0.0)
             colos.append(None)
         else:
-            speeds.append(sp.get("speed_mbps", 0.0))
+            speeds.append((sp.get("speed_mbps") or 0.0))
             colos.append(sp.get("colo"))
     valid_colos = [c for c in colos if c]
     if len(valid_colos) != n:
@@ -205,7 +205,7 @@ def _eval_consensus_key(rounds, raw_rounds, key, threshold, n):
             if sp is None:
                 continue
             fr = sp.get("fail_reason")
-            if fr or sp.get("speed_mbps", 0.0) <= 0:
+            if fr or (sp.get("speed_mbps") or 0.0) <= 0:
                 reason = f"round_failed:{fr or 'no_speed'}"
                 break
         return False, reason
@@ -234,7 +234,7 @@ def consensus_drop_reasons(rounds, raw_rounds=None, consensus_k=0.3,
     out = {}
     for key in rounds[0]:
         # 只统计**首轮成功**的候选：首轮就失败的从来不是共识的对象
-        if rounds[0][key].get("speed_mbps", 0.0) <= 0:
+        if (rounds[0][key].get("speed_mbps") or 0.0) <= 0:
             continue
         keep, reason = _eval_consensus_key(rounds, raw, key, threshold, n)
         if not keep:
@@ -360,7 +360,7 @@ def consensus_speed(rounds, consensus_k=0.3, floor_speed=0.0):
     if n == 1:
         out = {}
         for key, sp in first.items():
-            if sp.get("speed_mbps", 0) > 0:
+            if (sp.get("speed_mbps") or 0) > 0:
                 out[key] = {"speed_mbps": sp["speed_mbps"],
                             "colo": sp.get("colo"),
                             "cert_ok": sp.get("cert_ok")}
@@ -373,9 +373,9 @@ def consensus_speed(rounds, consensus_k=0.3, floor_speed=0.0):
     speed_need = n - 1  # 速度允许 1 轮抖动
     out = {}
     for key, sp0 in first.items():
-        if sp0.get("speed_mbps", 0) <= 0:
+        if (sp0.get("speed_mbps") or 0) <= 0:
             continue
-        speeds = [sp0.get("speed_mbps", 0.0)]
+        speeds = [(sp0.get("speed_mbps") or 0.0)]
         colos = [sp0.get("colo")]
         for rnd in rounds[1:]:
             sp = rnd.get(key)
@@ -383,7 +383,7 @@ def consensus_speed(rounds, consensus_k=0.3, floor_speed=0.0):
                 speeds.append(0.0)
                 colos.append(None)
             else:
-                speeds.append(sp.get("speed_mbps", 0.0))
+                speeds.append((sp.get("speed_mbps") or 0.0))
                 colos.append(sp.get("colo"))
         valid_colos = [c for c in colos if c]
         if len(valid_colos) != colo_need:
@@ -1073,3 +1073,4 @@ class SpeedTester:
         # 映射回调用方传入的顺序；key 是 (ip, port) 元组，不是裸 IP
         by_key = {key: res for key, res in zip(ordered, ordered_results)}
         return [by_key.get(key) for key in candidates]
+

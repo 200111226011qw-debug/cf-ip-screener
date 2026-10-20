@@ -877,10 +877,18 @@ def run_once(args, overrides, cfg=None):
                         speedtest.probe_host_status(_k[0], _k[1], _phost,
                                                     _ppath))
                     _ok = (_st == 200)
+                    # 两次请求的 colo 对比：403 那次与域名那次若 colo 不同，
+                    # 说明两次请求落到了**不同的边缘**（anycast 按来源 IP 选
+                    # PoP）——那两次结果就不是同一个边缘的对照，可比性打折。
+                    _c403_colo = _sp.get("colo")
+                    _colo_note = ""
+                    if _ok and _colo and _c403_colo and _colo != _c403_colo:
+                        _colo_note = (f"  ⚠️ colo 不一致（403={_c403_colo} / "
+                                      f"域名={_colo}）→ 两次落到了不同边缘")
                     log.info(f"      403 二次验证 {_k[0]}:{_k[1]}  普通域名 → "
                           f"{_st if _st is not None else '连接失败'}"
                           f"{'（域名可达 → 探针盲区）' if _ok else ''}"
-                          f"  colo={_colo}")
+                          f"  colo={_colo}{_colo_note}")
                     if _ok:
                         _blind.append((_k, _colo, _sp))
                 if _blind:
@@ -1155,6 +1163,22 @@ def run_once(args, overrides, cfg=None):
     if _blind_final:
         log.info(f"      探针盲区候选：最终保留 {_blind_final} 条"
               f"（域名可达但无速度数据）")
+        # 安全网的触发阈值：回收候选的延迟 vs 最终 top-N 的延迟。
+        # 两数一对比就知道「候选池变薄到什么程度时它们才顶得上」。
+        _bl = [r.get("avg_ms") for r in clean if r.get("probe_blind")
+               and r.get("avg_ms") is not None]
+        _tl = [r.get("avg_ms") for r in clean if not r.get("probe_blind")
+               and r.get("avg_ms") is not None]
+        if _bl and _tl:
+            import statistics as _st
+            log.info(f"      盲区候选延迟中位 {_st.median(_bl):.1f}ms vs "
+                  f"最终产出延迟中位 {_st.median(_tl):.1f}ms"
+                  f"（盲区候选更慢 → 常规轮次顶不上，属预期）")
+        # 开了速度门槛时，盲区候选**不参与**速度门槛（速度未知 ≠ 速度为 0）
+        if float(cfg.get("min_speed_mbps", 0) or 0) > 0:
+            log.info(f"      [warn] 已开速度门槛 {cfg['min_speed_mbps']}MB/s，"
+                  f"但盲区候选没有速度数据、**不参与**该门槛"
+                  f"（速度未知 ≠ 速度为 0）——它们仍会被保留")
 
     # 7) 生成报告（池命中率/分布/明细）
     log.info("      生成报告...")
