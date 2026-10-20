@@ -209,6 +209,85 @@ class BlindReportTest(unittest.TestCase):
             self.assertNotIn("域名可达但无速度数据", content)
 
 
+class BlindScoreTest(unittest.TestCase):
+    """score.py 对「速度未知」（None）的处理：整块跳过 → 贡献 0 分。
+
+    代价：同类实测节点能拿 +5~+15 的速度分 → 盲区候选系统性偏低 5~15 分。
+    实测只有在「延迟 200-400ms + 丢包 5-15%」这个窄带会把 good 压成
+    moderate；**打分在选品之后、不参与筛选**，所以不影响入选。
+    """
+
+    def _r(self, **kw):
+        b = {"avg_ms": 30.0, "loss_rate": 0.0, "speed_mbps": None,
+             "tls_ok": True, "colo": "SJC", "native": True}
+        b.update(kw)
+        return b
+
+    def _low_base(self, **kw):
+        """基础分不饱和的样本（否则 clamp 到 100，看不出速度项的差别）。
+
+        60 - 10(延迟250ms) - 10(丢包20%) - 15(TLS差) = 25
+        """
+        b = {"avg_ms": 250.0, "loss_rate": 0.2, "speed_mbps": None,
+             "tls_ok": False, "colo": None, "native": False}
+        b.update(kw)
+        return b
+
+    def test_none_speed_contributes_zero(self):
+        """None → 速度项整块跳过（0 分），既不加分也不扣分。"""
+        from screener import score
+        none = score.score_result(self._low_base(), None, 9.0)
+        # 「很慢」要用**标定后**的口径：speed_scale=9 → 原始 0.05MB/s
+        # 折算成 0.45MB/s（≤1）才会扣 10 分
+        slow = score.score_result(self._low_base(speed_mbps=0.05), None, 9.0)
+        fast = score.score_result(self._low_base(speed_mbps=50.0), None, 9.0)
+        # None 落在「快」(+15) 与「很慢」(-10) 之间
+        self.assertEqual(none["score"], 25)
+        self.assertEqual(slow["score"], 15)
+        self.assertEqual(fast["score"], 40)
+        self.assertLess(none["score"], fast["score"])
+        self.assertGreater(none["score"], slow["score"])
+
+    def test_none_is_not_penalised_like_slow(self):
+        """None ≠ 慢：慢节点会扣 10 分，None 不扣。"""
+        from screener import score
+        none = score.score_result(self._low_base(), None, 9.0)
+        slow = score.score_result(self._low_base(speed_mbps=0.05), None, 9.0)
+        self.assertGreater(none["score"], slow["score"])
+
+    def test_typical_case_no_classification_difference(self):
+        """典型快节点：基础分已 clamp 到 100 → 速度项看不出差异。"""
+        from screener import score
+        a = score.score_result(self._r(), None, 9.0)
+        b = score.score_result(self._r(speed_mbps=50.0), None, 9.0)
+        self.assertEqual(a["status"], b["status"])
+        self.assertEqual(a["status"], "good")
+
+    def test_narrow_band_flip_good_to_moderate(self):
+        """唯一会翻转的窄带：延迟 200-400ms + 丢包 5-15%。"""
+        from screener import score
+        kw = dict(avg_ms=250.0, loss_rate=0.1, native=False)
+        a = score.score_result(self._r(**kw), None, 9.0)
+        b = score.score_result(self._r(speed_mbps=50.0, **kw), None, 9.0)
+        self.assertEqual(b["status"], "good")
+        self.assertEqual(a["status"], "moderate")
+        self.assertEqual(b["score"] - a["score"], 15)
+
+    def test_good_threshold_is_75(self):
+        from screener import score
+        # 60 + 0(延迟150ms) + 15(丢包0) + 0(TLS未校验) + 0 + 0 = 75
+        r = self._r(avg_ms=150.0, loss_rate=0.0, tls_ok=None, colo=None,
+                    native=False)
+        s = score.score_result(r, None, 9.0)
+        self.assertEqual(s["score"], 75)
+        self.assertEqual(s["status"], "good")
+        # 掉 5 分就变 moderate
+        r2 = dict(r, loss_rate=0.02)      # +10 → 70
+        s2 = score.score_result(r2, None, 9.0)
+        self.assertEqual(s2["score"], 70)
+        self.assertEqual(s2["status"], "moderate")
+
+
 if __name__ == "__main__":
     unittest.main()
 

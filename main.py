@@ -1174,6 +1174,24 @@ def run_once(args, overrides, cfg=None):
             log.info(f"      盲区候选延迟中位 {_st.median(_bl):.1f}ms vs "
                   f"最终产出延迟中位 {_st.median(_tl):.1f}ms"
                   f"（盲区候选更慢 → 常规轮次顶不上，属预期）")
+        # score 分布对比：盲区候选的速度项**整块跳过**（贡献 0 分），比同
+        # 类实测节点系统性偏低 5~15 分 → 可能在「延迟 200-400ms + 丢包
+        # 5-15%」这个窄带把 good 压成 moderate。score 在选品之后算，不影响
+        # 入选，只影响标签。
+        _bs = [r.get("score") for r in clean if r.get("probe_blind")
+               and r.get("score") is not None]
+        _ts = [r.get("score") for r in clean if not r.get("probe_blind")
+               and r.get("score") is not None]
+        if _bs and _ts:
+            import statistics as _st
+            _bg = sum(1 for r in clean if r.get("probe_blind")
+                      and r.get("status") == "good")
+            _tg = sum(1 for r in clean if not r.get("probe_blind")
+                      and r.get("status") == "good")
+            log.info(f"      盲区候选 score 中位 {_st.median(_bs):.0f}"
+                  f"（good {_bg}/{len(_bs)}） vs 最终产出 score 中位 "
+                  f"{_st.median(_ts):.0f}（good {_tg}/{len(_ts)}）"
+                  f"—— 差值来自速度项缺失（未知 ≠ 慢）")
         # 开了速度门槛时，盲区候选**不参与**速度门槛（速度未知 ≠ 速度为 0）
         if float(cfg.get("min_speed_mbps", 0) or 0) > 0:
             log.info(f"      [warn] 已开速度门槛 {cfg['min_speed_mbps']}MB/s，"
