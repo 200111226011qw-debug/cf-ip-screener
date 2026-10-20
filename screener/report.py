@@ -136,7 +136,18 @@ def build_report(cfg, pool_stats, clean, total_tested, total_candidates,
     # 探针盲区：测速端点 403 但普通域名可达 → 域名可用、速度未知。
     blind_stage = (f"（含 {blind_count} 条域名可达但无速度数据）"
                    if blind_count else "")
+    # 盲区候选的注记：**报告读者看不到日志**，必须在这里说清「速度/score 缺失
+    # ≠ 质量差」，否则那几行会被误读成「这些节点质量差」。
+    blind_note = ""
+    if blind_count:
+        blind_note = (
+            "> **探针盲区候选**：测速端点对它 403（不服务该 Host），但普通 CF "
+            "域名可达 → **对订阅者可用**，只是**没有速度数据**。它们的 score "
+            "**不含速度项**（速度未知 ≠ 速度慢），与有速度数据的候选"
+            "**不可直接比较**。\n")
     md.append(f"- 解析候选: {total_parsed} → 保留(去重后) {total_kept} → 已测 {total_tested}{speed_stage}{gate_stage} → 纯净 {len(clean)}{blind_stage}")
+    if blind_note:
+        md.append(blind_note)
     md.append(f"- 耗时: {elapsed:.1f}s\n")
 
     md.append("## 池命中率\n")
@@ -201,6 +212,10 @@ def build_report(cfg, pool_stats, clean, total_tested, total_candidates,
     # 在 Python 3.8~3.11 的 f-string 解析下出歧义
     cf_net_html = ('<b class="bad">' + html.escape(cf_net_note) + '</b><br>'
                    if cf_net_note else '')
+    blind_html = ('<b class="bad">⚠️ 探针盲区候选：测速端点 403 但普通 CF 域名'
+                  '可达 → 对订阅者可用，只是<b>没有速度数据</b>；其 score '
+                  '<b>不含速度项</b>，与有速度数据的候选不可直接比较。</b><br>'
+                  if blind_count else '')
     # 连续空结果告警行（报告顶部显式打出——红是给看 CI 历史的人看的，
     # 这行是给拿到报告的人看的）
     streak_html = ('<b class="bad">⚠️ 已连续 ' + str(empty_streak) +
@@ -331,6 +346,7 @@ document.querySelectorAll('#ip-table th').forEach(function (th) {
 <div class="meta">
   时间: {html.escape(now)}<br>
   {cf_net_html}
+  {blind_html}
   {streak_html}
   候选池: {len(pool_stats)} 个（成功 {len(ok_pools)} / 失败 {len(failed_pools)} / 跳过 {len(skipped_pools)}）<br>
   解析候选: {total_parsed} → 保留(去重后) {total_kept} → 已测 {total_tested}{speed_stage}{gate_stage} → <b>纯净 {len(clean)}</b>{blind_stage}<br>

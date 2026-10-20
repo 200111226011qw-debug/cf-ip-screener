@@ -287,6 +287,21 @@ class BlindScoreTest(unittest.TestCase):
         self.assertEqual(s2["score"], 70)
         self.assertEqual(s2["status"], "moderate")
 
+    def test_none_is_neutral_anchor_not_penalty(self):
+        """None 是**中性锚点**：相对很慢节点它反而更高，不是被惩罚。"""
+        from screener import score
+        none = score.score_result(self._low_base(), None, 9.0)
+        very_slow = score.score_result(self._low_base(speed_mbps=0.05),
+                                       None, 9.0)
+        mid = score.score_result(self._low_base(speed_mbps=1.5), None, 9.0)
+        fast = score.score_result(self._low_base(speed_mbps=50.0), None, 9.0)
+        self.assertGreater(none["score"], very_slow["score"])   # 不比很慢差
+        self.assertLess(none["score"], mid["score"])            # 不比中间档高
+        self.assertLess(none["score"], fast["score"])           # 不比最快高
+        # 中性锚点的确切位置：比最快低 15 分、比很慢高 10 分
+        self.assertEqual(fast["score"] - none["score"], 15)
+        self.assertEqual(none["score"] - very_slow["score"], 10)
+
 
 if __name__ == "__main__":
     unittest.main()
