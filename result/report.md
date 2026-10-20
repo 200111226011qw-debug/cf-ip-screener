@@ -1,9 +1,9 @@
 # CF 优选 IP 筛选报告
 
-- 时间: 2026-10-20 16:39:50
+- 时间: 2026-10-20 17:51:47
 - 候选池: 59 个 (成功 59 / 失败 0 / 跳过 0)
-- 解析候选: 10368 → 保留(去重后) 10368 → 已测 8963 → 测速 300 → 纯净 0
-- 耗时: 147.9s
+- 解析候选: 10438 → 保留(去重后) 10438 → 已测 8955 → 测速 300 → 纯净 0
+- 耗时: 151.9s
 
 ## 池命中率
 
@@ -11,7 +11,7 @@
 | --- | --- | --- | --- | --- | --- | --- |
 | https://ip.ehb.cc.cd/ | - | - | 20 | 20 | 0 | OK |
 | https://bestcf.pages.dev/wetest/ipv4.txt | - | - | 17 | 17 | 0 | OK |
-| https://bestcf.pages.dev/cfyes/ipv4.txt | - | - | 12 | 12 | 0 | OK |
+| https://bestcf.pages.dev/cfyes/ipv4.txt | - | - | 17 | 17 | 0 | OK |
 | https://bestcf.pages.dev/domain/all.txt | - | - | 6 | 6 | 0 | OK |
 | https://bestcf.pages.dev/cmliu/all.txt | - | - | 32 | 32 | 0 | OK |
 | https://bestcf.pages.dev/tiancheng/all.txt | - | - | 58 | 58 | 0 | OK |
@@ -24,7 +24,7 @@
 | https://raw.githubusercontent.com/joname1/BestCFip/refs/heads/main/ipv4.txt | - | - | 100 | 100 | 0 | OK |
 | https://raw.githubusercontent.com/hubbylei/bestcf/refs/heads/main/bestcf.txt | - | - | 10 | 10 | 0 | OK |
 | https://raw.githubusercontent.com/gshtwy/CF-DNS-Clone/refs/heads/main/wetest-cloudflare-v4.txt | - | - | 70 | 70 | 0 | OK |
-| https://raw.githubusercontent.com/svip-s/cloudflare_ip/refs/heads/main/best_ips.txt | - | - | 6 | 6 | 0 | OK |
+| https://raw.githubusercontent.com/svip-s/cloudflare_ip/refs/heads/main/best_ips.txt | - | - | 35 | 35 | 0 | OK |
 | https://raw.githubusercontent.com/svip-s/cloudflare_ip/main/full_ips.txt | - | - | 434 | 434 | 0 | OK |
 | https://raw.githubusercontent.com/XIU2/CloudflareSpeedTest/master/ip.txt | - | - | 1600 | 1600 | 0 | OK |
 | https://raw.githubusercontent.com/LancelotRar/best-cf-ips/main/best-cf-ip-scanned-top400.txt | - | - | 400 | 400 | 0 | OK |
@@ -45,11 +45,11 @@
 | https://raw.githubusercontent.com/einsitang/my-fast-cf-ip/master/fastips.txt | - | - | 20 | 20 | 0 | OK |
 | https://raw.githubusercontent.com/uezer/cf-prefer-ips/main/best.txt | - | - | 20 | 20 | 0 | OK |
 | https://raw.githubusercontent.com/aihddelyy/Cloudflare_ips/main/CF.txt | - | - | 4 | 4 | 0 | OK |
-| https://cdn.jsdelivr.net/gh/joname1/BestCFip@main/ipv4.txt | - | - | 102 | 102 | 0 | OK |
+| https://cdn.jsdelivr.net/gh/joname1/BestCFip@main/ipv4.txt | - | - | 100 | 100 | 0 | OK |
 | https://cdn.jsdelivr.net/gh/hubbylei/bestcf@main/bestcf.txt | - | - | 10 | 10 | 0 | OK |
 | https://cdn.jsdelivr.net/gh/gshtwy/CF-DNS-Clone@main/wetest-cloudflare-v4.txt | - | - | 70 | 70 | 0 | OK |
 | https://cdn.jsdelivr.net/gh/svip-s/cloudflare_ip@main/best_ips.txt | - | - | 6 | 6 | 0 | OK |
-| https://cdn.jsdelivr.net/gh/svip-s/cloudflare_ip@main/full_ips.txt | - | - | 426 | 426 | 0 | OK |
+| https://cdn.jsdelivr.net/gh/svip-s/cloudflare_ip@main/full_ips.txt | - | - | 464 | 464 | 0 | OK |
 | https://cdn.jsdelivr.net/gh/XIU2/CloudflareSpeedTest@master/ip.txt | - | - | 1600 | 1600 | 0 | OK |
 | https://cdn.jsdelivr.net/gh/LancelotRar/best-cf-ips@main/best-cf-ip-scanned-top400.txt | - | - | 400 | 400 | 0 | OK |
 | https://cdn.jsdelivr.net/gh/sanzang-tango/best-cf-ip@main/best-cf-ipv4.txt | - | - | 324 | 324 | 0 | OK |
