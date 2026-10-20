@@ -70,3 +70,25 @@ def test_funnel_omits_speed_layer_when_not_speedtested(tmp_path):
         with open(p, encoding="utf-8") as f:
             content = f.read()
         assert "→ 测速" not in content
+
+
+def test_funnel_shows_gate_dropped_layer(tmp_path):
+    """收满门禁剔除的条数单列一层，便于区分门禁剔除 vs 其他原因剔除。"""
+    paths = _write_report(tmp_path, speed_candidates=300,
+                          speed_gate_dropped=12)
+    for ext in ("report.md", "report.html"):
+        p = [x for x in paths if x.endswith(ext)][0]
+        with open(p, encoding="utf-8") as f:
+            content = f.read()
+        assert "收满剔除 12" in content
+
+
+def test_funnel_omits_gate_layer_when_zero(tmp_path):
+    """门禁没剔除任何节点时不显示该层（避免报告噪音）。"""
+    paths = _write_report(tmp_path, speed_candidates=300,
+                          speed_gate_dropped=0)
+    for ext in ("report.md", "report.html"):
+        p = [x for x in paths if x.endswith(ext)][0]
+        with open(p, encoding="utf-8") as f:
+            content = f.read()
+        assert "收满剔除" not in content

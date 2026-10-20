@@ -47,6 +47,12 @@ class RateLimiter:
     跨 loop 复用会抛 RuntimeError（"is bound to a different event loop"）。
     限速器要跨轮共享（否则每轮重置、窗口型限流观察不到），故必须 loop 无关。
 
+    锁的争用问题：reserve() 只在 event loop 线程里被调用（speed_one 是
+    协程），**不存在多个线程并发调用** → 锁实际无争用，临界区只有几次
+    算术运算 + 一次 perf_counter，无 I/O、无 await，不可能死锁，阻塞时间
+    是亚微秒级。因此在异步路径里用 threading.Lock 是安全的。
+    （保留锁是为了将来若从工作线程调用也安全。）
+
     语义：限制「每秒发起次数」，**不限制并发在飞数**。
     注意二者正交：speed_timeout=10s 时，2 req/s 的稳态在飞请求数约为
     2×10=20（Little's law），比默认并发 8 还高。并发需另用
@@ -224,6 +230,40 @@ def apply_full_gate(round_map, enabled=True):
 
 
 class SpeedTester:
+    # 失败归因分类（fail_reason 的取值全集）。顺序即判定优先级：
+    # 状态码优先于其它原因——拿到 429 就是被风控，与超时/短响应无关。
+    # 注意：deadline_hit 归入 "timeout"，**不是**新类别——它是「吃满
+    # 超时」的一种成因（带宽/网络受限），与 socket 读超时、asyncio
+    # 整体超时同属一类。
+    FAIL_REASONS = ("rate_limited", "forbidden", "http_error",
+                     "timeout", "short_response", "connect")
+
+    @staticmethod
+    def _fail_reason(status=None, deadline_hit=False, short=False,
+                     got_response=False, failed=True):
+        """把一次测速归到一个失败类别（成功返回 None）。
+
+        "timeout" 的口径 = **下载未在时间窗口内完成**（含 socket 读超时、
+        asyncio 整体超时、下载中途连接中断），不单列新类别——它们的
+        归因与调参方向相同（带宽/网络受限），而 deadline_hit 尤其不该
+        被当成「对端只回了一小段」。
+        """
+        if status == 429:
+            return "rate_limited"
+        if status == 403:
+            return "forbidden"
+        if status is not None and status != 200:
+            return "http_error"
+        if not failed:
+            return None
+        if deadline_hit:
+            return "timeout"
+        if short:
+            return "short_response"
+        if not got_response:
+            return "connect"
+        return "timeout"
+
     def __init__(self, url, timeout=10.0, concurrency=8, min_speed_mbps=0.0,
                  colo_filter=None, probe_bytes=1024 * 1024, verify_cert=False,
                  rate_limit=0.0, rate_burst=None):
@@ -309,6 +349,8 @@ class SpeedTester:
             "required_bytes": None,  # 本次应收到的体量
             "full_ok": None,         # 是否收满；None=不适用/无法判定
             "deadline_hit": False,   # 是否因到达自身截止时间而中止
+            "fail_reason": None,     # 失败归因；成功为 None
+            "client_ip": None,       # 对端看到的本机出口 IP（cf-meta-ip）
         }
         res.update(kw)
         return res
@@ -385,7 +427,7 @@ class SpeedTester:
                         pass
                     return self._result(
                         time_s=round(time.perf_counter() - t0, 2),
-                        cert_ok=False)
+                        cert_ok=False, fail_reason="connect")
                 if self.verify_cert:
                     cert_ok = True
                 tls.settimeout(timeout)
@@ -402,7 +444,7 @@ class SpeedTester:
                 if not status_line:
                     return self._result(
                         time_s=round(time.perf_counter() - t0, 2),
-                        cert_ok=cert_ok)
+                        cert_ok=cert_ok, fail_reason="connect")
                 parts = status_line.split(b" ", 2)
                 try:
                     status = int(parts[1]) if len(parts) > 1 else 0
@@ -422,6 +464,14 @@ class SpeedTester:
                 if _srv:
                     server_hdr = _srv.decode("ascii", "ignore").strip()
 
+                # cf-meta-ip：CF 回给客户端的「对端看到的本机出口 IP」。
+                # 限流实验要记录 runner 出口 IP（不同出口的限流配额不同，
+                # 429 比例不可跨出口比较）——这个头顺手就有，不用额外请求。
+                client_ip = None
+                _cip = headers.get(b"cf-meta-ip")
+                if _cip:
+                    client_ip = _cip.decode("ascii", "ignore").strip() or None
+
                 try:
                     cl = int(headers.get(b"content-length", b"0") or b"0")
                 except (TypeError, ValueError):
@@ -431,7 +481,9 @@ class SpeedTester:
                     return self._result(
                         time_s=round(time.perf_counter() - t0, 2),
                         colo=None, cert_ok=cert_ok, server=server_hdr,
-                        status=status, cl=cl or None)
+                        status=status, cl=cl or None, client_ip=client_ip,
+                        fail_reason=self._fail_reason(status=status,
+                                                      got_response=True))
 
                 # 从 cf-ray 头提取地区码
                 colo = None
@@ -483,7 +535,11 @@ class SpeedTester:
                         cert_ok=cert_ok, server=server_hdr,
                         probe_skipped=skipped, status=status,
                         cl=cl or None, required_bytes=required,
-                        full_ok=full_ok, deadline_hit=truncated)
+                        full_ok=full_ok, deadline_hit=truncated,
+                        client_ip=client_ip,
+                        fail_reason=self._fail_reason(
+                            status=status, deadline_hit=truncated,
+                            short=(full_ok is False), got_response=True))
                 return self._result(
                     speed_mbps=round(total / 1e6 / elapsed, 2),
                     bytes=total,
@@ -492,12 +548,27 @@ class SpeedTester:
                     cert_ok=cert_ok, server=server_hdr,
                     probe_skipped=skipped, status=status,
                     cl=cl or None, required_bytes=required,
-                    full_ok=full_ok,
+                    full_ok=full_ok, client_ip=client_ip,
+                    # 收满不足但速度为正：不算「失败」，但标出原因供门禁与统计
+                    fail_reason=self._fail_reason(
+                        status=status, short=(full_ok is False),
+                        got_response=True,
+                        failed=(full_ok is False)),
                 )
+            except TimeoutError:
+                # socket 读超时（socket.timeout 是 TimeoutError 的别名）
+                return self._result(
+                    time_s=round(time.perf_counter() - t0, 2),
+                    cert_ok=cert_ok, server=server_hdr, status=status,
+                    fail_reason=self._fail_reason(status=status,
+                                                  deadline_hit=True,
+                                                  got_response=(status is not None)))
             except Exception:
                 return self._result(
                     time_s=round(time.perf_counter() - t0, 2),
-                    cert_ok=cert_ok, server=server_hdr, status=status)
+                    cert_ok=cert_ok, server=server_hdr, status=status,
+                    fail_reason=self._fail_reason(
+                        status=status, got_response=(status is not None)))
             finally:
                 if connected:
                     with self._inflight_lock:
@@ -514,7 +585,8 @@ class SpeedTester:
             )
         except Exception:
             # asyncio 整体超时（建连或读取吃满 timeout+5）→ 归类为超时。
-            return self._result(time_s=round(timeout + 5, 2))
+            return self._result(time_s=round(timeout + 5, 2),
+                                fail_reason="timeout")
 
     def _read_body(self, fp, headers, start, deadline=None, sock=None):
         """读响应 body，自动处理三种传输方式：

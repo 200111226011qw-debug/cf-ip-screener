@@ -595,6 +595,9 @@ def run_once(args, overrides, cfg=None):
               f"{cfg['min_speed_mbps']}MB/s 门槛本轮不生效")
     # 实际进入测速的候选数（截断后）；--no-speed 时为 None，漏斗不显示该层。
     speed_candidate_count = None
+    # 收满门禁剔除的条数（首轮 + 各复测轮累计）；报告漏斗单列一层，
+    # 使「门禁剔除的」与「其他原因剔除的」可区分。
+    speed_gate_dropped = 0
     if cfg["speed_test"] and clean:
         # 测速是带宽密集型，候选太多会撞 CI 超时。
         # 按延迟排序取前 N（延迟低的更可能是优质节点，性价比最高）。
@@ -684,6 +687,7 @@ def run_once(args, overrides, cfg=None):
                             f"本轮退回旧口径（不判收满）")
             dropped, round_data[0] = speedtest.apply_full_gate(
                 round_data[0], gate_on)
+            speed_gate_dropped += dropped
             if dropped:
                 log.info(f"      收满门禁剔除 {dropped} 条"
                       f"（200 但未收满请求体量）")
@@ -725,6 +729,24 @@ def run_once(args, overrides, cfg=None):
             _r429 = status_count.get(429, 0)
             _extra = f"（429 风控 {_r429} 条）" if _r429 else ""
             log.info(f"      首轮 HTTP 状态码：{_txt}{_extra}")
+        # 失败归因分类（fail_reason）：把「没速度」拆成可归因的类别——
+        #   rate_limited  = 429（CF 风控，限流归因的关键信号）
+        #   forbidden     = 403
+        #   http_error    = 其它非 200
+        #   timeout       = 吃满超时（含 deadline_hit / socket 读超时 /
+        #                   下载中途连接中断——「未在窗口内完成」同一类）
+        #   short_response= 200 但未交付满请求体量（收满门禁的目标）
+        #   connect       = 连不上 / 拿不到响应
+        reason_count = {}
+        for sp in r1:
+            _fr = sp.get("fail_reason")
+            if _fr:
+                reason_count[_fr] = reason_count.get(_fr, 0) + 1
+        if reason_count:
+            _rtxt = " / ".join(
+                f"{k} {v}" for k, v in
+                sorted(reason_count.items(), key=lambda kv: -kv[1]))
+            log.info(f"      首轮失败归因：{_rtxt}")
         for ri in range(2, rounds_n + 1):
             if not ok_keys:
                 break
@@ -734,9 +756,18 @@ def run_once(args, overrides, cfg=None):
             _rnd = {k: sp for k, sp in zip(ok_keys, rr)}
             if gate_on:
                 _d, _rnd = speedtest.apply_full_gate(_rnd, True)
+                speed_gate_dropped += _d
                 if _d:
                     log.info(f"      复测第 {ri} 轮收满门禁剔除 {_d} 条")
             round_data.append(_rnd)
+        # runner 出口 IP（cf-meta-ip，CF 回给客户端的本机出口地址）。
+        # 限流实验必须记录：不同出口 IP 的限流配额不同，429 比例不可跨
+        # 出口比较——这是「26 条样本 35% vs 300 条样本 69%」这类差异的
+        # 头号候选解释。
+        _cip = next((sp.get("client_ip") for sp in r1
+                     if sp.get("client_ip")), None)
+        if _cip:
+            log.info(f"      出口 IP（cf-meta-ip）: {_cip}")
         # 在飞下载峰值（实际并发 ground truth）：信号量只约束「进入
         # speed_one 的任务数」，而线程在 asyncio 超时后不会被真正取消，
         # 仍可能占着连接——实际并发可能高于信号量。
@@ -894,7 +925,8 @@ def run_once(args, overrides, cfg=None):
         rep_paths = report.build_report(
             cfg, pool_stats, clean, len(results), len(candidates),
             time.time() - t0, outdir,
-            speed_candidates=speed_candidate_count)
+            speed_candidates=speed_candidate_count,
+            speed_gate_dropped=speed_gate_dropped)
         for pth in rep_paths:
             log.info(f"  {os.path.relpath(pth)}")
     except Exception as e:

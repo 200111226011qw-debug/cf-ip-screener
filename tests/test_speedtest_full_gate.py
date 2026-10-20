@@ -231,6 +231,128 @@ class DeadlineTest(unittest.TestCase):
         self.assertEqual(res["status"], 200)
 
 
+class FullGateDefaultTest(unittest.TestCase):
+    """收满门禁是**默认开启**的行为变更——产出基线因此改变。
+
+    这里把「默认开」钉死成测试：将来若有人改默认值，这条会红，
+    提醒他同时更新 CHANGELOG / README 的基线说明。
+    """
+
+    def test_config_default_is_on(self):
+        from config import DEFAULT_CONFIG
+        self.assertIs(DEFAULT_CONFIG["speed_full_gate"], True)
+
+    def test_appconfig_default_is_on(self):
+        from screener.config_model import AppConfig
+        self.assertIs(AppConfig().speed_full_gate, True)
+        self.assertIs(AppConfig.model_validate(
+            {"speed_full_gate": True}).speed_full_gate, True)
+
+    def test_cli_can_disable(self):
+        """--no-speed-full-gate 能关掉（显式 opt-out 通道必须存在）。"""
+        import sys
+        import main as main_mod
+        old = sys.argv
+        try:
+            sys.argv = ["main.py", "--no-speed-full-gate"]
+            self.assertTrue(main_mod.parse_args().no_speed_full_gate)
+            sys.argv = ["main.py"]
+            self.assertFalse(main_mod.parse_args().no_speed_full_gate)
+        finally:
+            sys.argv = old
+
+
+class FailReasonTest(unittest.TestCase):
+    """失败归因分类：deadline_hit 必须落在 "timeout"，不新增类别。"""
+
+    def test_categories_are_closed_set(self):
+        self.assertEqual(
+            set(speedtest.SpeedTester.FAIL_REASONS),
+            {"rate_limited", "forbidden", "http_error", "timeout",
+             "short_response", "connect"})
+
+    def test_429_is_rate_limited(self):
+        self.assertEqual(
+            speedtest.SpeedTester._fail_reason(status=429), "rate_limited")
+
+    def test_403_is_forbidden(self):
+        self.assertEqual(
+            speedtest.SpeedTester._fail_reason(status=403), "forbidden")
+
+    def test_other_status_is_http_error(self):
+        self.assertEqual(
+            speedtest.SpeedTester._fail_reason(status=404), "http_error")
+
+    def test_deadline_hit_is_timeout_not_new_class(self):
+        r = speedtest.SpeedTester._fail_reason(
+            status=200, deadline_hit=True, got_response=True)
+        self.assertEqual(r, "timeout")
+        self.assertIn(r, speedtest.SpeedTester.FAIL_REASONS)
+
+    def test_short_is_short_response(self):
+        self.assertEqual(
+            speedtest.SpeedTester._fail_reason(
+                status=200, short=True, got_response=True),
+            "short_response")
+
+    def test_no_response_is_connect(self):
+        self.assertEqual(
+            speedtest.SpeedTester._fail_reason(status=None), "connect")
+
+    def test_success_is_none(self):
+        self.assertIsNone(
+            speedtest.SpeedTester._fail_reason(
+                status=200, got_response=True, failed=False))
+
+
+class FailReasonEndToEndTest(unittest.TestCase):
+    def _run(self, url, payload, **kw):
+        st = _make_tester(url, **kw)
+        _holder, restore = _patch_socket(None, payload)
+        try:
+            return asyncio.run(st.speed_one("1.2.3.4", 443))
+        finally:
+            restore()
+
+    def test_429_carries_rate_limited(self):
+        res = self._run("https://speed.cloudflare.com/__down?bytes=1000",
+                        _http_response(b"", status=429))
+        self.assertEqual(res["status"], 429)
+        self.assertEqual(res["fail_reason"], "rate_limited")
+        self.assertEqual(res["speed_mbps"], 0.0)
+
+    def test_403_carries_forbidden(self):
+        res = self._run("https://speed.cloudflare.com/__down?bytes=1000",
+                        _http_response(b"", status=403))
+        self.assertEqual(res["fail_reason"], "forbidden")
+
+    def test_full_response_has_no_reason(self):
+        res = self._run("https://speed.cloudflare.com/__down?bytes=1000",
+                        _http_response(b"x" * 1000))
+        self.assertIsNone(res["fail_reason"])
+        self.assertTrue(res["full_ok"])
+
+    def test_short_response_carries_short_response(self):
+        res = self._run("https://speed.cloudflare.com/__down?bytes=10000",
+                        _http_response(b"x" * 4096))
+        self.assertEqual(res["fail_reason"], "short_response")
+        self.assertFalse(res["full_ok"])
+
+    def test_deadline_hit_carries_timeout(self):
+        body = b"x" * 200000
+        payload = _http_response(body)
+        st = _make_tester(
+            "https://speed.cloudflare.com/__down?bytes=200000", timeout=0.3)
+        slow = _SlowFile(payload, chunk=512, delay=0.02)
+        _holder, restore = _patch_socket(None, payload, file_obj=slow)
+        try:
+            res = asyncio.run(st.speed_one("1.2.3.4", 443))
+        finally:
+            restore()
+        self.assertTrue(res["deadline_hit"])
+        self.assertEqual(res["fail_reason"], "timeout")
+
+
 class ApplyFullGateTest(unittest.TestCase):
     def _sp(self, **kw):
         base = {"speed_mbps": 1.0, "bytes": 10, "time_s": 1.0, "colo": "SJC",
