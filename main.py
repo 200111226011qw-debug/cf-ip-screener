@@ -863,15 +863,16 @@ def run_once(args, overrides, cfg=None):
             # 若这批「幸存者」在**主口径**下就明显更快，那对照侧的绝对值
             # 是被筛选出来的（不能当基准）；两者接近则说明被限流与节点快慢
             # 无关，比值可信。
-            _surv = [v["speed_mbps"] for v in _a.values() if v in _b.values()]
-            _lost = [v["speed_mbps"] for v in _a.values() if v not in _b.values()]
+            # 注意按 key 比（不是按结果 dict 比——两边的速度不同，dict 不相等）。
+            _surv = [_a[k]["speed_mbps"] for k in _a if k in _b]
+            _lost = [_a[k]["speed_mbps"] for k in _a if k not in _b]
             if _surv and _lost:
                 import statistics as _st
+                _ms, _ml = _st.median(_surv), _st.median(_lost)
                 log.info(f"      幸存者偏差检查：幸存者主口径中位 "
-                      f"{_st.median(_surv):.2f} MB/s（n={len(_surv)}） vs "
-                      f"未幸存者 {_st.median(_lost):.2f} MB/s"
-                      f"（n={len(_lost)}）"
-                      f" → 比值 {_st.median(_surv) / _st.median(_lost):.2f}"
+                      f"{_ms:.2f} MB/s（n={len(_surv)}） vs "
+                      f"未幸存者 {_ml:.2f} MB/s（n={len(_lost)}）"
+                      f" → 比值 {_ms / _ml:.2f}"
                       f"（接近 1 = 被限流与快慢无关，比值可信）")
             if "note" not in _cm:
                 log.info(f"      口径 A（主）{_cm['median_a']:.2f} MB/s，"
