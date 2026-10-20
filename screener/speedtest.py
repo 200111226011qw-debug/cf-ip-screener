@@ -114,12 +114,23 @@ class RateLimiter:
         self.rate = max(0.0, float(rate_per_s or 0.0))
         # 默认突发额度 = 每秒速率（rate=2 → 允许连发 2 次，之后按 2/s 匀速）
         self.burst = float(burst) if burst else (self.rate if self.rate > 0 else 1.0)
+        self.interval = 1.0 / self.rate if self.rate > 0 else 0.0
         self._lock = threading.Lock()
-        self._tokens = self.burst
-        self._last = time.perf_counter()
+        # 下一个允许发起的时刻（perf_counter 基准）。**按槽位排队**，不是
+        # 「算一个等待时长」——见 reserve() 的注释。
+        self._next_slot = 0.0
+        # 突发额度剩余次数：前 N 个请求立即发起，之后严格按 interval 排队
+        self._burst_left = int(self.burst) if self.burst > 0 else 0
 
     def reserve(self):
         """预约一次发起机会，返回调用方需要等待的秒数（0 = 立即发起）。
+
+        **按「槽位」排队而不是「算等待时长」**：若每个调用方各自算出
+        「还需要等 W 秒」然后各自 sleep(W)，所有并发等待者会在**同一刻**
+        醒来同时发起 → 实际发起速率变成 rate × 并发，而不是 rate。
+        （实测踩过：8 并发 + 4 req/s，实际发起了 16 req/s。）
+        正确做法是给每个请求分配一个**绝对发起时刻**，后到的请求排在前一个
+        之后，实际速率严格等于 rate。
 
         预约即记账（即使调用方拿到非 0 等待时间、随后被取消，额度也已消耗），
         避免取消风暴把速率限制绕开。
@@ -128,15 +139,16 @@ class RateLimiter:
             return 0.0
         with self._lock:
             now = time.perf_counter()
-            self._tokens = min(self.burst,
-                               self._tokens + (now - self._last) * self.rate)
-            self._last = now
-            if self._tokens >= 1.0:
-                self._tokens -= 1.0
+            if self._burst_left > 0:
+                # 突发请求立即发起，但把后续槽位顶到 now+interval，
+                # 保证突发结束后仍按 rate 匀速
+                self._burst_left -= 1
+                if self._next_slot < now + self.interval:
+                    self._next_slot = now + self.interval
                 return 0.0
-            need = 1.0 - self._tokens
-            self._tokens = 0.0
-            return need / self.rate
+            slot = max(now, self._next_slot)
+            self._next_slot = slot + self.interval
+            return max(0.0, slot - now)
 
 
 def speed_threshold(first, consensus_k=0.3, floor_speed=0.0):
@@ -150,6 +162,73 @@ def speed_threshold(first, consensus_k=0.3, floor_speed=0.0):
     if ok_speeds:
         threshold = max(threshold, consensus_k * statistics.median(ok_speeds))
     return threshold
+
+
+def _eval_consensus_key(rounds, raw_rounds, key, threshold, n):
+    """判定单个 key 是否通过共识，返回 (keep, reason)。
+
+    rounds    : 参与共识的轮次数据（已过收满门禁）
+    raw_rounds: 同一批轮次的**原始**数据（未过门禁）——用于在「某轮没成功」
+                时说清到底是 429 / 超时 / 短响应 / 连不上。
+    reason 仅在 keep=False 时有意义：
+      round_failed:<fail_reason> —— 某轮没成功
+      colo_drift                 —— 机房码各轮不一致
+      speed_below_threshold      —— 达标轮数不足 n-1
+    """
+    sp0 = rounds[0].get(key)
+    if sp0 is None:
+        return False, "round_failed:missing"
+    speeds = [sp0.get("speed_mbps", 0.0)]
+    colos = [sp0.get("colo")]
+    for rnd in rounds[1:]:
+        sp = rnd.get(key)
+        if sp is None:
+            speeds.append(0.0)
+            colos.append(None)
+        else:
+            speeds.append(sp.get("speed_mbps", 0.0))
+            colos.append(sp.get("colo"))
+    valid_colos = [c for c in colos if c]
+    if len(valid_colos) != n:
+        # 某轮没成功 → 从原始数据里取出那一轮的具体失败原因
+        reason = "round_failed:unknown"
+        for ri, rnd in enumerate(raw_rounds[1:], start=1):
+            sp = rnd.get(key)
+            if sp is None:
+                continue
+            fr = sp.get("fail_reason")
+            if fr or sp.get("speed_mbps", 0.0) <= 0:
+                reason = f"round_failed:{fr or 'no_speed'}"
+                break
+        return False, reason
+    if len(set(valid_colos)) != 1:
+        return False, "colo_drift"
+    if sum(1 for s in speeds if s >= threshold) < n - 1:
+        return False, "speed_below_threshold"
+    return True, None
+
+
+def consensus_drop_reasons(rounds, raw_rounds=None, consensus_k=0.3,
+                           floor_speed=0.0):
+    """返回 {key: 剔除原因}，只含**未通过共识**的候选。
+
+    用于把「共识剔除」拆开看：正常的共识剔除（colo 漂移 / 速度不达标）
+    与「某轮被风控或超时拦下」必须能分开——后者说明体量虽小仍有隐性限流
+    或网络问题，是完全不同的信号。
+    """
+    if not rounds:
+        return {}
+    n = len(rounds)
+    if n == 1:
+        return {}
+    raw = raw_rounds if raw_rounds else rounds
+    threshold = speed_threshold(rounds[0], consensus_k, floor_speed)
+    out = {}
+    for key in rounds[0]:
+        keep, reason = _eval_consensus_key(rounds, raw, key, threshold, n)
+        if not keep:
+            out[key] = reason
+    return out
 
 
 def consensus_speed(rounds, consensus_k=0.3, floor_speed=0.0):

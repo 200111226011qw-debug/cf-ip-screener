@@ -665,7 +665,11 @@ def run_once(args, overrides, cfg=None):
         rounds_n = max(1, int(cfg.get("speed_rounds", 1)))
         # 第 1 轮全量测速。
         r1 = asyncio.run(st.run(all_keys, avg_map=avg_map))
-        round_data = [{k: sp for k, sp in zip(all_keys, r1)}]
+        _raw0 = {k: sp for k, sp in zip(all_keys, r1)}
+        # round_data 参与共识（过收满门禁）；round_raw 保留**未过门禁**的原始
+        # 数据——共识剔除细分时要用它说清「某轮到底是 429 还是短响应」。
+        round_raw = [dict(_raw0)]
+        round_data = [dict(_raw0)]
         for r, sp in zip(clean, r1):
             if sp.get("probe_skipped"):
                 log.info(f"      {r['ip']}:{r['port']} 分段探测未达 "
@@ -753,7 +757,9 @@ def run_once(args, overrides, cfg=None):
             log.info(f"      复测第 {ri}/{rounds_n} 轮（{len(ok_keys)} 个"
                   f"首轮成功候选）...")
             rr = asyncio.run(st.run(ok_keys, avg_map=avg_map))
-            _rnd = {k: sp for k, sp in zip(ok_keys, rr)}
+            _raw = {k: sp for k, sp in zip(ok_keys, rr)}
+            round_raw.append(dict(_raw))
+            _rnd = dict(_raw)
             if gate_on:
                 _d, _rnd = speedtest.apply_full_gate(_rnd, True)
                 speed_gate_dropped += _d
@@ -801,8 +807,20 @@ def run_once(args, overrides, cfg=None):
         consensus_fail = len(ok_keys) - len(kept)
         clean = kept
         if rounds_n > 1 and consensus_fail:
-            log.info(f"      {rounds_n} 轮复测共识：{consensus_fail} 条"
-                  f"（colo 漂移 / 速度不达标）被剔除")
+            # 共识剔除细分：正常的共识剔除（colo 漂移 / 速度不达标）与
+            # 「某轮被风控/超时拦下」必须能分开——后者说明体量虽小仍有
+            # 隐性限流或网络问题，是完全不同的信号。
+            _bd = speedtest.consensus_drop_reasons(
+                round_data, round_raw,
+                consensus_k=float(cfg.get("speed_consensus_k", 0.3)),
+                floor_speed=float(cfg.get("min_speed_mbps", 0) or 0))
+            _cnt = {}
+            for _r in _bd.values():
+                _cnt[_r] = _cnt.get(_r, 0) + 1
+            _txt = " / ".join(f"{k} {v}" for k, v in
+                              sorted(_cnt.items(), key=lambda kv: -kv[1]))
+            log.info(f"      {rounds_n} 轮复测共识：{consensus_fail} 条被剔除"
+                  f"（{_txt}）")
 
         # cf-ray 校验：非 CF 节点不会有此响应头（需测速才能拿到）
         if cfg.get("require_cf_ray", True):

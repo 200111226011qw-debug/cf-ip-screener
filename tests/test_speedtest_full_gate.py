@@ -521,6 +521,26 @@ class RateLimiterTest(unittest.TestCase):
             self.assertEqual(lim.reserve(), 0.0)
         self.assertGreater(lim.reserve(), 0.0)
 
+    def test_concurrent_reservations_are_serialized(self):
+        """并发预约必须按**绝对槽位**排队。
+
+        若每个调用方各自算「还要等 W 秒」再各自 sleep(W)，并发等待者会
+        在同一刻醒来同时发起 → 实际速率变成 rate × 并发（实测踩过：
+        8 并发 + 4 req/s 实际发起了 16 req/s）。这里锁死间隔序列。
+        """
+        lim = speedtest.RateLimiter(rate_per_s=4.0, burst=1)
+        waits = [lim.reserve() for _ in range(8)]
+        self.assertEqual(sum(1 for w in waits if w == 0.0), 1)
+        self.assertEqual([round(w, 2) for w in sorted(waits)[1:]],
+                         [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75])
+
+    def test_burst_allows_n_immediate(self):
+        lim = speedtest.RateLimiter(rate_per_s=4.0, burst=4)
+        waits = [lim.reserve() for _ in range(4)]
+        self.assertEqual(sum(1 for w in waits if w == 0.0), 4)
+        # 之后严格按 0.25s 间隔
+        self.assertAlmostEqual(lim.reserve(), 0.25, places=2)
+
     def test_usable_across_event_loops(self):
         """限速器必须跨 event loop 可用。
 
