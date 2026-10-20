@@ -312,7 +312,14 @@ DEFAULT_CONFIG = {
 
     # ========== 真实下载测速 ==========
     "speed_test": True,      # 是否对通过筛选的 IP 做真实下载测速
-    "speed_url": "https://speed.cloudflare.com/__down?bytes=10485760",  # 10MB 测速文件
+    # 测速文件体量。**256KB 是实测选定的值**（docs/limiting-experiment-2026-10-21.md）：
+    # CF 对 10MB 的大体量请求有字节型限流——CI 上 10MB 请求 85% 被 429 拦下
+    # （即便压到 2 req/s + 并发 2 仍有 46%），而 256KB 请求在两个不同出口 IP
+    # 上都是 0% 被限（424 次请求 0 次 429）。并发维度已排除：(b) 组并发压到 2
+    # （在飞峰值实测 2）时 429 依旧存在。
+    # 注意：speed_mbps 因此是「256KB 段的传输速率」，与历史口径（10MB 平均
+    # 速率）不可直接比较；要测长连接吞吐请显式用 10MB + --speed-rate-limit。
+    "speed_url": "https://speed.cloudflare.com/__down?bytes=262144",
     "speed_timeout": 10,     # 单次测速超时（秒）
     "speed_concurrency": 8,  # 测速并发数（测速占带宽，不宜过大）
     "min_speed_mbps": 0,     # 最低速度门槛（MB/s），低于此值剔除；0=不限制

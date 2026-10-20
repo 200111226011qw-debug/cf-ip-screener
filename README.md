@@ -45,6 +45,15 @@
 
 * **抓取容错**：单池抓取失败自动重试（指数退避，`fetch_retries` / `fetch_retry_delay` 可调），单池失败不影响整体；支持 JSON 数组/对象格式的候选池
 
+* **测速体量 256KB（实测选定）**：默认测速文件是 **256KB**
+  （`__down?bytes=262144`），不是历史的 10MB。Cloudflare 对**大请求体量**有
+  字节型限流：CI 上 10MB 请求 **85% 被 429 拦下**（即便把发起速率压到
+  2 req/s、并发压到 2，仍有 46%），而 256KB 请求在两个不同出口 IP 上
+  **0% 被限**（424 次请求 0 次 429），并发维度已被排除。完整实验数据见
+  [`docs/limiting-experiment-2026-10-21.md`](docs/limiting-experiment-2026-10-21.md)。
+  ⚠️ `speed_mbps` 的口径随之变为「256KB 段传输速率」，与历史口径（10MB 平均
+  速率）不可直接比较；要测长连接吞吐请显式用 10MB + `--speed-rate-limit`。
+
 * **测速并发调优**：低延迟候选优先调度、单次超时按候选延迟自适应放大、分段探测（先下载 `probe_bytes` 默认 1MB 快速评估，未达 `--min-speed` 门槛提前放弃），结果更贴近真实带宽且更省时
 
 * **收满门禁（默认开启）**：要求节点真的交付满请求体量（`total >= URL 的 bytes=`）。判定用**请求值**而非 `min(requested, Content-Length)`——CL 由对端自报，挂在 CF CDN 后的第三方反代可自报一个大 CL 再只回一小段页面，只有请求值能同时挡住「只回小页面」与「服务端提前断流」两类短响应（`--no-speed-full-gate` 关闭）。内置系统级护栏：若短响应占比过半且 `Content-Length` 高度集中（判定为服务端统一截断而非逐节点污染），自动关闭门禁并告警，避免端点语义变化导致整轮归零
@@ -162,7 +171,7 @@ HTML 锚点 `#`（如 `<a href="#top">1.2.3.4</a>`）位于 IP 之前，不会�
 | `--isp LIST`            | 全部     | 运营商过滤，逗号分隔：ct,cu,cmcc |
 | `--no-tls`              | 关      | 跳过 TLS 握手校验           |
 | `--no-speed`            | 开测速    | 跳过真实下载测速              |
-| `--speed-url URL`       | CF 官方  | 测速文件 URL              |
+| `--speed-url URL`       | CF 官方  | 测速文件 URL（默认 256KB；10MB 会撞 CF 的字节型限流，见下方说明） |
 | `--speed-timeout S`     | 10     | 单次测速超时（秒）             |
 | `--speed-concurrency N` | 8      | 测速并发数                 |
 | `--probe-bytes N`       | 1MB    | 分段测速探测字节数（0 = 关闭分段探测直接全量下载） |
@@ -200,22 +209,34 @@ HTML 锚点 `#`（如 `<a href="#top">1.2.3.4</a>`）位于 IP 之前，不会�
 ### 限流类型实验（三组对照）
 
 用于判定 CF 的 429 属于**窗口型**（限请求数/速率）、**字节型**（限流量）还是
-**累计型**（总配额）。三组都用 `--speed-rounds 1`（单轮，否则复测轮本身就是
-压测、混淆变量）与 `--limit 150`（三组等量，判别类型不需要全量）。
+**累计型**（总配额）。**结论已经出来了：字节型**，默认测速体量已按此改为
+256KB。完整数据与判读见
+[`docs/limiting-experiment-2026-10-21.md`](docs/limiting-experiment-2026-10-21.md)。
 
-**推荐顺序：先 (c)，再 (b)** —— (c) 只需 1~2 秒，而且**如果 (c) 的 429 消失，
-就直接是字节型，不用等 (b)**。(a) 复用已有数据（基线：300 候选、并发 8、
-`429×256 / 200×29 / 403×8 / 404×2 / 302×1 / 400×1`、在飞峰值 8）。
+下表是实验的设计与复现方式（要在 runner 上跑才能与基线同 vantage）：
+
+| 组 | 单请求体量 | 并发 | 发起速率 | 429 | 纯净 |
+| --- | --- | --- | --- | --- | --- |
+| (a) 基线 | 10MB | 8 | 不限(~73/s) | **85%** | 0 |
+| (b) 限速降并发 | 10MB | 2 | 2/s | **46%** | 50 |
+| (c) 小体量 | 256KB | 8 | 不限 | **0%** | 50 |
+| (d) 小体量+生产默认 | 256KB | 8 | 不限 | **0%** | 50 |
 
 在 GitHub Actions 里手动触发（**必须跑在 runner 上**，才能与 (a) 同 vantage）：
 
 | 组 | `extra_args` 输入框填 |
 | --- | --- |
-| (a) 基线（已有数据，可重跑核对） | `--limit 150 --speed-rounds 1 --speed-url "https://speed.cloudflare.com/__down?bytes=10485760"` |
-| (b) 限速 + 降并发 | `--limit 150 --speed-rounds 1 --speed-rate-limit 2 --speed-concurrency 2 --speed-url "https://speed.cloudflare.com/__down?bytes=10485760"` |
-| (c) 256KB（**先跑这个**） | `--limit 150 --speed-rounds 1 --speed-url "https://speed.cloudflare.com/__down?bytes=262144"` |
+| (a) 基线 | `--limit 150 --speed-rounds 1 --speed-url https://speed.cloudflare.com/__down?bytes=10485760` |
+| (b) 限速 + 降并发 | `--limit 150 --speed-rounds 1 --speed-rate-limit 2 --speed-concurrency 2 --speed-url https://speed.cloudflare.com/__down?bytes=10485760` |
+| (c) 256KB | `--limit 150 --speed-rounds 1 --speed-url https://speed.cloudflare.com/__down?bytes=262144` |
+| (d) 256KB + 生产默认 | `--speed-url https://speed.cloudflare.com/__down?bytes=262144` |
 
-`label` 输入框建议填组别（`a` / `b` / `c`），会进 job summary 方便区分。
+> ⚠️ **不要在 `extra_args` 里加引号**。bash 的引号移除**不作用于**参数展开的
+> 结果，引号会原样进到 `main.py`，URL 变成 `"https://..."`（带引号字符）→
+> 主机名解析失败 → 全部 400/连接失败。现象极像「限流」，极易误判。
+> （实测踩过这个坑，第一次跑 (c) 的数据全部作废。）
+
+`label` 输入框建议填组别（`a` / `b` / `c` / `d`），会进 job summary 方便区分。
 关键指标会自动汇总到 job summary（首轮状态码 / 失败归因 / 在飞峰值 / 出口 IP /
 收满门禁 / 纯净数）。
 

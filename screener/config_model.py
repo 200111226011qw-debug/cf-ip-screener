@@ -142,7 +142,9 @@ class AppConfig(DictCompatMixin, BaseModel):
 
     # 测速
     speed_test: bool = True
-    speed_url: str = "https://speed.cloudflare.com/__down?bytes=10485760"
+    # 测速文件体量：256KB（实测避开 CF 的字节型限流，见
+    # docs/limiting-experiment-2026-10-21.md）；10MB 需配 speed_rate_limit
+    speed_url: str = "https://speed.cloudflare.com/__down?bytes=262144"
     speed_timeout: int = Field(10, ge=1)
     speed_concurrency: int = Field(8, ge=1)
     min_speed_mbps: int = Field(0, ge=0)
