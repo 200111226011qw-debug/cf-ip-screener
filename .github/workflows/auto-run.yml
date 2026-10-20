@@ -4,7 +4,7 @@ on:
   workflow_dispatch:          # 手动触发
     inputs:
       extra_args:
-        description: "追加给 main.py 的命令行参数（限流实验用，如 --limit 150 --speed-rounds 1 --speed-rate-limit 2 --speed-concurrency 2）"
+        description: "追加给 main.py 的命令行参数（限流实验用）。不要加引号——引号会被原样传进去，URL 会变成带引号字符的坏地址。例：--limit 150 --speed-rounds 1 --speed-url https://speed.cloudflare.com/__down?bytes=262144"
         required: false
         default: ""
       label:
@@ -73,6 +73,11 @@ jobs:
           if [ -n "$EXTRA_ARGS" ]; then
             echo "### 追加参数: $EXTRA_ARGS" >> "$GITHUB_STEP_SUMMARY"
           fi
+          # 去掉参数里的引号：$EXTRA_ARGS 是「参数展开」的结果，bash 的
+          # 引号移除**不作用于**展开结果——用户照习惯写了引号，引号会
+          # 原样进到 main.py，URL 变成 "https://..."（带引号字符）→
+          # 主机名解析失败 → 全部 400/连接失败。实测踩过这个坑。
+          EXTRA_ARGS=$(printf '%s' "$EXTRA_ARGS" | tr -d '"'"'"'')
           # tee 到 run.log 便于抓关键指标；pipefail + PIPESTATUS 保住
           # main.py 的退出码（空结果守卫靠它让工作流失败）
           set -o pipefail
