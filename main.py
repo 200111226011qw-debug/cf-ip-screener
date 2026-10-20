@@ -1149,6 +1149,13 @@ def run_once(args, overrides, cfg=None):
         rel = os.path.relpath(path)
         log.info(f"  {rel}: {n} 条")
 
+    # 探针盲区在**最终结果**里的条数（不是回收数）——回收的候选可能被
+    # top_n 截断掉，报告必须报最终值，否则口径与 clean-ips.txt 不一致。
+    _blind_final = sum(1 for r in clean if r.get("probe_blind"))
+    if _blind_final:
+        log.info(f"      探针盲区候选：最终保留 {_blind_final} 条"
+              f"（域名可达但无速度数据）")
+
     # 7) 生成报告（池命中率/分布/明细）
     log.info("      生成报告...")
     # 空结果连击：先更新计数，报告里才能显示「已连续 N 轮空结果」。
@@ -1172,7 +1179,7 @@ def run_once(args, overrides, cfg=None):
             speed_candidates=speed_candidate_count,
             speed_gate_dropped=speed_gate_dropped,
             empty_streak=empty_streak,
-            blind_count=len(_blind) if _blind_out == "main" else 0)
+            blind_count=_blind_final)
         for pth in rep_paths:
             log.info(f"  {os.path.relpath(pth)}")
     except Exception as e:

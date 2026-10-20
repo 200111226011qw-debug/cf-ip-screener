@@ -128,6 +128,53 @@ class BlindRemarkTest(unittest.TestCase):
         self.assertNotIn("域名可达", line)
 
 
+class BlindReportTest(unittest.TestCase):
+    def test_report_blind_count_matches_final_list(self):
+        """报告里的「含 N 条」必须与**最终结果**一致。
+
+        回收的候选可能被 top_n 截断掉——若报告用回收数，会与
+        clean-ips.txt 口径不一致（实测踩过：报告说 7、文件里 0）。
+        """
+        import os
+        import tempfile
+        from screener import report
+        clean = [{"ip": "1.2.3.4", "port": 443, "avg_ms": 10.0,
+                  "loss_rate": 0.0, "tls_ok": True, "speed_mbps": 5.0,
+                  "colo": "SJC", "native": True},
+                 {"ip": "5.6.7.8", "port": 443, "avg_ms": 20.0,
+                  "loss_rate": 0.0, "tls_ok": True, "speed_mbps": None,
+                  "colo": "SJC", "native": True, "probe_blind": True}]
+        cfg = {"cf_net_strict": False, "isp_filter": "",
+               "pools": [{"url": "u", "isp": "ct"}], "top_n": 50}
+        with tempfile.TemporaryDirectory() as td:
+            paths = report.build_report(
+                cfg, [{"url": "u", "isp": "ct", "parsed": 1, "kept": 1,
+                       "hit": 2, "ok": True}], clean, 2, 2, 1.0, td,
+                speed_candidates=2, blind_count=1)
+            md = [p for p in paths if p.endswith("report.md")][0]
+            with open(md, encoding="utf-8") as f:
+                content = f.read()
+            self.assertIn("含 1 条域名可达但无速度数据", content)
+
+    def test_report_omits_blind_note_when_zero(self):
+        import tempfile
+        from screener import report
+        clean = [{"ip": "1.2.3.4", "port": 443, "avg_ms": 10.0,
+                  "loss_rate": 0.0, "tls_ok": True, "speed_mbps": 5.0,
+                  "colo": "SJC", "native": True}]
+        cfg = {"cf_net_strict": False, "isp_filter": "",
+               "pools": [{"url": "u", "isp": "ct"}], "top_n": 50}
+        with tempfile.TemporaryDirectory() as td:
+            paths = report.build_report(
+                cfg, [{"url": "u", "isp": "ct", "parsed": 1, "kept": 1,
+                       "hit": 1, "ok": True}], clean, 1, 1, 1.0, td,
+                speed_candidates=1, blind_count=0)
+            md = [p for p in paths if p.endswith("report.md")][0]
+            with open(md, encoding="utf-8") as f:
+                content = f.read()
+            self.assertNotIn("域名可达但无速度数据", content)
+
+
 if __name__ == "__main__":
     unittest.main()
 
