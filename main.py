@@ -745,7 +745,7 @@ def run_once(args, overrides, cfg=None):
         # 有了它才能回答「这轮被 403 的 IP，上一轮是不是被 429 过」
         # （即风控的副作用是否会持续到下一轮、污染候选池）。
         for _code in (429, 403):
-            _ips = [f"{k[0]}:{k[1]}" for k, sp in r1.items()
+            _ips = [f"{k[0]}:{k[1]}" for k, sp in zip(all_keys, r1)
                     if sp.get("status") == _code]
             if _ips:
                 log.info(f"      HTTP {_code} 的 IP（{len(_ips)} 个）："
