@@ -149,6 +149,11 @@ class AppConfig(DictCompatMixin, BaseModel):
     probe_bytes: int = Field(1048576, ge=0)
     speed_rounds: int = Field(3, ge=1)
     speed_consensus_k: float = Field(0.3, ge=0.0)
+    # 收满门禁：要求 total >= 请求体量（URL 的 bytes=）
+    speed_full_gate: bool = True
+    # 测速发起速率上限（次/秒，0=不限）与突发额度
+    speed_rate_limit: float = Field(0.0, ge=0.0)
+    speed_rate_burst: int = Field(0, ge=0)
     colo_filter: str = ""
     isp_filter: str = ""
     ipinfo: bool = False

@@ -58,6 +58,33 @@ def split_by_isp(clean):
     return groups
 
 
+def subnet_distribution(clean, v4_bits=16, v6_bits=48):
+    """统计候选在各网段的分布，返回 Counter{网段地址: 数量}。
+
+    IPv4 按 /16、IPv6 按 /48 归并。用于评估「网段限额」的粒度：
+    CF 优选 IP 常常聚集在少数前缀（172.64.x / 162.159.x 等），
+    若候选高度集中，按 /16 限额会误伤优质段；分散则限额可以松。
+    统计对象应为**截断前**的候选集合——排序不改变集合，截断才改变。
+    """
+    from collections import Counter
+    counter = Counter()
+    for r in clean:
+        ip = r.get("ip")
+        if not ip:
+            continue
+        try:
+            addr = ipaddress.ip_address(ip)
+        except ValueError:
+            continue
+        bits = v4_bits if addr.version == 4 else v6_bits
+        try:
+            net = ipaddress.ip_network(f"{addr}/{bits}", strict=False)
+        except ValueError:
+            continue
+        counter[str(net.network_address)] += 1
+    return counter
+
+
 def port_matrix(clean, extra_ports, existing_keys):
     """多端口扩展：生成待探测的 (基础行, 额外端口) 列表。
 

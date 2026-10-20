@@ -103,6 +103,15 @@ def parse_args():
                    help="测速复测轮数，取多轮共识剔除偶发达标节点（默认 3；1=单轮旧逻辑）")
     p.add_argument("--speed-consensus-k", type=float, default=None,
                    help="自适应速度门槛系数=k×首轮成功速度中位数（默认 0.3）")
+    p.add_argument("--no-speed-full-gate", action="store_true",
+                   help="关闭收满门禁：不要求节点交付满请求体量（URL bytes=）"
+                        "（默认开启，用于拦截只回小页面的伪造 cf-ray 反代）")
+    p.add_argument("--speed-rate-limit", type=float, default=None,
+                   help="测速请求发起速率上限（次/秒，全局跨轮共享，0=不限）。"
+                        "注意≠限并发：超时 10s 时 2 req/s 的稳态在飞数约 20，"
+                        "降并发请另用 --speed-concurrency")
+    p.add_argument("--speed-rate-burst", type=int, default=None,
+                   help="测速发起速率的突发额度（允许连发数，0=取与速率同值）")
     p.add_argument("--colo", default=None,
                    help="地区过滤（IATA 机场码，逗号分隔）：HKG,SIN,NRT,LAX...（默认不限）")
     p.add_argument("--single", default=None,
@@ -150,6 +159,8 @@ def main():
         "min_speed_mbps": args.min_speed,
         "speed_rounds": args.speed_rounds,
         "speed_consensus_k": args.speed_consensus_k,
+        "speed_rate_limit": args.speed_rate_limit,
+        "speed_rate_burst": args.speed_rate_burst,
         "colo_filter": args.colo,
         # 布尔开关：False 视为未提供（or None），避免命令行不传时
         # 覆盖 config 里显式设置的 True
@@ -162,6 +173,8 @@ def main():
         overrides["cf_net_strict"] = True
     if args.verify_cert:
         overrides["verify_cert"] = True
+    if args.no_speed_full_gate:
+        overrides["speed_full_gate"] = False
     if args.watch:
         return watch_loop(args, overrides)
     return run_once(args, overrides)
@@ -587,6 +600,20 @@ def run_once(args, overrides, cfg=None):
         # 按延迟排序取前 N（延迟低的更可能是优质节点，性价比最高）。
         # bayes_priority（升级清单）：改用 Thompson Sampling 排序——
         # 从历史结果对每个候选 Beta 采样，高分者优先测速（探索 vs 利用）。
+        # 网段分布诊断（零行为变更）：统计**截断前**的候选集合。排序不改变
+        # 集合，截断才改变——所以这里必须在 speed_cap 截断之前取样，
+        # 才能反映真实网段多样性。用于评估「网段限额」的粒度：CF 优选 IP
+        # 常聚集在少数前缀（172.64.x / 162.159.x 等），盲目按 /16 限额可能
+        # 误伤优质段；先看数据再定限额粒度。
+        _dist = filter_mod.subnet_distribution(clean)
+        if _dist:
+            _total = sum(_dist.values())
+            _top = _dist.most_common(10)
+            _top1 = _top[0][1] if _top else 0
+            log.info(f"      网段分布（截断前 {len(clean)} 条）："
+                  f"{len(_dist)} 个网段，Top1 {_top1}/{_total}"
+                  f"（{_top1 / _total:.0%}）；Top10：" +
+                  " ".join(f"{n}×{c}" for n, c in _top))
         speed_cap = int(cfg.get("speed_max_candidates", 300))
         if speed_cap > 0 and len(clean) > speed_cap:
             if cfg.get("bayes_priority"):
@@ -618,7 +645,14 @@ def run_once(args, overrides, cfg=None):
             colo_filter=cfg["colo_filter"].split(",") if cfg["colo_filter"] else None,
             probe_bytes=cfg.get("probe_bytes", 1024 * 1024),
             verify_cert=cfg.get("verify_cert", False),
+            rate_limit=float(cfg.get("speed_rate_limit", 0) or 0),
+            rate_burst=cfg.get("speed_rate_burst") or None,
         )
+        if cfg.get("speed_rate_limit"):
+            log.info(f"      发起速率限制 {cfg['speed_rate_limit']} req/s"
+                  f"（突发 {cfg.get('speed_rate_burst') or int(cfg['speed_rate_limit'])}，"
+                  f"全局跨轮共享；限发起≠限并发，并发上限仍为 "
+                  f"{cfg['speed_concurrency']}）")
         # 延迟分层：传入候选延迟，低延迟优先调度 + 超时自适应。
         # 注意：avg_map 在所有复测轮次间固定取自连通性阶段，绝不把速度
         # 结果回灌——否则 _effective_timeout 会随上一轮结果漂移，各轮
@@ -633,10 +667,34 @@ def run_once(args, overrides, cfg=None):
             if sp.get("probe_skipped"):
                 log.info(f"      {r['ip']}:{r['port']} 分段探测未达 "
                       f"{cfg['min_speed_mbps']}MB/s 门槛，提前放弃")
+        # 收满门禁：剔除「200 但未收满请求体量」的节点——伪造 cf-ray 的
+        # 反代（只回小页面）与服务端提前断流都会落在这里。
+        # 判定用**请求值**（URL 的 bytes=）而不是 min(requested, CL)：
+        # CL 由对端自报，伪造者可自报一个大 CL 再只发一小段，只有拿请求
+        # 值作上界才能同时挡住两者。EOF 路径无 CL 可比时，total 即实际收
+        # 到的字节数，判据同样成立。
+        # 系统级护栏：短响应占比过半且 Content-Length 高度集中 → 判定为
+        # 服务端统一截断，关闭门禁并告警，避免整轮归零无从排查。
+        gate_on = bool(cfg.get("speed_full_gate", True))
+        if gate_on:
+            gate_on, gate_reason, _gate_stats = speedtest.full_gate_decision(
+                round_data[0])
+            if not gate_on:
+                log.warning(f"      [warn] 收满门禁自动关闭：{gate_reason}；"
+                            f"本轮退回旧口径（不判收满）")
+            dropped, round_data[0] = speedtest.apply_full_gate(
+                round_data[0], gate_on)
+            if dropped:
+                log.info(f"      收满门禁剔除 {dropped} 条"
+                      f"（200 但未收满请求体量）")
+        else:
+            log.info("      收满门禁已关闭（--no-speed-full-gate）")
+
         # 第 1 轮下载成功的节点才进入后续轮（复测为剔除"偶发快"，
         # 第 1 轮就失败的节点不具稳定性，直接淘汰）。
+        # 门禁在算 ok_keys 之前生效：短响应节点不进复测轮。
         ok_keys = [k for k in all_keys
-                   if round_data[0][k].get("speed_mbps", 0) > 0]
+                   if round_data[0].get(k, {}).get("speed_mbps", 0) > 0]
         # 诊断（零行为变更）：把首轮 0 速度拆成「秒级连接失败（能 TLS 握手但不
         # 提供测速文件 / 非 CF）」与「吃满超时（runner 带宽或并发受限）」，
         # 并打印自适应门槛 T。两类失败指向相反的调参方向，必须分开看。
@@ -653,13 +711,37 @@ def run_once(args, overrides, cfg=None):
                   f"；自适应门槛 T={threshold_t:.2f} MB/s")
         else:
             log.info(f"      自适应门槛 T={threshold_t:.2f} MB/s（首轮全部成功）")
+        # HTTP 状态码分布（限流归因必需）：429 是 CF 风控的直接信号，此前
+        # 429/403 被静默归入「连接失败（<1s）」，与真连接失败混在一起，
+        # 无法区分「被风控」与「不是 CF 节点」。
+        status_count = {}
+        for sp in r1:
+            _s = sp.get("status")
+            if _s is not None:
+                status_count[_s] = status_count.get(_s, 0) + 1
+        if status_count:
+            _txt = " ".join(f"{k}×{v}" for k, v in
+                            sorted(status_count.items(), key=lambda kv: -kv[1]))
+            _r429 = status_count.get(429, 0)
+            _extra = f"（429 风控 {_r429} 条）" if _r429 else ""
+            log.info(f"      首轮 HTTP 状态码：{_txt}{_extra}")
         for ri in range(2, rounds_n + 1):
             if not ok_keys:
                 break
             log.info(f"      复测第 {ri}/{rounds_n} 轮（{len(ok_keys)} 个"
                   f"首轮成功候选）...")
             rr = asyncio.run(st.run(ok_keys, avg_map=avg_map))
-            round_data.append({k: sp for k, sp in zip(ok_keys, rr)})
+            _rnd = {k: sp for k, sp in zip(ok_keys, rr)}
+            if gate_on:
+                _d, _rnd = speedtest.apply_full_gate(_rnd, True)
+                if _d:
+                    log.info(f"      复测第 {ri} 轮收满门禁剔除 {_d} 条")
+            round_data.append(_rnd)
+        # 在飞下载峰值（实际并发 ground truth）：信号量只约束「进入
+        # speed_one 的任务数」，而线程在 asyncio 超时后不会被真正取消，
+        # 仍可能占着连接——实际并发可能高于信号量。
+        log.info(f"      在飞下载峰值 {st.inflight_peak}"
+              f"（并发上限 {cfg['speed_concurrency']}）")
 
         # 多轮共识：colo 全部轮次一致 + 速度至少 n-1 轮过自适应门槛。
         consensus = speedtest.consensus_speed(
@@ -914,6 +996,21 @@ def run_single(cfg: dict, target: str) -> int:
             log.info(f"下载速度:      {sp['speed_mbps']:.2f} MB/s ({sp['bytes']} bytes / {sp['time_s']}s)")
         else:
             log.info(f"下载速度:      测速失败（0 字节/超时，可能为回源 IP）")
+        # 收满诊断：实际收到字节 vs 请求体量（URL 的 bytes=）。短响应 =
+        # 伪造 cf-ray 的反代（只回小页面）或服务端提前断流。
+        if sp.get("required_bytes"):
+            _rb = sp["required_bytes"]
+            _got = sp.get("bytes", 0)
+            if sp.get("full_ok") is False:
+                log.info(f"收满校验:      未收满（收到 {_got} / 请求 {_rb} 字节，"
+                      f"差 {_rb - _got}）")
+            elif sp.get("full_ok") is None:
+                log.info(f"收满校验:      不适用（收到 {_got} 字节，"
+                      f"分段探测放弃或体量未知）")
+            else:
+                log.info(f"收满校验:      已收满（{_got} / {_rb} 字节）")
+        if sp.get("status") and sp["status"] != 200:
+            log.info(f"HTTP 状态码:   {sp['status']}")
         if cfg.get("verify_cert", False):
             cert_txt = {True: "通过（真 CF 身份）", False: "失败（证书不可信/主机名不符）"}.get(
                 sp.get("cert_ok"), "未测")

@@ -331,6 +331,20 @@ DEFAULT_CONFIG = {
     # 首个 probe_bytes 段的瞬时速率，届时门槛取 max(自适应, 配置门槛)。
     "speed_rounds": 3,
     "speed_consensus_k": 0.3,
+    # 收满门禁：要求节点真的交付满请求体量（total >= bytes=）。
+    # 拦截「200 但只回小页面」的伪造 cf-ray 反代与服务端提前断流。
+    # 判定用请求值（URL 的 bytes=）而非 min(requested, Content-Length)——
+    # CL 由对端自报，伪造者可自报大 CL 再只发一小段，只有请求值能同时
+    # 挡住两者。内置系统级护栏：若短响应占比过半且 Content-Length 高度
+    # 集中（判定为服务端统一截断），自动关闭门禁并告警，避免整轮归零。
+    "speed_full_gate": True,
+    # 测速请求的发起速率上限（次/秒，全局、跨轮共享）；0=不限速。
+    # 注意：限「发起速率」≠ 限「并发」——speed_timeout=10s 时 2 req/s 的
+    # 稳态在飞数约 20（Little's law），可能高于默认并发 8。降并发请用
+    # speed_concurrency；两者正交，可同时开。
+    "speed_rate_limit": 0.0,
+    # 突发额度（允许连发的请求数）；0=取 speed_rate_limit 同值。
+    "speed_rate_burst": 0,
     # 地区过滤（colo）：只保留机房位于这些 IATA 机场码的 IP，逗号分隔，
     # 如 "HKG,SIN,NRT,LAX"；为空表示不限地区（参考 cf-ray 响应头提取）
     "colo_filter": "",

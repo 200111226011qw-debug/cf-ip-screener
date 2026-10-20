@@ -1,7 +1,7 @@
 # config.py 字段审计（PR 3.5）
 
 自动提取自 `scripts/dump_config_fields.py`，人工校验于 2026-10-14。
-字段总数：**76**（73 顶层/扁平字段 + pools 3 个可选子字段）。
+字段总数：**79**（76 顶层/扁平字段 + pools 3 个可选子字段）。
 
 ## 字段总表
 
@@ -80,7 +80,10 @@
 | 71 | `output_txt` | `'clean-ips.txt'` | str | 否 | 无 | `str` | |
 | 72 | `output_json` | `'clean-ips.json'` | str | 否 | 无 | `str` | |
 | 73 | `output_txt_by_isp` | `'clean-ips-{isp}.txt'` | str | 否 | 无 | `str` | |
-| 74 | `output_json_by_isp` | `'clean-ips-{isp}.json'` | str | 否 | 无 | `str` | |
+| 74 | `output_json_by_isp` | `'clean-ips-{isp}.json'` | str | 否 | 无 | `str = "clean-ips-{isp}.json"` | |
+| 75 | `speed_full_gate` | `True` | bool | 否 | 无 | `bool = True` | 收满门禁：要求交付满请求体量（URL `bytes=`）；`--no-speed-full-gate` 可关 |
+| 76 | `speed_rate_limit` | `0.0` | float | 否 | 无 | `float = Field(0.0, ge=0.0)` | 测速发起速率上限（次/秒，0=不限）；限发起≠限并发 |
+| 77 | `speed_rate_burst` | `0` | int | 否 | 无 | `int = Field(0, ge=0)` | 突发额度，0=取与速率同值 |
 
 ## 6 类易漏字段对照
 
