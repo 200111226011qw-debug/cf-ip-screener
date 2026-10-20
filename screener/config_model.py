@@ -158,6 +158,8 @@ class AppConfig(DictCompatMixin, BaseModel):
     isp_filter: str = ""
     ipinfo: bool = False
     limit: int = Field(0, ge=0)
+    # 纯净为空时非零退出（防止空结果覆盖上一轮好产出）
+    fail_on_empty_result: bool = True
 
     # 输出
     output_dir: str = "result"

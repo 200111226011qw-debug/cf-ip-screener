@@ -345,6 +345,10 @@ DEFAULT_CONFIG = {
     "speed_rate_limit": 0.0,
     # 突发额度（允许连发的请求数）；0=取 speed_rate_limit 同值。
     "speed_rate_burst": 0,
+    # 纯净为空时是否非零退出（CI 的「提交结果」步骤只在前序步骤成功时
+    # 跑，故非零退出 = 不提交 = 保留上一轮好结果；同时让定时任务变红，
+    # 把「静默产出空结果」变成「响亮失败」）。仅批量模式生效。
+    "fail_on_empty_result": True,
     # 地区过滤（colo）：只保留机房位于这些 IATA 机场码的 IP，逗号分隔，
     # 如 "HKG,SIN,NRT,LAX"；为空表示不限地区（参考 cf-ray 响应头提取）
     "colo_filter": "",

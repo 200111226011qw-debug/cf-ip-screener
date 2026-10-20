@@ -57,6 +57,9 @@ jobs:
           python main.py --top-n 50
 
       - name: 上传报告 artifact
+        # if: always()：主流程失败（如空结果守卫触发）时也要上传报告，
+        # 否则排障时拿不到本轮的漏斗与归因数据。
+        if: always()
         uses: actions/upload-artifact@v5
         with:
           name: result

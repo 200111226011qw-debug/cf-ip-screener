@@ -956,7 +956,38 @@ def run_once(args, overrides, cfg=None):
         if cfg.get("dns_push_enabled"):
             log.info(f"      DNS 推送: {'成功' if dns_res['ok'] else '未触发'} "
                   f"（{dns_res['detail']}）")
+
+    # 8.4) 空结果守卫：产出 0 条纯净时**非零退出**。
+    # 为什么必须有：CI 的「提交结果」步骤只在前面步骤成功时才跑，若本步
+    # 失败 → 不提交 → result/ 保留上一轮的好结果。反之（直接返回 0），
+    # 一轮全被风控拦下的空结果会把仓库里已有的好结果覆盖成空文件——
+    # 2026-10-19 起已连续 4 轮产出 0 条，且没有任何报错。
+    # 同时非零退出会让定时任务变红，GitHub 会发失败通知——把「静默停摆」
+    # 变成「响亮失败」。
+    if empty_result_guard(clean, results, cfg, speed_candidate_count):
+        log.error("      [ERROR] 本轮纯净 0 条：结果为空，不应覆盖上一轮产出。"
+              f"（已测 {len(results)} 个候选，测速候选 {speed_candidate_count}）")
+        log.error("      [ERROR] 常见原因：CF 风控（429）导致测速全被拦下——"
+              "看上面「首轮失败归因」的 rate_limited 计数；"
+              "或候选池/连通性阶段整体失败。")
+        return 3
     return 0
+
+
+def empty_result_guard(clean, results, cfg, speed_candidate_count=None):
+    """是否应因「产出 0 条纯净」而失败（仅批量模式）。
+
+    拆成纯函数便于单测。触发条件（全部满足）：
+      - clean 为空；
+      - 确实测了东西（results 非空）——否则是「没跑起来」，另走 exit 1/2；
+      - 测速阶段开着（speed_test）——没测速就没法归因到风控；
+      - fail_on_empty_result 未被关掉。
+    """
+    if clean or not results:
+        return False
+    if not cfg.get("speed_test", True):
+        return False
+    return bool(cfg.get("fail_on_empty_result", True))
 
 
 def run_single(cfg: dict, target: str) -> int:
