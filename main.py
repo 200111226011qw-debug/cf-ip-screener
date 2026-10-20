@@ -751,6 +751,33 @@ def run_once(args, overrides, cfg=None):
                 log.info(f"      HTTP {_code} 的 IP（{len(_ips)} 个）："
                       + " ".join(_ips[:30]) +
                       (" …" if len(_ips) > 30 else ""))
+        # 403 的**网段聚集**诊断：若某个 /16 的 403 比例明显高于其它网段，
+        # 说明是**网段级**信誉/WAF 规则（不是逐 IP 副作用）——那整个 /16
+        # 都有风险，不只是当前这几个候选。应主动排除该网段，而不是等它
+        # 逐轮出现再剔。成本低：一行统计。
+        _net_total = {}
+        _net_403 = {}
+        for _k, _sp in zip(all_keys, r1):
+            try:
+                _n = ".".join(_k[0].split(".")[:3]) + ".0/16"
+            except Exception:
+                continue
+            _net_total[_n] = _net_total.get(_n, 0) + 1
+            if _sp.get("status") == 403:
+                _net_403[_n] = _net_403.get(_n, 0) + 1
+        if _net_403:
+            _rows = sorted(
+                ((n, _net_403[n], _net_total.get(n, 0)) for n in _net_403),
+                key=lambda x: (-x[1], -(x[1] / max(1, x[2]))))
+            _txt = " ".join(f"{n} {c}/{t}({c / max(1, t):.0%})"
+                            for n, c, t in _rows[:8])
+            log.info(f"      403 网段分布：{_txt}")
+            _bad = [(n, c, t) for n, c, t in _rows
+                    if t >= 3 and c / max(1, t) >= 0.8]
+            if _bad:
+                log.warning("      [warn] 以下网段 403 比例异常高，疑似**网段级**"
+                            "信誉/WAF 规则（该网段整体有风险，不止当前候选）："
+                            + " ".join(f"{n} {c}/{t}" for n, c, t in _bad))
         # 失败归因分类（fail_reason）：把「没速度」拆成可归因的类别——
         #   rate_limited  = 429（CF 风控，限流归因的关键信号）
         #   forbidden     = 403
@@ -993,10 +1020,16 @@ def run_once(args, overrides, cfg=None):
 
     # 本地综合打分（借鉴 one-ip /api/ip/health 输出契约）：
     #   score 0-100 + status(good/moderate/poor) + 8 个 flags；无外部 API 调用
+    # speed_scale：把速度读数换算回 10MB 口径再分档（256KB 口径的读数约为
+    # 10MB 口径的 1/9，不换算会把分档边界整体下移 9 倍）。
+    _sscale = cfg.get("speed_score_scale") or 0
+    if not _sscale:
+        _sscale = speedtest.score_scale_for_url(cfg["speed_url"])
     for r in clean:
-        r.update(score.score_result(r, r.get("ipinfo")))
+        r.update(score.score_result(r, r.get("ipinfo"), _sscale))
     n_good = sum(1 for r in clean if r.get("status") == "good")
-    log.info(f"      打分完成：good {n_good}/{len(clean)}")
+    log.info(f"      打分完成：good {n_good}/{len(clean)}"
+          f"（速度分档标定系数 {_sscale}，按 {cfg['speed_url']} 的体量换算）")
 
     log.info("[6/6] 写结果与报告...")
     outdir = cfg["output_dir"]

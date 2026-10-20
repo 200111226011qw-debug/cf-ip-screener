@@ -30,7 +30,14 @@ def filter_clean(results, max_latency_ms=400, max_loss_rate=0.34,
     - 丢包率不超过 max_loss_rate；
     - 若启用了 TLS 校验，则 TLS 握手必须成功；
     - 若启用了测速且设置了门槛，速度不低于 min_speed_mbps。
+
     排序：丢包率小者优先，其次延迟低者优先。
+
+    ⚠️ **「速度不参与选品」是有前提的**：排序键是 (loss_rate, avg_ms)，
+    速度**从不**参与排序——但 min_speed_mbps > 0 时速度会作为**门禁**剔除
+    候选，那时它就参与选品了。默认 min_speed_mbps=0，故默认配置下速度只
+    影响「测速阶段能否通过」与「共识的相对门槛」，不影响选出来的 50 条
+    是哪些。
     """
     clean = []
     for r in results:

@@ -19,7 +19,7 @@ def _clamp(v, lo=0, hi=100):
     return max(lo, min(hi, v))
 
 
-def score_result(result, ipinfo_data=None):
+def score_result(result, ipinfo_data=None, speed_scale=1.0):
     """对一条筛选结果打本地综合分。
 
     参数：
@@ -27,6 +27,7 @@ def score_result(result, ipinfo_data=None):
         avg_ms, loss_rate, speed_mbps, tls_ok, colo, native
       ipinfo_data: ipinfo.lookup() 返回的 dict 或 None，字段：
         proxy, hosting, mobile, country, regionName, city, isp, as
+      speed_scale: 速度分档的标定系数（见下方「速度分档的标定」）
 
     返回：{score:int|None, status:str, checked_at:iso8601, flags:{...}}
     当 result 本身探测失败（avg_ms 为 None）时 score=None、status=unknown。
@@ -68,8 +69,20 @@ def score_result(result, ipinfo_data=None):
         score -= 25
 
     # 速度（None = 没跑测速，不扣不加）
+    #
+    # **速度分档的标定**：下面的阈值（20/10/5/1 MB/s）是按 **10MB 测速口径**
+    # 标定的。测速体量改成 256KB 后，同一节点的读数约为 10MB 口径的 1/9
+    # （配对实测绝对比 0.112），直接套用等于把分档边界整体下移 9 倍——
+    # 未来候选池质量下降、速度分布拉宽时，边界附近的候选会跳变。
+    # speed_scale 把读数换算回 10MB 口径（256KB 口径 9.0、10MB 口径 1.0），
+    # 由 speedtest.score_scale_for_url() 按体量自动查表给出。
+    #
+    # 影响范围说明：高分节点的基础分（60+延迟+丢包+TLS+colo+原生段）通常已
+    # 把总分推过 100，clamp 之后速度项**看不见**——所以口径下移主要影响
+    # **慢节点/低质节点**（基础分不饱和的那些）的分数与 good/moderate 分类。
     spd = result.get("speed_mbps")
     if spd is not None:
+        spd = spd * (speed_scale or 1.0)
         if spd > 20:
             score += 15
         elif spd > 10:

@@ -37,6 +37,9 @@ import urllib.parse
 
 _CF_RAY_COLO = re.compile(r"^[0-9a-f]{8,}-([A-Za-z0-9]{3})$")
 
+# 速度分档的标定表（体量 → 系数），来源见 score_scale_for_url 的文档。
+_SCORE_SCALE_BY_BYTES = {10485760: 1.0, 1048576: 5.0, 262144: 9.0}
+
 
 def _probe_egress_ip_sync(host, timeout):
     """同步取本机出口 IP（CF 看到的客户端地址）。返回字符串或 None。"""
@@ -255,6 +258,29 @@ def spearman(xs, ys):
     rx, ry = _ranks(xs), _ranks(ys)
     d2 = sum((a - b) ** 2 for a, b in zip(rx, ry))
     return 1 - 6 * d2 / (n * (n * n - 1))
+
+
+def score_scale_for_url(url, default=1.0):
+    """按测速体量给出「速度分档」的标定系数（见 score.py 的速度分档说明）。
+
+    速度分档的阈值（>20/>10/>5/>1 MB/s）是按 **10MB 口径** 标定的。换到
+    256KB 口径后，同一节点的读数约为 10MB 口径的 1/9（配对实测绝对比
+    0.112），直接套用等于把分档边界整体下移 9 倍——边界附近的候选会跳变。
+    系数 = 「多大体量读数的倍数」才能换算回 10MB 口径。
+
+    实测标定表（同一批 IP、同链路、同轮、同出口的配对测量）：
+      10MB → 1.0（基准）
+      1MB  → 5.0（本地配对实测绝对比 0.20）
+      256KB→ 9.0（CI 配对实测绝对比 0.112）
+    未列出的体量按 10MB 处理（scale=1.0）——**换体量后应重新标定**。
+    """
+    try:
+        _b = urllib.parse.parse_qs(
+            urllib.parse.urlsplit(url).query).get("bytes", ["0"])[0]
+        _n = int(_b)
+    except (TypeError, ValueError):
+        return default
+    return _SCORE_SCALE_BY_BYTES.get(_n, default)
 
 
 def compare_speed_sets(a, b, consensus_k=0.3):
