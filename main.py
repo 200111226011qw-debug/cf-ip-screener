@@ -763,6 +763,7 @@ def run_once(args, overrides, cfg=None):
         for _k, _sp in _s403:
             log.info(f"      403 采样 {_k[0]}:{_k[1]}  Host={st.host}"
                   f"  server={_sp.get('server')!r}"
+                  f"  cf-ray={_sp.get('cf_ray')!r}"
                   f"  cf-mitigated={_sp.get('mitigated')!r}"
                   f"  body={(_sp.get('body_head') or '')[:100]!r}")
         # 403 的**网段聚集**诊断：若某个 /16 的 403 比例明显高于其它网段，

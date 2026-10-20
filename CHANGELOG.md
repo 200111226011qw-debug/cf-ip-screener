@@ -45,13 +45,13 @@
 ### 同时落地（本批）
 
 - **403 采样（零行为变更）**：每轮最多 5 条 403，记录 `server` 头、
-  `cf-mitigated` 头、**响应体前 100 字节**（CF 错误页的 error code：
-  1020 access denied / 1015 rate limited / 1006 IP banned）与请求的 Host。
-  用途是判读「403 到底是什么」——**测速端点的探针盲区**（该 IP 对普通 CF
-  域名其实可用，排除它会错）还是**该 IP/网段真的被拒**（有 1020 佐证）。
-  判读矩阵与手动对照脚本 `scripts/probe_403.sh` 见
+  `cf-ray` 头、**响应体前 100 字节**（CF 错误页的 error code：
+  1020 access denied / 1015 rate limited / 1006 IP banned）、`cf-mitigated` 头
+  与请求的 Host。用途是判读「403 到底是什么」——**测速端点的探针盲区**
+  （该 IP 对普通 CF 域名其实可用，排除它会错）还是**该 IP/网段真的被拒**。
+  判读矩阵与取证脚本（`scripts/probe_403.py` / `scripts/probe_403.sh`）见
   `docs/limiting-experiment-2026-10-21.md`。
-  **不据此排除任何网段**——403 集中只是相关性，因果未验证前排除是错的。
+  **不据此排除任何网段**——取证结论是「探针盲区」，排除会主动损害结果。
 - **速度分档按体量标定（`speed_scale`）**：score.py 的速度分档阈值
   （20/10/5/1 MB/s）按 **10MB 口径**标定，256KB 口径下等效严格了约 9 倍。
   新增 `speedtest.score_scale_for_url()` 按 `speed_url` 的体量自动查表

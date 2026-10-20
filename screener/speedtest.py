@@ -609,6 +609,7 @@ class SpeedTester:
             "client_ip": None,       # 对端看到的本机出口 IP（cf-meta-ip）
             "mitigated": None,       # cf-mitigated 头（challenge / block / 空）
             "body_head": None,       # 响应体前 100 字节（错误页的 error code）
+            "cf_ray": None,          # cf-ray 头（有=CF 边缘生成；无=路径上别处拒）
         }
         res.update(kw)
         return res
@@ -750,6 +751,9 @@ class SpeedTester:
                     _mitig = headers.get(b"cf-mitigated")
                     _mitig = (_mitig.decode("ascii", "ignore").strip()
                               if _mitig else "")
+                    _ray = headers.get(b"cf-ray")
+                    _ray = (_ray.decode("ascii", "ignore").strip()
+                            if _ray else "")
                     _body = b""
                     try:
                         if tls is not None:
@@ -763,6 +767,7 @@ class SpeedTester:
                         status=status, cl=cl or None, client_ip=client_ip,
                         mitigated=_mitig or None,
                         body_head=_body.decode("utf-8", "ignore") or None,
+                        cf_ray=_ray or None,
                         fail_reason=self._fail_reason(status=status,
                                                       got_response=True))
 

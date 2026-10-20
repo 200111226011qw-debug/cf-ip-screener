@@ -59,6 +59,7 @@ class ForbiddenSamplingTest(unittest.TestCase):
                 b"<body>error code: 1020</body></html>")
         payload = (b"HTTP/1.1 403 Forbidden\r\n"
                    b"Server: cloudflare\r\n"
+                   b"cf-ray: a4db6d90-LAX\r\n"
                    b"cf-mitigated: challenge\r\n"
                    b"Content-Length: " + str(len(body)).encode() + b"\r\n\r\n"
                    + body)
@@ -67,10 +68,19 @@ class ForbiddenSamplingTest(unittest.TestCase):
         self.assertEqual(res["status"], 403)
         self.assertEqual(res["server"], "cloudflare")
         self.assertEqual(res["mitigated"], "challenge")
+        self.assertEqual(res["cf_ray"], "a4db6d90-LAX")
         self.assertIn("1020", res["body_head"])
         self.assertEqual(res["fail_reason"], "forbidden")
         # 请求的 Host 来自 speed_url —— 采样日志要打出来
         self.assertEqual(st.host, "speed.cloudflare.com")
+
+    def test_missing_cf_ray_is_none(self):
+        """没有 cf-ray → 响应可能不是 CF 边缘应用层生成的（路径上别处拒）。"""
+        payload = (b"HTTP/1.1 403 Forbidden\r\n"
+                   b"Content-Length: 2\r\n\r\nno")
+        res, _st = _run("https://speed.cloudflare.com/__down?bytes=1000",
+                       payload)
+        self.assertIsNone(res["cf_ray"])
 
     def test_body_truncated_to_100_bytes(self):
         body = b"x" * 500
