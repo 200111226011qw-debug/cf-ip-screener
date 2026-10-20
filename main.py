@@ -860,6 +860,16 @@ def run_once(args, overrides, cfg=None):
                       + " / ".join(f"{k} {v}" for k, v in
                                    sorted(_creason.items(),
                                           key=lambda kv: -kv[1])))
+            # 对照侧的 429/403 IP 明细：与主侧的 403 列表对照，就能回答
+            # 「这轮被 429 的 IP，下一轮是不是变成 403 了」（风控副作用
+            # 是否会持续到下一轮、污染候选池）。
+            for _code in (429, 403):
+                _ips = [f"{k[0]}:{k[1]}" for k, sp in zip(all_keys, _cres)
+                        if sp.get("status") == _code]
+                if _ips:
+                    log.info(f"      对照侧 HTTP {_code} 的 IP（{len(_ips)} 个）："
+                          + " ".join(_ips[:30]) +
+                          (" …" if len(_ips) > 30 else ""))
 
         # 多轮共识：colo 全部轮次一致 + 速度至少 n-1 轮过自适应门槛。
         consensus = speedtest.consensus_speed(
