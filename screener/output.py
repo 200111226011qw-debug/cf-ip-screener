@@ -35,6 +35,11 @@ def to_subscribe_line(r: dict) -> str:
     colo = r.get("colo")
     if speed:
         remark = f"{remark} | 速度{speed}MB/s"
+    if r.get("probe_blind"):
+        # 探针盲区：测速端点对它 403（不服务 speed.cloudflare.com 这个
+        # Host），但普通域名 200 —— 对订阅者可用，只是**没有速度数据**。
+        # 标记出来，免得被误读成「慢节点」。
+        remark = f"{remark} | 域名可达(无速度数据)"
     if colo:
         remark = f"{remark} | 机房{colo}"
     if r.get("native"):

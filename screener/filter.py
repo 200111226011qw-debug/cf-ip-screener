@@ -51,7 +51,13 @@ def filter_clean(results, max_latency_ms=400, max_loss_rate=0.34,
             continue
         if r["tls_ok"] is False:  # None 表示未启用 TLS 校验，不拦截
             continue
-        if r.get("speed_mbps", 0.0) < min_speed_mbps:
+        # 速度门槛。**None 是合法的**（速度未知，例如「测速端点不可达但域名
+        # 可达」的候选——它没有速度数据，filter_clean 之前用
+        # `r.get("speed_mbps", 0.0) < min_speed_mbps` 会把 None 与 0.0
+        # 混为一谈，且 None < 0 直接抛 TypeError）。
+        # None 一律按 0 处理：min_speed_mbps=0 时放行（不限速），>0 时剔除
+        # （无法验证速度，不该混进有速度门槛的集合）。
+        if (r.get("speed_mbps") or 0.0) < min_speed_mbps:
             continue
         clean.append(r)
 

@@ -24,6 +24,7 @@ import os
 import json
 import random
 import time
+import urllib.parse
 
 import config
 from screener import (bayes, dns_push, edge_crawler, fetcher,
@@ -849,6 +850,43 @@ def run_once(args, overrides, cfg=None):
         log.info(f"      在飞下载峰值 {st.inflight_peak}"
               f"（并发上限 {cfg['speed_concurrency']}）")
 
+        # 403 二次验证（探针盲区回收）：测速端点对一部分 CF 边缘返回 403，
+        # 但那些边缘对**普通 Host** 完全可用（实测 11/11）——它们只是不服务
+        # speed.cloudflare.com 这个 Host。对订阅者而言这些节点是可用的，
+        # 只是我们测不到它们的速度（测速漏斗测的是「探针可达性」，不是
+        # 「订阅者可用性」）。故对 403 的候选再打一次普通域名：
+        #   200 → 标记 probe_blind（域名可达、速度未知）
+        #   其它/失败 → 维持原判（真不可用；注意 TLS/连接层失败与 403 是
+        #              两类，不能混进「假阴性」）
+        _blind = []
+        _blind_url = cfg.get("speed_blind_probe_url") or ""
+        _blind_out = (cfg.get("speed_blind_output") or "main").lower()
+        if _blind_url and _blind_out != "off":
+            _pu = urllib.parse.urlsplit(_blind_url)
+            _phost = _pu.hostname or "www.cloudflare.com"
+            _ppath = _pu.path or "/"
+            if _pu.query:
+                _ppath += "?" + _pu.query
+            _c403 = [(k, sp) for k, sp in zip(all_keys, r1)
+                      if sp.get("fail_reason") == "forbidden"]
+            if _c403:
+                log.info(f"      403 二次验证：{len(_c403)} 个 403 候选"
+                      f"再打一次普通域名 {_phost}{_ppath} …")
+                for _k, _sp in _c403:
+                    _st, _colo, _srv = asyncio.run(
+                        speedtest.probe_host_status(_k[0], _k[1], _phost,
+                                                    _ppath))
+                    _ok = (_st == 200)
+                    log.info(f"      403 二次验证 {_k[0]}:{_k[1]}  普通域名 → "
+                          f"{_st if _st is not None else '连接失败'}"
+                          f"{'（域名可达 → 探针盲区）' if _ok else ''}"
+                          f"  colo={_colo}")
+                    if _ok:
+                        _blind.append((_k, _colo, _sp))
+                if _blind:
+                    log.info(f"      探针盲区回收 {len(_blind)}/{len(_c403)} 个"
+                          f"（域名可达但测速端点不可达，速度未知）")
+
         # 双体量对照（诊断）：同一批候选再测一次**另一种体量**，对比两套
         # 口径下的相对排序是否一致。这是「256KB 会不会改变选品」的唯一
         # 干净答案——必须同批候选、同轮、同出口；分两次跑做不到（候选池
@@ -945,6 +983,26 @@ def run_once(args, overrides, cfg=None):
             kept.append(r)
         consensus_fail = len(ok_keys) - len(kept)
         clean = kept
+        # 探针盲区候选回收：403 但普通域名可达的节点。它们**没有速度数据**
+        # （测速端点不服务它们），所以不参与共识（共识要比较速度），
+        # 但延迟/丢包/TLS/cf-ray 都有 → 可以作为「域名可达、速度未知」的
+        # 候选进入结果。speed_mbps 记 None（**不是 0**——0 表示「测出来是
+        # 0MB/s」，None 表示「没测到」），下游据此区别对待。
+        if _blind and _blind_out == "main":
+            for _k, _colo, _sp in _blind:
+                for r in clean:
+                    if (r["ip"], r["port"]) != _k:
+                        continue
+                    r["speed_mbps"] = None
+                    r["probe_blind"] = True
+                    r["colo"] = _colo or r.get("colo")
+                    clean.append(r)
+                    break
+            log.info(f"      探针盲区候选 {len(_blind)} 条进入结果"
+                  f"（速度未知，按 (丢包率, 延迟) 排序）")
+        elif _blind:
+            log.info(f"      探针盲区候选 {len(_blind)} 条未进主结果"
+                  f"（speed_blind_output={_blind_out}）")
         if rounds_n > 1 and consensus_fail:
             # 共识剔除细分：正常的共识剔除（colo 漂移 / 速度不达标）与
             # 「某轮被风控/超时拦下」必须能分开——后者说明体量虽小仍有
@@ -1113,7 +1171,8 @@ def run_once(args, overrides, cfg=None):
             time.time() - t0, outdir,
             speed_candidates=speed_candidate_count,
             speed_gate_dropped=speed_gate_dropped,
-            empty_streak=empty_streak)
+            empty_streak=empty_streak,
+            blind_count=len(_blind) if _blind_out == "main" else 0)
         for pth in rep_paths:
             log.info(f"  {os.path.relpath(pth)}")
     except Exception as e:

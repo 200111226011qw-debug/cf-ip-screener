@@ -68,7 +68,8 @@ def _bucket(values, edges):
 
 def build_report(cfg, pool_stats, clean, total_tested, total_candidates,
                  elapsed, outdir, speed_candidates=None,
-                 speed_gate_dropped=None, empty_streak=0):
+                 speed_gate_dropped=None, empty_streak=0,
+                 blind_count=0):
     """生成 report.html 与 report.md，返回写入的文件路径列表。
 
     pool_stats: [{"url","isp","native","parsed","kept","hit","hit_ext",
@@ -132,7 +133,10 @@ def build_report(cfg, pool_stats, clean, total_tested, total_candidates,
     # 区分开——否则跨版本对比漏斗时无法归因。
     gate_stage = (f" → 收满剔除 {speed_gate_dropped}"
                   if speed_gate_dropped else "")
-    md.append(f"- 解析候选: {total_parsed} → 保留(去重后) {total_kept} → 已测 {total_tested}{speed_stage}{gate_stage} → 纯净 {len(clean)}")
+    # 探针盲区：测速端点 403 但普通域名可达 → 域名可用、速度未知。
+    blind_stage = (f"（含 {blind_count} 条域名可达但无速度数据）"
+                   if blind_count else "")
+    md.append(f"- 解析候选: {total_parsed} → 保留(去重后) {total_kept} → 已测 {total_tested}{speed_stage}{gate_stage} → 纯净 {len(clean)}{blind_stage}")
     md.append(f"- 耗时: {elapsed:.1f}s\n")
 
     md.append("## 池命中率\n")
@@ -329,7 +333,7 @@ document.querySelectorAll('#ip-table th').forEach(function (th) {
   {cf_net_html}
   {streak_html}
   候选池: {len(pool_stats)} 个（成功 {len(ok_pools)} / 失败 {len(failed_pools)} / 跳过 {len(skipped_pools)}）<br>
-  解析候选: {total_parsed} → 保留(去重后) {total_kept} → 已测 {total_tested}{speed_stage}{gate_stage} → <b>纯净 {len(clean)}</b><br>
+  解析候选: {total_parsed} → 保留(去重后) {total_kept} → 已测 {total_tested}{speed_stage}{gate_stage} → <b>纯净 {len(clean)}</b>{blind_stage}<br>
   耗时: {elapsed:.1f}s
 </div>
 

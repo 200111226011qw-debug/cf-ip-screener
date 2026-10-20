@@ -469,6 +469,73 @@ def apply_full_gate(round_map, enabled=True):
     return len(round_map) - len(kept), kept
 
 
+async def probe_host_status(ip, port, host, path="/", timeout=8.0):
+    """探一下某个 IP 对**普通 Host** 的服务状态（不下载大文件）。
+
+    用途：403 二次验证。测速端点（speed.cloudflare.com）对一部分 CF 边缘
+    返回 403（**探针盲区**——实测 11/11 的 403 IP 打普通 CF 域名都返回
+    200），这些边缘对订阅者其实完全可用，只是测速端点不服务它们。
+
+    返回 (status:int|None, colo:str|None, server:str|None)：
+      status=None → 连接/TLS 层失败（**不是**盲区，是真不可用）
+    """
+    import socket
+    import ssl as _ssl
+
+    def _probe():
+        tls = None
+        try:
+            raw = socket.create_connection((ip, port), timeout=timeout)
+            ctx = _ssl.create_default_context()
+            ctx.check_hostname = False
+            ctx.verify_mode = _ssl.CERT_NONE   # 与测速口径一致（CERT_NONE）
+            tls = ctx.wrap_socket(raw, server_hostname=host)
+            tls.settimeout(timeout)
+            tls.sendall((f"GET {path} HTTP/1.1\r\nHost: {host}\r\n"
+                         f"User-Agent: cf-ip-screener\r\n"
+                         f"Connection: close\r\n\r\n").encode("utf-8"))
+            fp = tls.makefile("rb")
+            line = fp.readline()
+            if not line:
+                return None, None, None
+            parts = line.split(b" ", 2)
+            try:
+                status = int(parts[1]) if len(parts) > 1 else 0
+            except ValueError:
+                status = 0
+            headers = {}
+            for _ in range(40):
+                h = fp.readline()
+                if not h or h in (b"\r\n", b"\n"):
+                    break
+                k, _, v = h.partition(b":")
+                if k:
+                    headers[k.strip().lower()] = v.strip()
+            colo = None
+            ray = headers.get(b"cf-ray")
+            if ray:
+                m = _CF_RAY_COLO.match(ray.decode("ascii", "ignore").strip())
+                if m:
+                    colo = m.group(1).upper()
+            srv = headers.get(b"server")
+            return status, colo, (srv.decode("ascii", "ignore").strip()
+                                  if srv else None)
+        except Exception:
+            return None, None, None
+        finally:
+            if tls is not None:
+                try:
+                    tls.close()
+                except Exception:
+                    pass
+
+    loop = asyncio.get_running_loop()
+    try:
+        return await loop.run_in_executor(None, _probe)
+    except Exception:
+        return None, None, None
+
+
 class SpeedTester:
     # 失败归因分类（fail_reason 的取值全集）。顺序即判定优先级：
     # 状态码优先于其它原因——拿到 429 就是被风控，与超时/短响应无关。
@@ -736,6 +803,16 @@ class SpeedTester:
                 except (TypeError, ValueError):
                     cl = 0
 
+                # 机房码：**任何状态码都取**（含 403/429）——cf-ray 说明「是哪个
+                # 边缘应答的」，这对「探针盲区」的候选同样有意义（它证明这个
+                # IP 背后确实是 CF 边缘，也让 require_cf_ray 校验能通过）。
+                colo = None
+                cf_ray = headers.get(b"cf-ray")
+                if cf_ray:
+                    m = _CF_RAY_COLO.match(cf_ray.decode("ascii", "ignore").strip())
+                    if m:
+                        colo = m.group(1).upper()
+
                 if status != 200:
                     # 403/其它非 200 的**采样**：把错误页的线索带回去——
                     #   server 头     → 区分 cloudflare / 其它
@@ -763,7 +840,7 @@ class SpeedTester:
                         _body = b""
                     return self._result(
                         time_s=round(time.perf_counter() - t0, 2),
-                        colo=None, cert_ok=cert_ok, server=server_hdr,
+                        colo=colo, cert_ok=cert_ok, server=server_hdr,
                         status=status, cl=cl or None, client_ip=client_ip,
                         mitigated=_mitig or None,
                         body_head=_body.decode("utf-8", "ignore") or None,
@@ -771,13 +848,7 @@ class SpeedTester:
                         fail_reason=self._fail_reason(status=status,
                                                       got_response=True))
 
-                # 从 cf-ray 头提取地区码
-                colo = None
-                cf_ray = headers.get(b"cf-ray")
-                if cf_ray:
-                    m = _CF_RAY_COLO.match(cf_ray.decode("ascii", "ignore").strip())
-                    if m:
-                        colo = m.group(1).upper()
+                # 从 cf-ray 头提取地区码（上面已对所有状态码提取过）
 
                 # 读 body：统一交给 _read_body（自动处理 Content-Length /
                 # chunked 解码 / close 流），返回 (total_bytes, skipped)。

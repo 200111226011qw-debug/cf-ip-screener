@@ -160,6 +160,9 @@ class AppConfig(DictCompatMixin, BaseModel):
     speed_compare_url: str = ""
     speed_compare_rate: float = Field(1.0, ge=0.0)
     speed_compare_concurrency: int = Field(2, ge=1)
+    # 403 二次验证（探针盲区回收）
+    speed_blind_probe_url: str = "https://www.cloudflare.com/cdn-cgi/trace"
+    speed_blind_output: Literal["main", "separate", "off"] = "main"
     # 速度分档标定系数（0 = 按测速体量自动查表）
     speed_score_scale: float = Field(0.0, ge=0.0)
     colo_filter: str = ""
