@@ -1,16 +1,32 @@
 [
   {
-    "ip": "104.21.202.168",
-    "port": 2053,
-    "avg_ms": 8.9,
+    "ip": "198.41.209.156",
+    "port": 443,
+    "avg_ms": 17.4,
     "loss_rate": 0.0,
     "tls_ok": true,
-    "remark": "联通-LAX-2053-WS-TLS",
+    "tls_fp": "TLSv1.3|TLS_AES_256_GCM_SHA384",
+    "cert_ok": null,
+    "http_ms": null,
+    "remark": "联通Default",
     "isp": "cu",
     "native": false,
-    "source": "https://cdn.jsdelivr.net/gh/gshtwy/CF-DNS-Clone@main/wetest-cloudflare-v4.txt",
-    "speed_mbps": 96.74,
-    "colo": "LAX",
-    "net_scope": "announced"
+    "source": "https://cdn.jsdelivr.net/gh/suancaicc/cf-ip@main/ip.txt",
+    "speed_mbps": 116.32,
+    "colo": "SEA",
+    "net_scope": "announced",
+    "score": 100,
+    "status": "good",
+    "checked_at": "2026-10-20T18:41:14.493360+00:00",
+    "flags": {
+      "residential": null,
+      "datacenter": null,
+      "mobile": null,
+      "vpn": null,
+      "proxy": null,
+      "tor": null,
+      "crawler": null,
+      "abuser": null
+    }
   }
 ]
