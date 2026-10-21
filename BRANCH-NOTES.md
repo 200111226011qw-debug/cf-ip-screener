@@ -1,8 +1,12 @@
 # 探针盲区压力测试分支（exp/blind-stress）
 
-> ⚠️ **本文件是分支专用说明，不是 main 的 README。**
-> 从本分支提 PR **不会**改动 main 的 README（README 已改名为本文件）。
-> 压测清单已单独放进 main 的 docs/blind-stress-ips.txt（PR 只会加那一个文件）。
+> ⚠️ **本文件不是项目 README。项目 README 在 main 分支的 `README.md`
+> （570 行，含功能列表 / 快速开始 / 命令行参数 / 筛选口径 / 段校验组合表）。
+> 不要用本文件覆盖它。**
+>
+> 本分支的 README 已改名为本文件，所以**从本分支提 PR 不会动 main 的
+> README**。压测清单已单独放进 main 的 `docs/blind-stress-ips.txt`
+> （PR 只会加那一个文件）。
 
 **用途**：复现「主漏斗 100% 崩溃」场景，验证探针盲区安全网能不能顶上。
 
