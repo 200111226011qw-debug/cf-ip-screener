@@ -388,6 +388,13 @@ workflow 运行。提交行为：**结果无变化时跳过提交**（池子稳�
 > （体量选择是视角相关的问题，详见
 > [`docs/limiting-experiment-2026-10-21.md`](docs/limiting-experiment-2026-10-21.md)）
 
+> ⚠️ **换测速体量时要重算两处标定**（改配置的人看这里，不只是改代码的人）：
+> ① `speed_score_scale`（速度分档的标定系数，按体量查表：10MB→1.0、1MB→5.0、
+> 256KB→9.0，来源是配对实测）；② **score 的「窄带」位置**（延迟 200-400ms +
+> 丢包 5-15% 会把 good 压成 moderate 这个窄带，基于 256KB 口径测得，换体量后
+> 要重算）。两处都写在 `screener/speedtest.py` 的 `score_scale_for_url()` 与
+> `screener/score.py` 的注释里。
+
 GitHub Actions 定时任务的筛选与测速在 **GitHub 托管 runner（美西）的
 vantage** 下进行，"纯净"指在该 vantage 下 TCP/TLS 可达、延迟/丢包达标、
 cf-ray 验证为 CF 边缘（公告段或外延段）。
