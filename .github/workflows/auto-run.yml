@@ -95,7 +95,7 @@ jobs:
         # if: always()：主流程失败（如空结果守卫触发）时也要上传报告，
         # 否则排障时拿不到本轮的漏斗与归因数据。
         if: always()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: result
           # 注意：path 不支持 shell 变量展开（${PROJECT_DIR:-.} 会被当字面路径），
