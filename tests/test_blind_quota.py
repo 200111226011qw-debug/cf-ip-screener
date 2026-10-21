@@ -245,9 +245,16 @@ class DisplacedTest(unittest.TestCase):
 class DisplacementDescriptionTest(unittest.TestCase):
     """成本侧的方向与阈值判定——**符号必须说清，不能只给 ±0.1ms**。
 
+    **意图（先写这句，再写下面的断言）**：
+    「被挤掉的普通候选比入选的盲区候选**更快**时，差值应为**正**；
+    更快超过收紧阈值就要标出『超出收紧阈值』。」
+
     符号约定：`diff = 入选盲区延迟中位 − 被挤掉的延迟中位`，
     **>0 = 被挤掉的更快（更好）= 配额的代价为正**（与代码里其它地方
     「盲区 − 产出」的方向一致）。
+
+    ⚠️ 断言**从意图推导**，不从实现反推——反推的断言只能保证「实现与测试
+    一致」，方向写反了也会全绿（2026-10-21 真的发生过一次）。
     """
 
     def test_direction_is_explicit_when_displaced_are_faster(self):
