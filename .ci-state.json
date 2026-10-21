@@ -1,3 +1,5 @@
 {
-  "empty_streak": 0
+  "empty_streak": 0,
+  "last_clean": 50,
+  "blind_quota_off_streak": 0
 }
