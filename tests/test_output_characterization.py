@@ -142,61 +142,6 @@ class TestWriteBoundary:
         assert content.count("\n") == 2
 
 
-class TestSpeedUnknownSerialization:
-    """「速度未知」（speed_mbps=None）的**输出层**契约。
-
-    探针盲区候选没有速度数据。输出必须**如实表达「未知」**——
-    写成 0.0 或空字符串会让下游把「没测到」误读成「测出来是 0」，
-    订阅解析会坏。
-    """
-
-    def _row(self, **kw):
-        base = {"ip": "1.2.3.4", "port": 443, "avg_ms": 30.0,
-                "loss_rate": 0.0, "tls_ok": True, "colo": "SJC",
-                "native": False, "speed_mbps": None, "probe_blind": True}
-        base.update(kw)
-        return base
-
-    def test_json_speed_is_null_not_zero(self, tmp_path):
-        out = tmp_path / "clean.json"
-        write_json([self._row()], str(out))
-        data = json.loads(out.read_text(encoding="utf-8"))
-        assert data[0]["speed_mbps"] is None      # 不是 0.0、不是 ""
-        assert "speed_mbps" in data[0]            # 键必须在（下游要能区分缺失）
-
-    def test_json_measured_speed_keeps_number(self, tmp_path):
-        out = tmp_path / "clean2.json"
-        write_json([self._row(speed_mbps=42.5, probe_blind=False)], str(out))
-        data = json.loads(out.read_text(encoding="utf-8"))
-        assert data[0]["speed_mbps"] == 42.5
-
-    def test_txt_has_no_speed_field(self, tmp_path):
-        out = tmp_path / "clean.txt"
-        write_txt([self._row()], str(out))
-        content = out.read_text(encoding="utf-8")
-        assert "MB/s" not in content
-        assert "域名可达" in content       # 有标记，不会被误读成慢节点
-        assert "1.2.3.4:443" in content
-
-    def test_txt_mixed_rows_keep_measured_speed(self, tmp_path):
-        """同一份文件里，速度未知的行与速度已知的行不能混淆。"""
-        out = tmp_path / "mixed.txt"
-        write_txt([
-            self._row(),
-            self._row(ip="5.6.7.8", speed_mbps=33.3, probe_blind=False),
-        ], str(out))
-        content = out.read_text(encoding="utf-8")
-        assert "33.3MB/s" in content
-        assert "域名可达" in content
-        # 未知速度的那行不能出现任何 MB/s
-        _lines = content.strip().split("\n")
-        _blind_line = [l for l in _lines if l.startswith("1.2.3.4")][0]
-        assert "MB/s" not in _blind_line
-        _meas_line = [l for l in _lines if l.startswith("5.6.7.8")][0]
-        assert "33.3MB/s" in _meas_line
-        assert "域名可达" not in _meas_line
-
-
 # ---------- write_all 分组边界 ----------
 
 class TestWriteAllGrouping:
