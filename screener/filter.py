@@ -3,6 +3,7 @@
 
 import ipaddress
 import json
+import math
 import os
 
 
@@ -20,8 +21,43 @@ def is_cf_ip(ip: str, nets) -> bool:
     return False
 
 
+def blind_quota_size(top_n, ratio=0.10, min_q=3, max_q=5):
+    """盲区候选（探针盲区）在 top_n 内的**保底名额**。
+
+    quota = max(min_q, min(max_q, ceil(top_n * ratio)))
+
+    - 用**比例**而不是固定值：top_n 可变（20/50/100），配额随规模缩放；
+    - **上限**防 top_n 大时配额过大；**下限**保证 top_n 小时也有名额。
+    """
+    if not top_n or top_n <= 0:
+        return 0
+    return max(min_q, min(max_q, math.ceil(top_n * ratio)))
+
+
+def apply_blind_quota(rows, quota, top_n):
+    """在 top_n 内保证 quota 个位置给盲区候选（**不是**额外加 quota 个）。
+
+    rows 必须**已按 (loss_rate, avg_ms) 排序**（filter_clean 的排序键）。
+    返回：最好的 quota 个盲区候选 + 最好的 (top_n - quota) 个普通候选。
+    这样总产出**不会超过 top_n**（盲区候选是「挤占」普通候选的位置，不是
+    额外加）。
+    """
+    if not quota or quota <= 0 or top_n <= 0:
+        return list(rows[:top_n]) if top_n > 0 else list(rows)
+    blind = [r for r in rows if r.get("probe_blind")]
+    normal = [r for r in rows if not r.get("probe_blind")]
+    if len(blind) < quota:
+        # 盲区候选不够 → 名额无从保证，按正常顺序取（**仍要截到 top_n**）
+        return list(rows[:top_n])
+    keep_blind = blind[:quota]
+    keep_normal = normal[:max(0, top_n - quota)]
+    out = keep_blind + keep_normal
+    # 输出顺序仍按全局排序（盲区候选在各自组内已排序）
+    return sorted(out, key=lambda r: (r.get("loss_rate", 1), r.get("avg_ms", 1e9)))
+
+
 def filter_clean(results, max_latency_ms=400, max_loss_rate=0.34,
-                 min_speed_mbps=0.0, top_n=50, cf_nets=None):
+                 min_speed_mbps=0.0, top_n=50, cf_nets=None, blind_quota=0):
     """从测试结果中筛出可用 IP。
 
     纯净判定（可配置）：
@@ -65,10 +101,12 @@ def filter_clean(results, max_latency_ms=400, max_loss_rate=0.34,
         clean.append(r)
 
     clean.sort(key=lambda r: (r["loss_rate"], r["avg_ms"]))
+    if top_n > 0:
+        clean = apply_blind_quota(clean, blind_quota, top_n)[:top_n]
     return clean[:top_n] if top_n > 0 else clean
 
 
-def empty_streak_update(state_path, clean_count, threshold=3):
+def empty_streak_update(state_path, clean_count, threshold=3, extra_state=None):
     """维护「连续空结果轮数」，返回 (新连击数, 是否需要告警, 状态字典)。
 
     为什么要这个：空结果守卫让 CI **变红**，但「红」是给看 CI 历史的人
@@ -85,7 +123,12 @@ def empty_streak_update(state_path, clean_count, threshold=3):
     prev_streak = state.get("empty_streak", 0)
     streak = 0 if clean_count > 0 else int(prev_streak) + 1
     state["empty_streak"] = streak
-    if streak != prev_streak and state_path:
+    state["last_clean"] = clean_count
+    # extra_state：额外要落盘的字段（如盲区配额的自动关闭连击数）。
+    # 一并写进同一个文件 → **单一写者**，避免两个写者互相覆盖。
+    if extra_state:
+        state.update(extra_state)
+    if (streak != prev_streak or extra_state) and state_path:
         try:
             with open(state_path, "w", encoding="utf-8") as f:
                 json.dump(state, f, ensure_ascii=False, indent=2)

@@ -382,6 +382,20 @@ DEFAULT_CONFIG = {
     # 盲区候选的去向：main=进主结果（默认）/ separate=只记数不加入 /
     # off=完全不做二次验证。
     "speed_blind_output": "main",
+    # 盲区候选（探针盲区：测速端点 403 但普通域名可达）的**保底名额**。
+    # 名额是 top_n **内**的位置（挤占普通候选的位置，不是额外增加）→
+    # 总产出仍 ≤ top_n。
+    # 规则（2026-10-21 拍板）：
+    #   quota = max(blind_quota_min, min(blind_quota_max, ceil(top_n*ratio)))
+    #   启用条件：盲区候选延迟中位 ≤ 产出延迟中位 + blind_quota_enable_diff_ms
+    #   自动关闭：连续 blind_quota_off_rounds 轮延迟差 > blind_quota_disable_diff_ms
+    "blind_quota_enabled": True,
+    "blind_quota_ratio": 0.10,   # 配额随 top_n 缩放
+    "blind_quota_min": 3,        # top_n 小时也保底 3 个
+    "blind_quota_max": 5,        # top_n 大时不超过 5 个
+    "blind_quota_enable_diff_ms": 10,   # 第一档（≈持平）才启用
+    "blind_quota_disable_diff_ms": 30,  # 明显更差则自动关闭
+    "blind_quota_off_rounds": 2, # 连续几轮变差才关闭（给一轮波动留余量）
     # 连续空结果轮数达到该值就主动告警（开 issue）。
     # CI 变红是给「看 CI 历史的人」看的，定时任务没人盯；这层是给
     # 「不看 CI 历史的人」看的。两者缺一不可。

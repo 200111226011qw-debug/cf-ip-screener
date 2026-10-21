@@ -23,6 +23,7 @@ import concurrent.futures as futures
 import os
 import json
 import random
+import statistics
 import time
 import urllib.parse
 
@@ -1100,6 +1101,11 @@ def run_once(args, overrides, cfg=None):
             clean = [r for r in clean if r.get("colo") in allowed]
 
         # 应用速度门槛 + 截断 top_n
+        # **两遍**：第一遍按正常规则截断，得到「产出延迟中位」这个参照基准
+        # （盲区候选要竞争的就是这个门槛）；第二遍在条件成立时于 top_n 内
+        # 给盲区候选保底名额。名额是「挤占」普通候选的位置，不是额外增加
+        # → 总产出仍 ≤ top_n。
+        _pool = clean
         clean = filter_mod.filter_clean(
             clean,
             max_latency_ms=cfg["max_latency_ms"],
@@ -1108,6 +1114,19 @@ def run_once(args, overrides, cfg=None):
             top_n=cfg["top_n"],
             cf_nets=cf_filter_nets,
         )
+        _quota, _qnote = _blind_quota_decision(_blind_meta, clean, cfg)
+        if _quota:
+            clean = filter_mod.filter_clean(
+                _pool,
+                max_latency_ms=cfg["max_latency_ms"],
+                max_loss_rate=cfg["max_loss_rate"],
+                min_speed_mbps=cfg["min_speed_mbps"],
+                top_n=cfg["top_n"],
+                cf_nets=cf_filter_nets,
+                blind_quota=_quota,
+            )
+        if _qnote:
+            log.info(f"      盲区保底名额：{_qnote}")
     else:
         clean = filter_mod.filter_clean(
             clean,
@@ -1268,7 +1287,8 @@ def run_once(args, overrides, cfg=None):
         try:
             empty_streak, need_alert, _st = filter_mod.empty_streak_update(
                 _streak_file, len(clean),
-                int(cfg.get("empty_streak_alert_threshold", 3) or 3))
+                int(cfg.get("empty_streak_alert_threshold", 3) or 3),
+                extra_state={"blind_quota_off_streak": _BLIND_OFF_STREAK})
             if empty_streak:
                 log.warning(f"      [warn] 已连续 {empty_streak} 轮空结果"
                            f"（阈值 {cfg.get('empty_streak_alert_threshold', 3)}）")
@@ -1327,6 +1347,64 @@ def run_once(args, overrides, cfg=None):
               "或候选池/连通性阶段整体失败。")
         return 3
     return 0
+
+
+def _cfg_diff_enable(cfg):
+    return float(cfg.get("blind_quota_enable_diff_ms", 10) or 10)
+
+
+def _cfg_diff_off(cfg):
+    return float(cfg.get("blind_quota_disable_diff_ms", 30) or 30)
+
+
+def _blind_quota_decision(blind_meta, out_rows, cfg):
+    """决定盲区候选的保底名额（top_n 内），返回 (quota, 说明)。
+
+    规则（2026-10-21 拍板）：
+      quota = max(3, min(5, ceil(top_n * 0.10)))
+      启用条件：盲区候选延迟中位 ≤ 产出延迟中位 + 10ms（第一档：≈持平）
+      自动关闭：连续 2 轮延迟差 > 30ms（质量持续变差时配额自动失效）
+
+    「产出延迟中位」取**正常规则截断后**的产出的中位 —— 盲区候选要竞争的
+    就是这个门槛。用正常截断的结果（而非盲区候选自身的池）作基准，才与
+    「它们能不能挤进 top-50」这个问题对齐。
+    """
+    if not blind_meta or not cfg.get("blind_quota_enabled", True):
+        return 0, ""
+    _bl = [b["avg_ms"] for b in blind_meta if b.get("avg_ms") is not None]
+    _out = [r.get("avg_ms") for r in out_rows if not r.get("probe_blind")
+            and r.get("avg_ms") is not None]
+    if not _bl or not _out:
+        return 0, ""
+    _bm, _om = statistics.median(_bl), statistics.median(_out)
+    _diff = _bm - _om
+    # 自动关闭的连击计数（跨轮持久化，存 .ci-state.json）
+    _state_path = cfg.get("empty_streak_file") or ""
+    _streak = 0
+    if _state_path and os.path.exists(_state_path):
+        try:
+            with open(_state_path, encoding="utf-8") as f:
+                _streak = int(json.load(f).get("blind_quota_off_streak", 0) or 0)
+        except Exception:
+            _streak = 0
+    _off_streak = _streak + 1 if _diff > _cfg_diff_off(cfg) else 0
+    global _BLIND_OFF_STREAK
+    _BLIND_OFF_STREAK = int(_off_streak)
+    if _off_streak >= int(cfg.get("blind_quota_off_rounds", 2) or 2):
+        return 0, (f"未启用（连续 {_off_streak} 轮延迟差 {_diff:+.1f}ms > "
+                   f"{_cfg_diff_off(cfg):.0f}ms，自动关闭）")
+    if _diff > _cfg_diff_enable(cfg):
+        return 0, (f"未启用（延迟差 {_diff:+.1f}ms 超过启用阈值 "
+                   f"{_cfg_diff_enable(cfg):.0f}ms）")
+    _q = filter_mod.blind_quota_size(
+        int(cfg.get("top_n", 50) or 50),
+        ratio=float(cfg.get("blind_quota_ratio", 0.10) or 0.10),
+        min_q=int(cfg.get("blind_quota_min", 3) or 3),
+        max_q=int(cfg.get("blind_quota_max", 5) or 5))
+    if _q <= 0:
+        return 0, ""
+    return _q, (f"启用 quota={_q}（延迟差 {_diff:+.1f}ms ≤ "
+                f"{_cfg_diff_enable(cfg):.0f}ms，第一档≈持平）")
 
 
 def _aligned_map(keys, results, what):
