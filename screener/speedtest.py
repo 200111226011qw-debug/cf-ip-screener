@@ -329,6 +329,29 @@ def score_scale_for_url(url, default=1.0):
     return _SCORE_SCALE_BY_BYTES.get(_n, default)
 
 
+def compare_dual_body(primary_map, compare_map, consensus_k=0.3):
+    """双体量对照：primary_map 与 compare_map 来自**两个不同的测量**。
+
+    刻意做成两个显式参数、并对「传了同一个对象」直接报错：
+    历史上正是在这里把两者混成同一份数据 —— 那样比值恒为 1、Spearman 恒
+    为 1，整个对照变成**自比自**，而日志看上去完全正常（是重构
+    `_aligned_map` 时顺手改错的，不是从零设计时写错的）。
+    「两个来源」现在写进签名 + 有守卫 + 有测试，不再靠「看起来对称」来保证。
+
+    primary_map：主口径（如 256KB）的 {key: result}
+    compare_map：对照口径（如 10MB）的 {key: result}
+    """
+    if primary_map is compare_map:
+        raise ValueError(
+            "双体量对照的两套口径必须来自**两个不同的测量**，"
+            "但传入了同一个对象——那样比值恒为 1、秩相关恒为 1，对照失去意义")
+    a = {k: v["speed_mbps"] for k, v in primary_map.items()
+         if v.get("speed_mbps", 0) > 0}
+    b = {k: v["speed_mbps"] for k, v in compare_map.items()
+         if v.get("speed_mbps", 0) > 0}
+    return compare_speed_sets(a, b, consensus_k=consensus_k)
+
+
 def compare_speed_sets(a, b, consensus_k=0.3):
     """对比两套体量（或两轮）测出的速度：相对排序是否一致。
 

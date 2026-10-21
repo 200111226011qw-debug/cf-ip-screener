@@ -76,5 +76,45 @@ class CompareSpeedSetsTest(unittest.TestCase):
         self.assertAlmostEqual(r["ratio_median"], 10.0)
 
 
+class DualBodySourceGuardTest(unittest.TestCase):
+    """「两套口径必须来自两个不同的测量」——结构保证，不靠「看起来对称」。
+
+    历史上真出过这个错：重构 `_aligned_map` 时把 `_a` 的来源从主口径顺手
+    改成了对照口径 → 比值恒为 1、Spearman 恒为 1，整个对照自比自，而
+    **日志看上去完全正常**。现在：两个来源写进函数签名 + 传入同一对象直接
+    报错 + 有测试。
+    """
+
+    def _map(self, speeds):
+        return {("ip%d" % i, 443): {"speed_mbps": s, "colo": "SJC",
+                                   "fail_reason": None, "full_ok": True}
+                for i, s in enumerate(speeds)}
+
+    def test_same_object_raises(self):
+        from screener import speedtest
+        m = self._map([10.0, 20.0, 30.0])
+        with self.assertRaises(ValueError):
+            speedtest.compare_dual_body(m, m)
+
+    def test_two_different_maps_work(self):
+        from screener import speedtest
+        a = self._map([1.0, 2.0, 3.0])
+        b = self._map([10.0, 20.0, 30.0])
+        r = speedtest.compare_dual_body(a, b)
+        self.assertIn("n_common", r)
+        self.assertEqual(r["n_common"], 3)
+        # 主口径小、对照口径大 → 绝对比应显著小于 1
+        self.assertLess(r["ratio_median"], 1.0)
+        # 相对次序一致 → 秩相关为 1
+        self.assertAlmostEqual(r["spearman"], 1.0)
+
+    def test_inverted_order_detected(self):
+        from screener import speedtest
+        a = self._map([1.0, 2.0, 3.0, 4.0])
+        b = self._map([40.0, 30.0, 20.0, 10.0])
+        r = speedtest.compare_dual_body(a, b)
+        self.assertLess(r["spearman"], 0)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -922,14 +922,15 @@ def run_once(args, overrides, cfg=None):
             _cmap = _aligned_map(all_keys, _cres, "双体量对照结果")
             # **两套口径必须来自两个不同的测量**：A = 主口径（_raw0，即首轮
             # 256KB 的结果），B = 对照口径（_cmap，即同一批候选的 10MB 结果）。
-            # 两者取自同一份数据就失去对照意义（比值恒为 1）。
+            # 两者取自同一份数据就失去对照意义（比值恒为 1）——这在历史上
+            # 真发生过（重构时顺手改错），所以 compare_dual_body 现在
+            # 对「传入同一对象」直接报错。
             _a = {k: sp for k, sp in _raw0.items()
                   if sp.get("speed_mbps", 0) > 0}
             _b = {k: sp for k, sp in _cmap.items()
                   if sp.get("speed_mbps", 0) > 0}
-            _cm = speedtest.compare_speed_sets(
-                {k: v["speed_mbps"] for k, v in _a.items()},
-                {k: v["speed_mbps"] for k, v in _b.items()},
+            _cm = speedtest.compare_dual_body(
+                _raw0, _cmap,
                 consensus_k=float(cfg.get("speed_consensus_k", 0.3)))
             _cov = len(_b) / max(1, len(all_keys))
             log.info(f"      对照覆盖：{len(_b)}/{len(all_keys)} "
@@ -1345,6 +1346,9 @@ def _aligned_map(keys, results, what):
         log.error(f"      [ERROR] {what} 长度不一致（结果 {len(results)} vs "
               f"候选 {len(keys)}）——按位置对齐的契约被破坏，"
               f"本轮产出不可信（哪个候选对应哪个测速结果已无法确定）")
+        log.error("      [ERROR] 可能原因：① 代码改动破坏了「结果与候选等长」"
+              "的契约（改代码后重跑）；② 候选池返回了异常数据（数据问题，"
+              "下一轮可能自行恢复）。本轮已终止，不会提交结果。")
         raise RuntimeError(
             f"{what} 长度不一致：结果 {len(results)} vs 候选 {len(keys)}")
     return {k: sp for k, sp in zip(keys, results)}
