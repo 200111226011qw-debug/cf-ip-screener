@@ -209,6 +209,34 @@ class BlindReportTest(unittest.TestCase):
             self.assertNotIn("域名可达但无速度数据", content)
 
 
+class ForbiddenCandidateSelectionTest(unittest.TestCase):
+    """回收列表的来源：**只有 403 二次验证通过的**。
+
+    连接层失败（connect / TLS 握手失败）是「真不可用」，混进盲区会把不可用
+    节点当成可用的放行。所以按 fail_reason == "forbidden" 精确取，不用
+    「所有失败候选」这种宽口径。
+    """
+
+    def test_only_forbidden_is_selected(self):
+        from screener import speedtest
+        keys = [("1.1.1.1", 443), ("2.2.2.2", 443), ("3.3.3.3", 443),
+                ("4.4.4.4", 443)]
+        results = [
+            {"fail_reason": "forbidden"},        # 403 → 盲区候选
+            {"fail_reason": "connect"},          # 连接层失败 → 不可用
+            {"fail_reason": "rate_limited"},     # 429 → 风控
+            {"fail_reason": "timeout"},          # 超时
+        ]
+        out = speedtest.forbidden_candidates(keys, results)
+        self.assertEqual([k for k, _ in out], [("1.1.1.1", 443)])
+
+    def test_empty_when_no_forbidden(self):
+        from screener import speedtest
+        keys = [("1.1.1.1", 443)]
+        results = [{"fail_reason": "connect"}]
+        self.assertEqual(speedtest.forbidden_candidates(keys, results), [])
+
+
 class BlindRecoveryLookupTest(unittest.TestCase):
     """回收逻辑的**查找对象**必须正确（压测暴露过真 bug）。
 

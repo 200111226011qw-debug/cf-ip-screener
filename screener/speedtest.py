@@ -167,6 +167,18 @@ def speed_threshold(first, consensus_k=0.3, floor_speed=0.0):
     return threshold
 
 
+def forbidden_candidates(all_keys, results):
+    """返回 [(key, result)]：只含 **403**（fail_reason == "forbidden"）的候选。
+
+    **只有 403 进二次验证**：连接层失败（connect / TLS 握手失败）与
+    「403 但普通域名可达」（探针盲区）性质完全不同——前者是**真不可用**，
+    混进盲区会把不可用节点当成可用的放行。故这里按 fail_reason 精确取，
+    不用「所有失败候选」这种宽口径。
+    """
+    return [(k, sp) for k, sp in zip(all_keys, results)
+            if sp.get("fail_reason") == "forbidden"]
+
+
 def _eval_consensus_key(rounds, raw_rounds, key, threshold, n):
     """判定单个 key 是否通过共识，返回 (keep, reason)。
 

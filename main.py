@@ -870,8 +870,7 @@ def run_once(args, overrides, cfg=None):
             _ppath = _pu.path or "/"
             if _pu.query:
                 _ppath += "?" + _pu.query
-            _c403 = [(k, sp) for k, sp in zip(all_keys, r1)
-                      if sp.get("fail_reason") == "forbidden"]
+            _c403 = speedtest.forbidden_candidates(all_keys, r1)
             if _c403:
                 log.info(f"      403 二次验证：{len(_c403)} 个 403 候选"
                       f"再打一次普通域名 {_phost}{_ppath} …")
@@ -1027,6 +1026,15 @@ def run_once(args, overrides, cfg=None):
             # 结果」而实际是 0 条：安全网一直是空转，却披着成功的日志。
             log.info(f"      探针盲区候选：回收 {len(_blind)} 个，"
                   f"实际加入结果 {_added} 个（速度未知，按 (丢包率, 延迟) 排序）")
+            # **不变量检查**：回收的候选都通过了连通性筛选 → 必然能在共识前
+            # 的行里找到 → 实际加入数应等于回收数。对不上就是逻辑错位
+            # （正是那个空转 bug 的形态）。**关键路径必须能自己报警**，
+            # 不能等「平时不触发的机制」出事时才发现。
+            if _added != len(_blind):
+                log.error(f"      [ERROR] 盲区回收不变量被破坏：回收 "
+                      f"{len(_blind)} 个、实际加入 {_added} 个 —— 回收逻辑与"
+                      f"候选列表对不上，安全网可能失效（详见 "
+                      f"docs/limiting-experiment-2026-10-21.md 的空转复盘）")
         elif _blind:
             log.info(f"      探针盲区候选 {len(_blind)} 条未进主结果"
                   f"（speed_blind_output={_blind_out}）")
