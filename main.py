@@ -607,6 +607,10 @@ def run_once(args, overrides, cfg=None):
     # 收满门禁剔除的条数（首轮 + 各复测轮累计）；报告漏斗单列一层，
     # 使「门禁剔除的」与「其他原因剔除的」可区分。
     speed_gate_dropped = 0
+    # 探针盲区（403 二次验证）相关：函数级初始化，--no-speed 时也不会
+    # NameError（后面的日志块在函数级引用它们）。
+    _blind = []
+    _blind_meta = []
     if cfg["speed_test"] and clean:
         # 测速是带宽密集型，候选太多会撞 CI 超时。
         # 按延迟排序取前 N（延迟低的更可能是优质节点，性价比最高）。
@@ -858,7 +862,6 @@ def run_once(args, overrides, cfg=None):
         #   200 → 标记 probe_blind（域名可达、速度未知）
         #   其它/失败 → 维持原判（真不可用；注意 TLS/连接层失败与 403 是
         #              两类，不能混进「假阴性」）
-        _blind = []
         _blind_url = cfg.get("speed_blind_probe_url") or ""
         _blind_out = (cfg.get("speed_blind_output") or "main").lower()
         if _blind_url and _blind_out != "off":
@@ -1004,6 +1007,13 @@ def run_once(args, overrides, cfg=None):
                     r["speed_mbps"] = None
                     r["probe_blind"] = True
                     r["colo"] = _colo or r.get("colo")
+                    # 记下延迟/丢包，供后面与最终产出做对比（**即使这一条
+                    # 最终被 top_n 截掉也要记**——那正是「安全网有没有顶得上」
+                    # 的判据；只在最终结果里找盲区行的话，截掉了就什么
+                    # 都看不到）。
+                    _blind_meta.append({"ip": r["ip"], "port": r["port"],
+                                        "avg_ms": r.get("avg_ms"),
+                                        "loss_rate": r.get("loss_rate")})
                     clean.append(r)
                     break
             log.info(f"      探针盲区候选 {len(_blind)} 条进入结果"
@@ -1160,13 +1170,17 @@ def run_once(args, overrides, cfg=None):
     # 探针盲区在**最终结果**里的条数（不是回收数）——回收的候选可能被
     # top_n 截断掉，报告必须报最终值，否则口径与 clean-ips.txt 不一致。
     _blind_final = sum(1 for r in clean if r.get("probe_blind"))
-    if _blind_final:
-        log.info(f"      探针盲区候选：最终保留 {_blind_final} 条"
-              f"（域名可达但无速度数据）")
+    if _blind or _blind_final:
+        # **这行必须无条件打印**（哪怕最终保留 0 条）——「回收了 N 个但一个
+        # 都没进产出」正是安全网判读需要的信息；早前把它放在
+        # `if _blind_final:` 里，截掉时整段日志消失，判读表最关键的那一
+        # 格反而看不到。
+        log.info(f"      探针盲区：回收 {len(_blind)} 个 → 最终保留 "
+              f"{_blind_final} 个（速度未知，按 (丢包率, 延迟) 排序）")
         # 安全网的触发阈值：回收候选的延迟 vs 最终 top-N 的延迟。
-        # 两数一对比就知道「候选池变薄到什么程度时它们才顶得上」。
-        _bl = [r.get("avg_ms") for r in clean if r.get("probe_blind")
-               and r.get("avg_ms") is not None]
+        # 用**回收候选**（而不是最终结果里的盲区行）——被 top_n 截掉的那些
+        # 也要参与比较，否则「为什么没顶得上」就无从判断。
+        _bl = [b["avg_ms"] for b in _blind_meta if b.get("avg_ms") is not None]
         _tl = [r.get("avg_ms") for r in clean if not r.get("probe_blind")
                and r.get("avg_ms") is not None]
         if _bl and _tl:
