@@ -24,22 +24,34 @@ class AlignedContractTest(unittest.TestCase):
     def test_equal_lengths_pass(self):
         keys = [("1.1.1.1", 443), ("2.2.2.2", 443)]
         results = [{"speed_mbps": 1.0}, {"speed_mbps": 2.0}]
-        main_mod._assert_aligned(keys, results, "测试")   # 不抛即通过
+        m = main_mod._aligned_map(keys, results, "测试")
+        self.assertEqual(len(m), 2)
 
     def test_mismatch_raises_runtime_error(self):
         keys = [("1.1.1.1", 443), ("2.2.2.2", 443)]
         results = [{"speed_mbps": 1.0}]
         with self.assertRaises(RuntimeError):
-            main_mod._assert_aligned(keys, results, "测试")
+            main_mod._aligned_map(keys, results, "测试")
 
     def test_empty_both_ok(self):
-        main_mod._assert_aligned([], [], "测试")
+        self.assertEqual(main_mod._aligned_map([], [], "测试"), {})
 
     def test_backstop_uses_same_exception_type(self):
         """兜底（forbidden_candidates）与主检查抛同一种异常。"""
         from screener import speedtest
         with self.assertRaises(RuntimeError):
             speedtest.forbidden_candidates([("1.1.1.1", 443)], [])
+
+    def test_map_cannot_be_built_before_the_check(self):
+        """检查与构造合成一步 → 映射只可能在对齐通过后被造出来。
+
+        若把「先建映射、后检查」写成两行，顺序错误就会静默发生
+        （zip 已经截断，检查再报错也晚了）。
+        """
+        keys = [("1.1.1.1", 443), ("2.2.2.2", 443)]
+        results = [{"speed_mbps": 1.0}]
+        with self.assertRaises(RuntimeError):
+            main_mod._aligned_map(keys, results, "测试")
 
 
 if __name__ == "__main__":

@@ -103,6 +103,13 @@ jobs:
           path: ${{ env.PROJECT_DIR || '.' }}/result/
 
       - name: 提交结果
+        # **显式 success()**：只有前面的步骤全成功才提交。
+        # 失败时（空结果守卫退出码 3 / 对齐契约破坏的 RuntimeError 退出码 1
+        # / 其它异常）**一律不提交**——失败轮的 result/ 可能是空的、也可能
+        # 是「候选与测速结果配错」的坏数据，提交上去比不提交更糟。
+        # （默认行为本来就是「前序失败则跳过」，这里写出来是为了防止将来
+        #  有人照抄上面 artifact 步骤的 `if: always()` 到这一步。）
+        if: success()
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"

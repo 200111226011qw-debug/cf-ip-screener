@@ -678,10 +678,9 @@ def run_once(args, overrides, cfg=None):
         rounds_n = max(1, int(cfg.get("speed_rounds", 1)))
         # 第 1 轮全量测速。
         r1 = asyncio.run(st.run(all_keys, avg_map=avg_map))
-        # **对齐契约**：r1[i] 必须是 all_keys[i] 的结果。下游多处按位置 zip
-        # （forbidden_candidates / round_data 构造 / 双体量对照…）。
-        _assert_aligned(all_keys, r1, "首轮测速结果")
-        _raw0 = {k: sp for k, sp in zip(all_keys, r1)}
+        # **对齐契约**：r1[i] 必须是 all_keys[i] 的结果。检查与映射构造合成
+        # 一步（_aligned_map）——顺序由代码保证，不靠注释声称。
+        _raw0 = _aligned_map(all_keys, r1, "首轮测速结果")
         # round_data 参与共识（过收满门禁）；round_raw 保留**未过门禁**的原始
         # 数据——共识剔除细分时要用它说清「某轮到底是 429 还是短响应」。
         round_raw = [dict(_raw0)]
@@ -825,8 +824,7 @@ def run_once(args, overrides, cfg=None):
             log.info(f"      复测第 {ri}/{rounds_n} 轮（{len(ok_keys)} 个"
                   f"首轮成功候选）...")
             rr = asyncio.run(st.run(ok_keys, avg_map=avg_map))
-            _assert_aligned(ok_keys, rr, f"复测第 {ri} 轮结果")
-            _raw = {k: sp for k, sp in zip(ok_keys, rr)}
+            _raw = _aligned_map(ok_keys, rr, f"复测第 {ri} 轮结果")
             round_raw.append(dict(_raw))
             _rnd = dict(_raw)
             if gate_on:
@@ -915,10 +913,13 @@ def run_once(args, overrides, cfg=None):
                 concurrency=int(cfg.get("speed_compare_concurrency", 2) or 2),
                 rate_limit=_cmp_rate)
             _cres = asyncio.run(_cmp.run(all_keys, avg_map=avg_map))
-            _assert_aligned(all_keys, _cres, "双体量对照结果")
-            _a = {k: sp for k, sp in zip(all_keys, r1)
+            _cmap = _aligned_map(all_keys, _cres, "双体量对照结果")
+            # **两套口径必须来自两个不同的测量**：A = 主口径（_raw0，即首轮
+            # 256KB 的结果），B = 对照口径（_cmap，即同一批候选的 10MB 结果）。
+            # 两者取自同一份数据就失去对照意义（比值恒为 1）。
+            _a = {k: sp for k, sp in _raw0.items()
                   if sp.get("speed_mbps", 0) > 0}
-            _b = {k: sp for k, sp in zip(all_keys, _cres)
+            _b = {k: sp for k, sp in _cmap.items()
                   if sp.get("speed_mbps", 0) > 0}
             _cm = speedtest.compare_speed_sets(
                 {k: v["speed_mbps"] for k, v in _a.items()},
@@ -1312,8 +1313,10 @@ def run_once(args, overrides, cfg=None):
     return 0
 
 
-def _assert_aligned(keys, results, what):
-    """对齐契约检查：results[i] 必须是 keys[i] 的结果。
+def _aligned_map(keys, results, what):
+    """对齐契约检查 + 构造「候选 → 结果」映射。
+
+    契约：results[i] 必须是 keys[i] 的结果。
 
     长度不等时，下游按位置 zip 会**静默截断** → 后半段候选压根进不了
     列表 → 回收漏掉它们，而基于同一列表的不变量检查仍显示「相等」
@@ -1323,6 +1326,10 @@ def _assert_aligned(keys, results, what):
     速度归属、共识、最终名单全可能配错。所以这属于**编程错误**，不是
     数据状况：必须让整轮**崩掉**（响亮失败），而不是记条日志继续跑出
     一个看似正常、实则可能配错的产出。
+
+    **检查与构造合成一步**：返回的字典**只可能在对齐通过后被造出来** ——
+    这样「先建映射、后检查」的顺序错误就不可能发生（顺序由代码保证，
+    不是靠注释声称）。
 
     语义统一：这里（调用点，主检查，带运行上下文）与
     `speedtest.forbidden_candidates()`（兜底，供其它调用方）**都是抛
@@ -1334,6 +1341,7 @@ def _assert_aligned(keys, results, what):
               f"本轮产出不可信（哪个候选对应哪个测速结果已无法确定）")
         raise RuntimeError(
             f"{what} 长度不一致：结果 {len(results)} vs 候选 {len(keys)}")
+    return {k: sp for k, sp in zip(keys, results)}
 
 
 def empty_result_guard(clean, results, cfg, speed_candidate_count=None):
