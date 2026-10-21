@@ -678,6 +678,14 @@ def run_once(args, overrides, cfg=None):
         rounds_n = max(1, int(cfg.get("speed_rounds", 1)))
         # 第 1 轮全量测速。
         r1 = asyncio.run(st.run(all_keys, avg_map=avg_map))
+        # **对齐契约**：r1[i] 必须是 all_keys[i] 的结果。下游多处按位置 zip
+        # （forbidden_candidates / 双体量对照…），长度不等时 zip 会**静默截断**
+        # → 候选被漏掉而不变量检查仍显示「相等」（N 与 M 同时变小）→ 不报警。
+        # 这里显式检查并报警，不把契约只留在注释里。
+        if len(r1) != len(all_keys):
+            log.error(f"      [ERROR] 测速结果与候选列表长度不一致"
+                  f"（{len(r1)} vs {len(all_keys)}）——按位置对齐的契约被破坏，"
+                  f"下游的回收/对照逻辑会静默漏候选")
         _raw0 = {k: sp for k, sp in zip(all_keys, r1)}
         # round_data 参与共识（过收满门禁）；round_raw 保留**未过门禁**的原始
         # 数据——共识剔除细分时要用它说清「某轮到底是 429 还是短响应」。

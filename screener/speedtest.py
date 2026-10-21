@@ -179,7 +179,16 @@ def forbidden_candidates(all_keys, results):
     的不变量检查，若列表里有重复行，加入数会多算 → 不变量误报 BROKEN。
     （上游的 candidates 本来就是按 (ip, port) 去重的 dict，但依赖调用方
     的不变式不稳妥，这里自己兜住。）
+
+    **all_keys 与 results 必须等长且按位置对齐**（results[i] 是 all_keys[i]
+    的测速结果）。长度不等时 zip 会**静默截断**——后半段候选压根进不了
+    这个列表，回收会漏掉它们，而不变量检查（N 与 M 同时变小、仍然相等）
+    **不会报警**。所以这里直接抛错，把「对齐」这条契约显式化。
     """
+    if len(all_keys) != len(results):
+        raise ValueError(
+            f"all_keys 与 results 长度不一致（{len(all_keys)} vs "
+            f"{len(results)}）——按位置对齐的契约被破坏，回收会静默漏候选")
     out = []
     seen = set()
     for k, sp in zip(all_keys, results):
