@@ -99,18 +99,31 @@ print(f"  回收/加入/保留  : {recovered} / {added} / {kept}")
 print(f"  纯净可用        : {clean}")
 print()
 
+# ── 先作一个**不影响判定**的提示（必须在判定链之外）──
+# 状态码计数 < 测速候选 = 有候选没走到 HTTP 层（超时 / 连接失败 / TLS 失败）
+# —— 这是**正常**的（压测注入的 IP 混有连接层失败很常见），只作提示。
+# WARNING 放成 elif 会把后面的判定分支整条吞掉（判定停在 "?"），
+#          所以它必须独立于判定链。
+if n_speed and n_total_status < n_speed:
+    print(f"  [info] 有 {n_speed - n_total_status} 个候选没走到 HTTP 层"
+          f"（超时/连接失败）——正常，不影响判定")
+
 # ── INVALID：**压测前提不成立**，本轮测不出安全网的真实行为 ──
-#  条件 1：主漏斗没有 100% 崩溃（存在 200 响应 → 主路径没饿死）
-#  条件 2：候选数 ≥ top_n → 存在截断可能，「全都进了」说明不了任何事
-# 注意：**不是**「结果全进了」——候选数少、没有截断是压测的正常形态。
+#  条件 1：主漏斗没有 100% 崩溃（存在任何非 403 响应 → 主路径没饿死）
+#  条件 2：状态码计数 **>** 测速候选 —— 日志重复计数（真正的不自洽）。
+#          **方向要分清**：状态码计数 **<** 测速候选 = 有候选没走到 HTTP 层
+#          （超时 / 连接失败 / TLS 失败）——那是**正常**的，只作提示，
+#          不判 INVALID（见上面的提示，它独立于判定链）。
+#  条件 3：测速候选数 ≥ top_n → 存在截断可能，「全都进了」说明不了任何事
+# 注意 INVALID **不是**「结果全进了」——候选数少、没有截断是压测的正常形态。
 if n_non403 > 0:
     verdict = "INVALID"
     reason = (f"主漏斗没有 100% 崩溃（存在 {n_non403} 个非 403 响应）"
               f"→ 主路径没饿死，测不到安全网的真实行为")
-elif n_speed and n_total_status != n_speed:
+elif n_speed and n_total_status > n_speed:
     verdict = "INVALID"
-    reason = (f"状态码计数 {n_total_status} 与测速候选 {n_speed} 对不上"
-              f" → 日志不自洽或部分候选没被测到，这轮不算数")
+    reason = (f"状态码计数 {n_total_status} > 测速候选 {n_speed} → 日志重复计数，"
+              f"这轮不算数")
 elif n_speed >= top_n:
     verdict = "INVALID"
     reason = (f"测速候选 {n_speed} ≥ top_n {top_n} → 存在截断可能，"

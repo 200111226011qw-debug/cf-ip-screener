@@ -236,6 +236,28 @@ class ForbiddenCandidateSelectionTest(unittest.TestCase):
         results = [{"fail_reason": "connect"}]
         self.assertEqual(speedtest.forbidden_candidates(keys, results), [])
 
+    def test_deduped_by_key(self):
+        """按 (ip, port) 去重 —— 重复行会让「回收数 vs 实际加入数」的不变量
+        多算 → 误报 BROKEN。（上游本来是去重的 dict，但不该依赖调用方的
+        不变式。）"""
+        from screener import speedtest
+        keys = [("1.1.1.1", 443), ("1.1.1.1", 443), ("2.2.2.2", 443)]
+        results = [{"fail_reason": "forbidden"},
+                   {"fail_reason": "forbidden"},
+                   {"fail_reason": "forbidden"}]
+        out = speedtest.forbidden_candidates(keys, results)
+        self.assertEqual(len(out), 2)
+        self.assertEqual([k for k, _ in out],
+                         [("1.1.1.1", 443), ("2.2.2.2", 443)])
+
+    def test_same_ip_different_port_kept(self):
+        """同 IP 不同端口是**不同**候选，不能被去重掉。"""
+        from screener import speedtest
+        keys = [("1.1.1.1", 443), ("1.1.1.1", 8443)]
+        results = [{"fail_reason": "forbidden"}, {"fail_reason": "forbidden"}]
+        out = speedtest.forbidden_candidates(keys, results)
+        self.assertEqual(len(out), 2)
+
 
 class BlindRecoveryLookupTest(unittest.TestCase):
     """回收逻辑的**查找对象**必须正确（压测暴露过真 bug）。

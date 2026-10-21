@@ -174,9 +174,22 @@ def forbidden_candidates(all_keys, results):
     「403 但普通域名可达」（探针盲区）性质完全不同——前者是**真不可用**，
     混进盲区会把不可用节点当成可用的放行。故这里按 fail_reason 精确取，
     不用「所有失败候选」这种宽口径。
+
+    **按 (ip, port) 去重**：调用方拿这个列表去做「回收数 vs 实际加入数」
+    的不变量检查，若列表里有重复行，加入数会多算 → 不变量误报 BROKEN。
+    （上游的 candidates 本来就是按 (ip, port) 去重的 dict，但依赖调用方
+    的不变式不稳妥，这里自己兜住。）
     """
-    return [(k, sp) for k, sp in zip(all_keys, results)
-            if sp.get("fail_reason") == "forbidden"]
+    out = []
+    seen = set()
+    for k, sp in zip(all_keys, results):
+        if sp.get("fail_reason") != "forbidden":
+            continue
+        if k in seen:
+            continue
+        seen.add(k)
+        out.append((k, sp))
+    return out
 
 
 def _eval_consensus_key(rounds, raw_rounds, key, threshold, n):
