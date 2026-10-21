@@ -13,6 +13,15 @@
 
 若将来**有意**变更输出格式（例如 null → "N/A"），必须同步更新本文件并在
 CHANGELOG 说明——那是契约变更，不是回归。
+
+**覆盖边界**（两个文件各管一段，不要以为 characterization 覆盖全部）：
+- 本文件覆盖 **573f731 之后 output.py 新增的 None 语义与 probe_blind 标记
+  分支**（`域名可达` / `域名可达(无速度数据)` 两个分支、json 的 null、
+  txt 的无速度字段）。
+- `tests/test_output_characterization.py` 锁定的是 **573f731 当时**的
+  output.py 行为，**不覆盖后续新增的分支**——它还原到那个状态是有意的：
+  它的定位是「锁定当时的行为」，不是「覆盖所有行为」。改 output.py 的新
+  分支时，红的应该是本文件，不是 characterization。
 """
 
 import json
