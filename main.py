@@ -1114,7 +1114,7 @@ def run_once(args, overrides, cfg=None):
             top_n=cfg["top_n"],
             cf_nets=cf_filter_nets,
         )
-        _quota, _qnote = _blind_quota_decision(_blind_meta, clean, cfg)
+        _quota, _qnote = _blind_quota_decision(_blind_meta, clean, cfg, _pool)
         if _quota:
             clean = filter_mod.filter_clean(
                 _pool,
@@ -1357,17 +1357,23 @@ def _cfg_diff_off(cfg):
     return float(cfg.get("blind_quota_disable_diff_ms", 30) or 30)
 
 
-def _blind_quota_decision(blind_meta, out_rows, cfg):
+def _blind_quota_decision(blind_meta, out_rows, cfg, pool_rows=None):
     """决定盲区候选的保底名额（top_n 内），返回 (quota, 说明)。
 
     规则（2026-10-21 拍板）：
       quota = max(3, min(5, ceil(top_n * 0.10)))
       启用条件：盲区候选延迟中位 ≤ 产出延迟中位 + 10ms（第一档：≈持平）
       自动关闭：连续 2 轮延迟差 > 30ms（质量持续变差时配额自动失效）
+      **前提**：池内盲区候选数 ≥ quota（凑不满就不保底——「数据不支持时
+              不硬塞」；名额保证的前提是候选够）
 
     「产出延迟中位」取**正常规则截断后**的产出的中位 —— 盲区候选要竞争的
     就是这个门槛。用正常截断的结果（而非盲区候选自身的池）作基准，才与
     「它们能不能挤进 top-50」这个问题对齐。
+
+    pool_rows：截断前的候选池，用来数**实际**有多少盲区候选能占名额。
+    盲区候选数不够 quota 时名额无从保证 → 返回 0（按正常排序），并把
+    原因写进说明（**打实际值，不打意图值**）。
     """
     if not blind_meta or not cfg.get("blind_quota_enabled", True):
         return 0, ""
@@ -1403,8 +1409,18 @@ def _blind_quota_decision(blind_meta, out_rows, cfg):
         max_q=int(cfg.get("blind_quota_max", 5) or 5))
     if _q <= 0:
         return 0, ""
+    # 池内**实际**能占名额的盲区候选数（不是回收数——回收的候选可能已被
+    # 速度门槛/机房过滤剔除）。凑不满 quota → 名额保证不成立。
+    if pool_rows is None:
+        _n_pool = len(blind_meta)
+    else:
+        _n_pool = sum(1 for r in pool_rows if r.get("probe_blind"))
+    if _n_pool < _q:
+        return 0, (f"quota={_q} 但池内盲区候选仅 {_n_pool} 个 < {_q} → "
+                   f"不保底（按正常排序）")
     return _q, (f"启用 quota={_q}（延迟差 {_diff:+.1f}ms ≤ "
-                f"{_cfg_diff_enable(cfg):.0f}ms，第一档≈持平）")
+                f"{_cfg_diff_enable(cfg):.0f}ms，第一档≈持平；"
+                f"池内盲区候选 {_n_pool} 个 ≥ {_q}）")
 
 
 def _aligned_map(keys, results, what):

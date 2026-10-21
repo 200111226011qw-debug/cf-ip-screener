@@ -22,9 +22,11 @@ from screener import filter as filter_mod  # noqa: E402
 
 
 def _row(ip, lat, blind=False, loss=0.0):
+    # 盲区候选的速度是 **None**（不是 0）——「没测到」≠「测出 0」。
+    # 输出层据此把标记写成「域名可达(无速度数据)」。
     return {"ip": ip, "port": 443, "avg_ms": lat, "loss_rate": loss,
             "tls_ok": True, "colo": "SJC", "native": False,
-            "speed_mbps": 50.0, "probe_blind": blind}
+            "speed_mbps": None if blind else 50.0, "probe_blind": blind}
 
 
 class QuotaSizeTest(unittest.TestCase):
@@ -132,6 +134,69 @@ class QuotaDecisionTest(unittest.TestCase):
         q, note = main_mod._blind_quota_decision(blind_meta, out_rows, cfg)
         self.assertEqual(q, 0)
         self.assertIn("自动关闭", note)
+
+    def test_pool_blind_count_below_quota_no_guarantee(self):
+        """池内盲区候选不足 quota → 不保底（数据不支持时不硬塞）。"""
+        blind_meta = [{"avg_ms": 2.2}] * 3
+        out_rows = [_row(f"n{i}", 2.0) for i in range(50)]
+        pool = [_row(f"b{i}", 2.2, blind=True) for i in range(3)] + out_rows
+        q, note = main_mod._blind_quota_decision(blind_meta, out_rows,
+                                                 self._cfg(), pool)
+        self.assertEqual(q, 0)
+        self.assertIn("仅 3 个", note)
+
+
+class WrittenOutputTest(unittest.TestCase):
+    """端到端：写出去的 clean-ips.txt 必须与配额一致。
+
+    曾经的空转 bug（回收的候选一条都没进结果）就是「日志说进了、文件里
+    没有」——所以这里直接检查**文件内容**，而不是检查中间变量。
+    """
+
+    def _cfg_out(self, outdir):
+        return {"output_txt": "clean-ips.txt", "output_json": "clean-ips.json",
+                "output_txt_by_isp": "clean-ips-{isp}.txt",
+                "output_json_by_isp": "clean-ips-{isp}.json"}
+
+    def test_written_file_has_exactly_quota_blind_lines(self):
+        import tempfile
+        from screener import output as output_mod
+        blind_rows = [_row(f"172.65.54.{i}", 4.9, blind=True) for i in range(16)]
+        normal_rows = [_row(f"104.16.{i // 256}.{i % 256}", 2.0 + i * 0.01)
+                       for i in range(200)]
+        pool = blind_rows + normal_rows
+        pool.sort(key=lambda r: (r["loss_rate"], r["avg_ms"]))
+        quota = filter_mod.blind_quota_size(50)
+        clean = filter_mod.filter_clean(pool, max_latency_ms=400,
+                                       max_loss_rate=0.34, min_speed_mbps=0,
+                                       top_n=50, blind_quota=quota)
+        td = tempfile.mkdtemp()
+        output_mod.write_all(clean, td, self._cfg_out(td))
+        with open(os.path.join(td, "clean-ips.txt"), encoding="utf-8") as f:
+            lines = [l for l in f.read().splitlines() if l.strip()]
+        blind_lines = [l for l in lines if "域名可达(无速度数据)" in l]
+        self.assertEqual(len(lines), 50)            # 总条数 = top_n
+        self.assertEqual(len(blind_lines), quota)   # 盲区条数 = quota
+
+    def test_written_file_without_quota_has_no_blind_lines(self):
+        """对照组：不启用配额时，文件里不应出现盲区标记。"""
+        import tempfile
+        from screener import output as output_mod
+        blind_rows = [_row(f"172.65.54.{i}", 400.0, blind=True)
+                      for i in range(16)]
+        normal_rows = [_row(f"104.16.{i // 256}.{i % 256}", 2.0 + i * 0.01)
+                       for i in range(200)]
+        pool = blind_rows + normal_rows
+        pool.sort(key=lambda r: (r["loss_rate"], r["avg_ms"]))
+        clean = filter_mod.filter_clean(pool, max_latency_ms=400,
+                                       max_loss_rate=0.34, min_speed_mbps=0,
+                                       top_n=50)
+        td = tempfile.mkdtemp()
+        output_mod.write_all(clean, td, self._cfg_out(td))
+        with open(os.path.join(td, "clean-ips.txt"), encoding="utf-8") as f:
+            lines = [l for l in f.read().splitlines() if l.strip()]
+        self.assertEqual(len(lines), 50)
+        self.assertEqual([l for l in lines if "域名可达" in l], [])
 
 
 if __name__ == "__main__":

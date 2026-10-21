@@ -54,6 +54,11 @@
   - 依据（2026-10-21 18:30 健康期数据）：盲区候选延迟中位 2.2ms vs 产出
     2.0ms（差 **0.2ms**，≈持平），13 个回收候选只进 1 个 —— 它们不是「本质上
     更差」，是「恰好卡在 top_n 边界」。
+  - **已端到端验证**（2026-10-21 19:41 UTC，run `39663353857`）：配额启用
+    （延迟差 +0.1ms ≤ 10ms，第一档），`quota=5`；日志「回收 16 个 → 最终
+    保留 5 个」；写出的 `result/clean-ips.txt` 恰好 50 行、其中恰好 **5 行**
+    带「域名可达(无速度数据)」标记。**对照**：配额落地前的 18:33 那轮同样
+    50 行里只有 **1 行**带盲区标记 → 贡献从 1 提到 5 是**实测**的。
   - 开关：`blind_quota_enabled` / `blind_quota_ratio` / `blind_quota_min` /
     `blind_quota_max` / `blind_quota_enable_diff_ms` /
     `blind_quota_disable_diff_ms` / `blind_quota_off_rounds`。
