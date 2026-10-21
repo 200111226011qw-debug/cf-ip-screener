@@ -1207,42 +1207,51 @@ def run_once(args, overrides, cfg=None):
     # 探针盲区在**最终结果**里的条数（不是回收数）——回收的候选可能被
     # top_n 截断掉，报告必须报最终值，否则口径与 clean-ips.txt 不一致。
     _blind_final = sum(1 for r in clean if r.get("probe_blind"))
-    if _blind or _blind_final:
-        # **这行必须无条件打印**（哪怕最终保留 0 条）——「回收了 N 个但一个
-        # 都没进产出」正是安全网判读需要的信息；早前把它放在
-        # `if _blind_final:` 里，截掉时整段日志消失，判读表最关键的那一
-        # 格反而看不到。
-        log.info(f"      探针盲区：回收 {len(_blind)} 个 → 最终保留 "
-              f"{_blind_final} 个（速度未知，按 (丢包率, 延迟) 排序）")
-        # 安全网的触发阈值：回收候选的延迟 vs 最终 top-N 的延迟。
-        # 用**回收候选**（而不是最终结果里的盲区行）——被 top_n 截掉的那些
-        # 也要参与比较，否则「为什么没顶得上」就无从判断。
-        _bl = [b["avg_ms"] for b in _blind_meta if b.get("avg_ms") is not None]
-        _tl = [r.get("avg_ms") for r in clean if not r.get("probe_blind")
-               and r.get("avg_ms") is not None]
-        if _bl and _tl:
-            import statistics as _st
-            log.info(f"      盲区候选延迟中位 {_st.median(_bl):.1f}ms vs "
-                  f"最终产出延迟中位 {_st.median(_tl):.1f}ms"
-                  f"（盲区候选更慢 → 常规轮次顶不上，属预期）")
-        # score 分布对比：盲区候选的速度项**整块跳过**（贡献 0 分），比同
-        # 类实测节点系统性偏低 5~15 分 → 可能在「延迟 200-400ms + 丢包
-        # 5-15%」这个窄带把 good 压成 moderate。score 在选品之后算，不影响
-        # 入选，只影响标签。
-        _bs = [r.get("score") for r in clean if r.get("probe_blind")
-               and r.get("score") is not None]
-        _ts = [r.get("score") for r in clean if not r.get("probe_blind")
-               and r.get("score") is not None]
-        if _bs and _ts:
-            import statistics as _st
-            _bg = sum(1 for r in clean if r.get("probe_blind")
-                      and r.get("status") == "good")
-            _tg = sum(1 for r in clean if not r.get("probe_blind")
-                      and r.get("status") == "good")
-            log.info(f"      盲区候选 score 中位 {_st.median(_bs):.0f}"
-                  f"（good {_bg}/{len(_bs)}） vs 最终产出 score 中位 "
-                  f"{_st.median(_ts):.0f}（good {_tg}/{len(_ts)}）"
-                  f"—— 差值来自速度项缺失（未知 ≠ 慢）")
+    # **无条件打印**（哪怕回收数为 0）：这段是「安全网有没有顶得上」的判读
+    # 数据（三档表的第一档就靠它）。早前它挂在 `if _blind_final:` 里 ——
+    # 健康期 M 恒为 0 时整段消失，**判据永远等不到数据**。现在没有数据时
+    # 显式打 N/A，让「没有盲区候选」与「没跑到这段」可区分。
+    log.info(f"      探针盲区：回收 {len(_blind)} 个 → 最终保留 "
+          f"{_blind_final} 个（速度未知，按 (丢包率, 延迟) 排序）")
+    # 安全网的触发阈值：回收候选的延迟 vs 最终 top-N 的延迟。
+    # 用**回收候选**（而不是最终结果里的盲区行）——被 top_n 截掉的那些
+    # 也要参与比较，否则「为什么没顶得上」就无从判断。
+    _bl = [b["avg_ms"] for b in _blind_meta if b.get("avg_ms") is not None]
+    _tl = [r.get("avg_ms") for r in clean if not r.get("probe_blind")
+           and r.get("avg_ms") is not None]
+    if _bl and _tl:
+        import statistics as _st
+        _diff = _st.median(_bl) - _st.median(_tl)
+        _tier = ("≈持平（健康期也能竞争）" if abs(_diff) < 10 else
+                 "稍差（只在池变薄时能顶上）" if _diff <= 30 else
+                 "明显更差（健康期永远顶不上）")
+        log.info(f"      盲区候选延迟中位 {_st.median(_bl):.1f}ms vs "
+              f"最终产出延迟中位 {_st.median(_tl):.1f}ms"
+              f"（差 {_diff:+.1f}ms → {_tier}）")
+    else:
+        log.info("      盲区候选延迟中位 N/A vs 最终产出延迟中位 N/A"
+              f"（盲区候选 {len(_bl)} 条 / 产出 {len(_tl)} 条，不足可比）")
+    # score 分布对比：盲区候选的速度项**整块跳过**（贡献 0 分），比同类
+    # 实测节点低 5~15 分 → 可能在「延迟 200-400ms + 丢包 5-15%」这个
+    # 窄带把 good 压成 moderate。score 在选品之后算，不影响入选，只影响
+    # 标签。**这个差值不代表质量差，只代表「速度未测」。**
+    _bs = [r.get("score") for r in clean if r.get("probe_blind")
+           and r.get("score") is not None]
+    _ts = [r.get("score") for r in clean if not r.get("probe_blind")
+           and r.get("score") is not None]
+    if _bs and _ts:
+        import statistics as _st
+        _bg = sum(1 for r in clean if r.get("probe_blind")
+                  and r.get("status") == "good")
+        _tg = sum(1 for r in clean if not r.get("probe_blind")
+                  and r.get("status") == "good")
+        log.info(f"      盲区候选 score 中位 {_st.median(_bs):.0f}"
+              f"（good {_bg}/{len(_bs)}） vs 最终产出 score 中位 "
+              f"{_st.median(_ts):.0f}（good {_tg}/{len(_ts)}）"
+              f"—— 差值来自速度项缺失（未知 ≠ 慢）")
+    else:
+        log.info(f"      盲区候选 score 中位 N/A vs 最终产出 score 中位 N/A"
+              f"（盲区 {len(_bs)} 条 / 产出 {len(_ts)} 条，不足可比）")
         # 开了速度门槛时，盲区候选**不参与**速度门槛（速度未知 ≠ 速度为 0）
         if float(cfg.get("min_speed_mbps", 0) or 0) > 0:
             log.info(f"      [warn] 已开速度门槛 {cfg['min_speed_mbps']}MB/s，"

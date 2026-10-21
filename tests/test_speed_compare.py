@@ -109,11 +109,19 @@ class DualBodySourceGuardTest(unittest.TestCase):
         self.assertAlmostEqual(r["spearman"], 1.0)
 
     def test_inverted_order_detected(self):
+        """内容反序的对照 → 相关性低于同序对照。
+
+        断言用 `ρ_reversed < ρ_normal` 而**不是** `ρ_reversed < 0`：
+        后者只在两口径正相关时成立（当前 ρ≈0.33），若将来某批数据里两口径
+        几乎无关（ρ≈0），反序传约等于 0，`< 0` 会误报。
+        """
         from screener import speedtest
         a = self._map([1.0, 2.0, 3.0, 4.0])
-        b = self._map([40.0, 30.0, 20.0, 10.0])
-        r = speedtest.compare_dual_body(a, b)
-        self.assertLess(r["spearman"], 0)
+        b_same = self._map([10.0, 20.0, 30.0, 40.0])      # 与 a 同序
+        b_inv = self._map([40.0, 30.0, 20.0, 10.0])        # 与 a 反序
+        normal = speedtest.compare_dual_body(a, b_same)["spearman"]
+        rev = speedtest.compare_dual_body(a, b_inv)["spearman"]
+        self.assertLess(rev, normal)
 
 
 if __name__ == "__main__":

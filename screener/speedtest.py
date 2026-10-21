@@ -340,6 +340,10 @@ def compare_dual_body(primary_map, compare_map, consensus_k=0.3):
 
     primary_map：主口径（如 256KB）的 {key: result}
     compare_map：对照口径（如 10MB）的 {key: result}
+
+    ⚠️ **本守卫只防「同一个对象引用」**（`primary_map is compare_map`），
+    防不住「内容相同的两个副本」（`dict(a)` 与 `dict(a)`）——那种情况下
+    比值仍会恒为 1。要彻底防住需要比对内容哈希或来源标识，暂不做。
     """
     if primary_map is compare_map:
         raise ValueError(
