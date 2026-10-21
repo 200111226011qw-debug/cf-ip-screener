@@ -200,6 +200,12 @@ def watch_loop(args, overrides):
     log.info(f"[watch] 热重载模式启动：轮间隔 {cfg['watch_interval']}s，"
              f"修改 config.py 后自动重载（Ctrl+C 停止）")
     while True:
+        # **异常不吞**：对齐契约破坏（`_aligned_map` 抛 RuntimeError）是
+        # **编程错误**——它意味着「哪个候选对应哪个测速结果」不可信，本轮
+        # 产出整体作废。与批量模式一致：**整轮崩掉、进程退出**，让操作者
+        # 看见并修代码，而不是让一个坏路径在 watch 循环里每小时空转一轮。
+        # 注意区分：轮次级的失败（空结果守卫）走的是 **return 3**（不是异常），
+        # watch 循环照常进入下一轮 ✓。
         run_once(args, overrides, cfg)
         time.sleep(int(cfg.get("watch_interval", 3600)))
         try:
