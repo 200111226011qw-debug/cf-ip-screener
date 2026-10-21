@@ -9,7 +9,7 @@
 #   bash scripts/stress_blind_spot.sh <IP 清单 URL> [outdir]
 # 例：
 #   bash scripts/stress_blind_spot.sh \
-#     https://raw.githubusercontent.com/200111226011qw-debug/cf-ip-screener/exp/blind-stress/blind-stress-ips.txt
+#     https://raw.githubusercontent.com/200111226011qw-debug/cf-ip-screener/main/docs/blind-stress-ips.txt
 #
 # 三个隔离条件（缺一不可）：
 #   ① --pool 只注入盲区候选（主漏斗的输入被限定为「测速端点一定 403」的 IP）

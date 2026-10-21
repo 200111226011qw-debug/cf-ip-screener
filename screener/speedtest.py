@@ -184,9 +184,13 @@ def forbidden_candidates(all_keys, results):
     的测速结果）。长度不等时 zip 会**静默截断**——后半段候选压根进不了
     这个列表，回收会漏掉它们，而不变量检查（N 与 M 同时变小、仍然相等）
     **不会报警**。所以这里直接抛错，把「对齐」这条契约显式化。
+
+    这是**兜底**：调用点（main.py 的 `_assert_aligned`）是主检查，带运行
+    上下文且同样抛 RuntimeError —— 两处语义一致，不存在「一处抛错、
+    一处记日志」的分裂（记了日志却继续跑，产出可能配错却看起来正常）。
     """
     if len(all_keys) != len(results):
-        raise ValueError(
+        raise RuntimeError(
             f"all_keys 与 results 长度不一致（{len(all_keys)} vs "
             f"{len(results)}）——按位置对齐的契约被破坏，回收会静默漏候选")
     out = []

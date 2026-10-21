@@ -264,9 +264,12 @@ class ForbiddenCandidateSelectionTest(unittest.TestCase):
         长度不等时 zip 会**静默截断** → 后半段候选进不了列表 → 回收漏掉
         它们，而不变量检查（N 与 M 同时变小、仍然相等）**不会报警**。
         所以必须显式抛错，而不是让 zip 悄悄截断。
+
+        异常类型用 **RuntimeError**（与调用点 main.py 的 `_assert_aligned`
+        一致）——这是不变式被破坏，不是「参数值不对」。
         """
         from screener import speedtest
-        with self.assertRaises(ValueError):
+        with self.assertRaises(RuntimeError):
             speedtest.forbidden_candidates(
                 [("1.1.1.1", 443), ("2.2.2.2", 443)],
                 [{"fail_reason": "forbidden"}])
