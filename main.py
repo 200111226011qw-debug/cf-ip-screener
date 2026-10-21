@@ -1116,6 +1116,7 @@ def run_once(args, overrides, cfg=None):
         )
         _quota, _qnote = _blind_quota_decision(_blind_meta, clean, cfg, _pool)
         if _quota:
+            _normal_pass = clean          # 第一遍（正常规则）的结果
             clean = filter_mod.filter_clean(
                 _pool,
                 max_latency_ms=cfg["max_latency_ms"],
@@ -1125,6 +1126,21 @@ def run_once(args, overrides, cfg=None):
                 cf_nets=cf_filter_nets,
                 blind_quota=_quota,
             )
+            # **被配额挤掉的普通候选**：名额是从它们手里「挤占」来的，
+            # 所以它们的质量就是配额的代价。下一轮判读要看这个数——
+            # 尤其延迟差落在 10–30ms 区间时（配额仍生效，但盲区候选已经
+            # 明显更慢）：若被挤掉的是延迟明显更好的普通候选，说明该区间
+            # 配额应收紧（减半 / 只保底 3 个）。
+            _displaced = filter_mod.displaced_by_quota(_normal_pass, clean)
+            _dlat = [r.get("avg_ms") for r in _displaced
+                     if r.get("avg_ms") is not None]
+            _blat = [r.get("avg_ms") for r in clean if r.get("probe_blind")
+                     and r.get("avg_ms") is not None]
+            if _dlat and _blat:
+                _dm, _bm = statistics.median(_dlat), statistics.median(_blat)
+                log.info(f"      配额挤占：{len(_displaced)} 个普通候选出局"
+                      f"（被挤掉的延迟中位 {_dm:.1f}ms vs 入选盲区候选延迟中位"
+                      f" {_bm:.1f}ms，差 {_bm - _dm:+.1f}ms）")
         if _qnote:
             log.info(f"      盲区保底名额：{_qnote}")
     else:

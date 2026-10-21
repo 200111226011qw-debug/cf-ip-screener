@@ -75,6 +75,43 @@ def test_file_only_written_when_streak_changes(tmp_path):
     assert mtime2 > mtime1 - 10
 
 
+def test_file_not_rewritten_when_nothing_changed(tmp_path):
+    """**内容没变就不重写**（判据是「状态变了」，不是「有没有 extra_state」）。
+
+    盲区配额的连击数每轮都会作为 extra_state 传进来——若按「有 extra_state
+    就写」，每轮都会重写状态文件（内容虽然一样，但工作流那边仍会多做一次
+    `git diff` 判断）。判据必须是「内容真的变了」。
+    """
+    p = _state_path(tmp_path)
+    empty_streak_update(p, 5, threshold=3,
+                        extra_state={"blind_quota_off_streak": 0})
+    mtime1 = os.path.getmtime(p)
+    os.utime(p, (mtime1 - 10, mtime1 - 10))
+    empty_streak_update(p, 5, threshold=3,
+                        extra_state={"blind_quota_off_streak": 0})
+    mtime2 = os.path.getmtime(p)
+    assert mtime2 == mtime1 - 10      # 没有重写
+
+
+def test_extra_state_is_persisted(tmp_path):
+    """extra_state 的字段要真的落盘（否则自动关闭的连击数跨轮丢失）。"""
+    p = _state_path(tmp_path)
+    empty_streak_update(p, 5, threshold=3,
+                        extra_state={"blind_quota_off_streak": 2})
+    with open(p, encoding="utf-8") as f:
+        assert json.load(f)["blind_quota_off_streak"] == 2
+
+
+def test_missing_extra_state_key_is_treated_as_zero(tmp_path):
+    """状态文件里**没有** blind_quota_off_streak 字段（首次运行 / 旧文件）
+    → 读的时候当 0，不能 KeyError。"""
+    p = _state_path(tmp_path)
+    with open(p, "w", encoding="utf-8") as f:
+        json.dump({"empty_streak": 0, "last_clean": 50}, f)
+    data = json.load(open(p, encoding="utf-8"))
+    assert data.get("blind_quota_off_streak", 0) == 0
+
+
 def test_missing_state_file_is_treated_as_zero(tmp_path):
     p = _state_path(tmp_path)
     assert not os.path.exists(p)

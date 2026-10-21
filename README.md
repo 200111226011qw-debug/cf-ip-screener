@@ -535,6 +535,12 @@ python -m unittest discover -s tests -v
 IPv4/IPv6 同行混排、`IP:port#备注`、JSON 数组、HTML 表格（单行多 IP）、
 HTML 锚点 `#` 兼容、阈值筛选排序、备注转义。
 
+> **在这个仓库上核对产物/改代码前，先看
+> [`docs/ops-checklist.md`](docs/ops-checklist.md)**（操作规范：Windows 下
+> 不要用 PowerShell `Select-String` 匹配中文——GBK 代码页下会**静默返回 0
+> 条**；写文件别用 `Set-Content -Encoding UTF8`（会注入 BOM）；测试临时文件用
+> `tmp_path` / `TemporaryDirectory()`；提交前确认远端 HEAD）。
+
 ## 目录结构
 
 

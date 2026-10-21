@@ -124,16 +124,35 @@ class QuotaDecisionTest(unittest.TestCase):
         """连续 2 轮差 >30ms → 自动关闭（第一轮只记数，仍按启用条件判定）。"""
         import json
         import tempfile
-        td = tempfile.mkdtemp()
-        state_path = os.path.join(td, ".ci-state.json")
-        with open(state_path, "w", encoding="utf-8") as f:
-            json.dump({"blind_quota_off_streak": 1}, f)
-        blind_meta = [{"avg_ms": 40.0}] * 13
-        out_rows = [_row(f"n{i}", 2.0) for i in range(50)]
-        cfg = self._cfg(empty_streak_file=state_path)
-        q, note = main_mod._blind_quota_decision(blind_meta, out_rows, cfg)
+        # TemporaryDirectory（不是裸 mkdtemp）：退出即清理，不在系统临时目录
+        # 里留垃圾，也不碰工作区。
+        with tempfile.TemporaryDirectory() as td:
+            state_path = os.path.join(td, ".ci-state.json")
+            with open(state_path, "w", encoding="utf-8") as f:
+                json.dump({"blind_quota_off_streak": 1}, f)
+            blind_meta = [{"avg_ms": 40.0}] * 13
+            out_rows = [_row(f"n{i}", 2.0) for i in range(50)]
+            cfg = self._cfg(empty_streak_file=state_path)
+            q, note = main_mod._blind_quota_decision(blind_meta, out_rows, cfg)
         self.assertEqual(q, 0)
         self.assertIn("自动关闭", note)
+
+    def test_missing_off_streak_field_is_treated_as_zero(self):
+        """状态文件里**没有** blind_quota_off_streak 字段（首次运行/旧文件）
+        → 当 0 处理，不能 KeyError。"""
+        import json
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            state_path = os.path.join(td, ".ci-state.json")
+            with open(state_path, "w", encoding="utf-8") as f:
+                json.dump({"empty_streak": 0, "last_clean": 50}, f)
+            blind_meta = [{"avg_ms": 2.2}] * 13
+            out_rows = [_row(f"n{i}", 2.0) for i in range(50)]
+            cfg = self._cfg(empty_streak_file=state_path)
+            q, note = main_mod._blind_quota_decision(blind_meta, out_rows, cfg)
+        self.assertEqual(q, 5)          # 差 0.2ms → 第一档 → 启用
+        self.assertIn("启用", note)
+        self.assertEqual(main_mod._BLIND_OFF_STREAK, 0)
 
     def test_pool_blind_count_below_quota_no_guarantee(self):
         """池内盲区候选不足 quota → 不保底（数据不支持时不硬塞）。"""
@@ -170,10 +189,11 @@ class WrittenOutputTest(unittest.TestCase):
         clean = filter_mod.filter_clean(pool, max_latency_ms=400,
                                        max_loss_rate=0.34, min_speed_mbps=0,
                                        top_n=50, blind_quota=quota)
-        td = tempfile.mkdtemp()
-        output_mod.write_all(clean, td, self._cfg_out(td))
-        with open(os.path.join(td, "clean-ips.txt"), encoding="utf-8") as f:
-            lines = [l for l in f.read().splitlines() if l.strip()]
+        # TemporaryDirectory：退出即清理（不留在系统临时目录里），不碰工作区
+        with tempfile.TemporaryDirectory() as td:
+            output_mod.write_all(clean, td, self._cfg_out(td))
+            with open(os.path.join(td, "clean-ips.txt"), encoding="utf-8") as f:
+                lines = [l for l in f.read().splitlines() if l.strip()]
         blind_lines = [l for l in lines if "域名可达(无速度数据)" in l]
         self.assertEqual(len(lines), 50)            # 总条数 = top_n
         self.assertEqual(len(blind_lines), quota)   # 盲区条数 = quota
@@ -191,12 +211,35 @@ class WrittenOutputTest(unittest.TestCase):
         clean = filter_mod.filter_clean(pool, max_latency_ms=400,
                                        max_loss_rate=0.34, min_speed_mbps=0,
                                        top_n=50)
-        td = tempfile.mkdtemp()
-        output_mod.write_all(clean, td, self._cfg_out(td))
-        with open(os.path.join(td, "clean-ips.txt"), encoding="utf-8") as f:
-            lines = [l for l in f.read().splitlines() if l.strip()]
+        with tempfile.TemporaryDirectory() as td:
+            output_mod.write_all(clean, td, self._cfg_out(td))
+            with open(os.path.join(td, "clean-ips.txt"), encoding="utf-8") as f:
+                lines = [l for l in f.read().splitlines() if l.strip()]
         self.assertEqual(len(lines), 50)
         self.assertEqual([l for l in lines if "域名可达" in l], [])
+
+
+class DisplacedTest(unittest.TestCase):
+    """配额的成本侧：被挤掉的普通候选。"""
+
+    def test_displaced_rows_are_the_normal_ones_pushed_out(self):
+        before = [_row(f"b{i}", 2.2, blind=True) for i in range(3)]
+        before += [_row(f"n{i}", 2.0 + i * 0.01) for i in range(10)]
+        after = [_row(f"b{i}", 2.2, blind=True) for i in range(3)]
+        after += [_row(f"n{i}", 2.0 + i * 0.01) for i in range(5)]
+        out = filter_mod.displaced_by_quota(before, after)
+        self.assertEqual([r["ip"] for r in out],
+                         ["n5", "n6", "n7", "n8", "n9"])
+
+    def test_blind_rows_are_not_counted_as_displaced(self):
+        """盲区候选是被**保底**进来的，不是被挤掉的。"""
+        before = [_row("b0", 2.2, blind=True)]
+        after = []
+        self.assertEqual(filter_mod.displaced_by_quota(before, after), [])
+
+    def test_no_displacement_when_quota_off(self):
+        rows = [_row(f"n{i}", 2.0 + i * 0.01) for i in range(5)]
+        self.assertEqual(filter_mod.displaced_by_quota(rows, rows), [])
 
 
 if __name__ == "__main__":

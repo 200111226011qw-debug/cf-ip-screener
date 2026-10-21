@@ -56,6 +56,22 @@ def apply_blind_quota(rows, quota, top_n):
     return sorted(out, key=lambda r: (r.get("loss_rate", 1), r.get("avg_ms", 1e9)))
 
 
+def displaced_by_quota(before, after):
+    """配额挤占掉的**普通**候选：before（正常规则截断的结果）里不在 after
+    （配额截断的结果）中的普通候选。
+
+    名额是从它们手里挤占来的 → **它们的质量就是配额的代价**。判读「配额
+    该不该收紧」看的就是这个集合的延迟（尤其延迟差落在 10–30ms 区间时：
+    配额仍然生效，但被挤掉的是不是明显更好的普通候选？）。
+
+    盲区候选本身不算「被挤掉」——它们是被**保底**进来的。
+    """
+    kept = {(r.get("ip"), r.get("port")) for r in after}
+    return [r for r in before
+            if (r.get("ip"), r.get("port")) not in kept
+            and not r.get("probe_blind")]
+
+
 def filter_clean(results, max_latency_ms=400, max_loss_rate=0.34,
                  min_speed_mbps=0.0, top_n=50, cf_nets=None, blind_quota=0):
     """从测试结果中筛出可用 IP。
@@ -117,9 +133,10 @@ def empty_streak_update(state_path, clean_count, threshold=3, extra_state=None):
     状态文件放在仓库根（不进 result/）：result/ 在空结果时**不会**被提交
     （守卫让工作流失败 → 提交步骤被跳过），计数必须活在别处才能跨轮累计。
 
-    只在连击数变化时写文件——否则每轮都会产生一个无意义的状态提交。
+    只在**内容真的变了**时写文件——否则每轮都会产生一个无意义的状态提交。
     """
-    state = _load_streak_state(state_path)
+    prev = _load_streak_state(state_path)
+    state = dict(prev)
     prev_streak = state.get("empty_streak", 0)
     streak = 0 if clean_count > 0 else int(prev_streak) + 1
     state["empty_streak"] = streak
@@ -128,7 +145,11 @@ def empty_streak_update(state_path, clean_count, threshold=3, extra_state=None):
     # 一并写进同一个文件 → **单一写者**，避免两个写者互相覆盖。
     if extra_state:
         state.update(extra_state)
-    if (streak != prev_streak or extra_state) and state_path:
+    # **内容没变就不重写**（判据是「状态变了」而不是「有没有 extra_state」）：
+    # 正常轮次不产生任何无意义的状态提交；只有连击数 / 最后条数 / 盲区连击数
+    # 真的变了才写。写出的内容与仓库里的一致 → 工作流的 `git diff --cached
+    # --quiet` 也就不会产生多余提交。
+    if state != prev and state_path:
         try:
             with open(state_path, "w", encoding="utf-8") as f:
                 json.dump(state, f, ensure_ascii=False, indent=2)

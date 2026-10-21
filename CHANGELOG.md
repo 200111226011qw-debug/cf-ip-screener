@@ -62,6 +62,12 @@
   - **第二轮复验**（19:52 UTC，run `39664931553`）：延迟差 +1.0ms，仍是第一
     档，回收 29 个 → 保留 5 个，产物同样 50 行 / 5 条盲区标记。**两轮的
     「日志条数 = 文件条数」都成立**。
+  - **新增「配额挤占」日志**（下一轮判读要用）：配额启用时打一行
+    `配额挤占：N 个普通候选出局（被挤掉的延迟中位 X ms vs 入选盲区候选延迟中位
+    Y ms，差 ±Z ms）`——**配额的成本侧信号**，与自动关闭看的「收益侧」相互独立。
+    延迟差落在 **10–30ms 区间**时（配额仍生效但盲区已明显更慢），靠这行判断
+    「挤掉的是不是明显更好的普通候选」→ 该区间应收紧配额。判据表见
+    `docs/limiting-experiment-2026-10-21.md`。
   - 开关：`blind_quota_enabled` / `blind_quota_ratio` / `blind_quota_min` /
     `blind_quota_max` / `blind_quota_enable_diff_ms` /
     `blind_quota_disable_diff_ms` / `blind_quota_off_rounds`。
@@ -71,6 +77,17 @@
 
 ### 同时落地（本批）
 
+- **新增 `docs/ops-checklist.md`（操作规范）**：把这个仓库上**踩过两次以上**的
+  坑写成规范，主要是「Windows 控制台代码页 GBK → `Select-String` 匹配中文
+  pattern 静默返回 0 条（不报错）」——曾据此得出「产物里没有盲区标记」的
+  **错误结论**，而 Python 读 bytes 立刻得到 5 条。另含：写文件别用
+  `Set-Content -Encoding UTF8`（注入 BOM）、测试临时文件用 `tmp_path` /
+  `TemporaryDirectory()`（不用裸 `mkdtemp()`、不用固定路径）、提交前确认
+  远端 HEAD。
+- **状态文件只在「内容真的变了」时重写**（判据从「有没有 extra_state」改成
+  「状态变了」）：盲区配额的连击数每轮都会作为 `extra_state` 传进来，按旧判据
+  会每轮重写状态文件。实测无内容变化时**不重写**（mtime 不变），正常轮次不
+  产生额外提交。
 - **403 二次验证（探针盲区回收）**：对 403 的候选再打一次**普通 CF 域名**
   （`https://www.cloudflare.com/cdn-cgi/trace`）：200 → 标记 `probe_blind`
   （域名可达、测速端点不可达、**速度未知**）并回收进结果；其它/失败 → 维持
