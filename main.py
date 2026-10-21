@@ -993,6 +993,10 @@ def run_once(args, overrides, cfg=None):
             r["cert_ok"] = hit.get("cert_ok")
             kept.append(r)
         consensus_fail = len(ok_keys) - len(kept)
+        # **共识前**的行要留着：探针盲区候选（403 → 速度 0）从来没进过
+        # 共识（kept 里没有它们），要回收它们必须回这里找带连通性数据
+        # （avg_ms/loss_rate/tls_ok）的原始行。
+        _clean_pre = clean
         clean = kept
         # 探针盲区候选回收：403 但普通域名可达的节点。它们**没有速度数据**
         # （测速端点不服务它们），所以不参与共识（共识要比较速度），
@@ -1000,8 +1004,9 @@ def run_once(args, overrides, cfg=None):
         # 候选进入结果。speed_mbps 记 None（**不是 0**——0 表示「测出来是
         # 0MB/s」，None 表示「没测到」），下游据此区别对待。
         if _blind and _blind_out == "main":
+            _added = 0
             for _k, _colo, _sp in _blind:
-                for r in clean:
+                for r in _clean_pre:
                     if (r["ip"], r["port"]) != _k:
                         continue
                     r["speed_mbps"] = None
@@ -1015,9 +1020,13 @@ def run_once(args, overrides, cfg=None):
                                         "avg_ms": r.get("avg_ms"),
                                         "loss_rate": r.get("loss_rate")})
                     clean.append(r)
+                    _added += 1
                     break
-            log.info(f"      探针盲区候选 {len(_blind)} 条进入结果"
-                  f"（速度未知，按 (丢包率, 延迟) 排序）")
+            # **报实际加入数**（不是 len(_blind)）——之前这里打的是回收数，
+            # 而回收的行其实一条都没加进来（找错了列表），日志说「35 条进入
+            # 结果」而实际是 0 条：安全网一直是空转，却披着成功的日志。
+            log.info(f"      探针盲区候选：回收 {len(_blind)} 个，"
+                  f"实际加入结果 {_added} 个（速度未知，按 (丢包率, 延迟) 排序）")
         elif _blind:
             log.info(f"      探针盲区候选 {len(_blind)} 条未进主结果"
                   f"（speed_blind_output={_blind_out}）")

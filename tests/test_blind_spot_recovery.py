@@ -209,6 +209,24 @@ class BlindReportTest(unittest.TestCase):
             self.assertNotIn("域名可达但无速度数据", content)
 
 
+class BlindRecoveryLookupTest(unittest.TestCase):
+    """回收逻辑的**查找对象**必须正确（压测暴露过真 bug）。
+
+    盲区候选（403 → 速度 0）**从来没进过共识**（共识里没有它们），所以
+    回收时要去**共识前**的行里找带连通性数据（avg_ms/loss_rate/tls_ok）
+    的原始行。早期版本错在共识后的列表里找 → 一条都找不到 → 安全网全程
+    空转，却打「35 条进入结果」的日志（披着成功的日志空转）。
+    """
+
+    def test_recovered_candidate_is_not_in_kept(self):
+        """前提：盲区候选不在共识幸存者里（否则查找对象选错也看不出来）。"""
+        kept = [{"ip": "1.1.1.1", "port": 443, "speed_mbps": 50.0}]
+        pre = kept + [{"ip": "2.2.2.2", "port": 443, "avg_ms": 30.0,
+                       "loss_rate": 0.0, "tls_ok": True}]
+        self.assertNotIn("2.2.2.2", [r["ip"] for r in kept])
+        self.assertIn("2.2.2.2", [r["ip"] for r in pre])
+
+
 class BlindScoreTest(unittest.TestCase):
     """score.py 对「速度未知」（None）的处理：整块跳过 → 贡献 0 分。
 
