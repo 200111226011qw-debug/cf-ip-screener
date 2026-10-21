@@ -39,6 +39,9 @@ def to_subscribe_line(r: dict) -> str:
         # 探针盲区：测速端点对它 403（不服务 speed.cloudflare.com 这个
         # Host），但普通域名 200 —— 对订阅者可用，只是**没有速度数据**。
         # 标记出来，免得被误读成「慢节点」。
+        # probe_blind=True 且**有**速度：当前流程不会出现（403 的候选
+        # speed_mbps 必为 None），这是防御性处理——若将来回收机制改变、
+        # 或有别的途径补测了速度，标记就不该说「无速度数据」。
         remark = (f"{remark} | 域名可达" if speed
                   else f"{remark} | 域名可达(无速度数据)")
     if colo:

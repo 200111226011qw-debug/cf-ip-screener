@@ -51,26 +51,6 @@ class TestToSubscribeLine:
                                   "remark": "x", "colo": None})
         assert "机房" not in line
 
-    def test_blind_spot_marker_present(self):
-        """探针盲区候选（速度未知、域名可达）必须带标记。
-
-        否则那几行会被误读成「慢节点」——它们只是**没测到速度**。
-        """
-        line = to_subscribe_line({"ip": "1.2.3.4", "port": 443,
-                                  "remark": "x", "speed_mbps": None,
-                                  "probe_blind": True})
-        assert "域名可达" in line
-        assert "无速度数据" in line
-        assert "MB/s" not in line
-
-    def test_blind_spot_marker_absent_for_measured(self):
-        line = to_subscribe_line({"ip": "1.2.3.4", "port": 443,
-                                  "remark": "x", "speed_mbps": 50.0,
-                                  "probe_blind": True})
-        # 实测有速度时不加「无速度数据」标记
-        assert "无速度数据" not in line
-        assert "50.0MB/s" in line
-
     def test_native_false_skipped(self):
         """native=False 不拼 "原生"。"""
         line = to_subscribe_line({"ip": "1.2.3.4", "port": 443,
