@@ -182,6 +182,8 @@ class AppConfig(DictCompatMixin, BaseModel):
     blind_quota_enable_diff_ms: float = Field(10.0, ge=0.0)
     blind_quota_disable_diff_ms: float = Field(30.0, ge=0.0)
     blind_quota_off_rounds: int = Field(2, ge=1)
+    # 成本侧：被挤掉的普通候选比入选盲区候选快多少算「明显更好」
+    blind_quota_displace_diff_ms: float = Field(5.0, ge=0.0)
 
     # 输出
     output_dir: str = "result"

@@ -396,6 +396,10 @@ DEFAULT_CONFIG = {
     "blind_quota_enable_diff_ms": 10,   # 第一档（≈持平）才启用
     "blind_quota_disable_diff_ms": 30,  # 明显更差则自动关闭
     "blind_quota_off_rounds": 2, # 连续几轮变差才关闭（给一轮波动留余量）
+    # 配额的**成本侧**阈值：被挤掉的普通候选比入选的盲区候选快多少就算
+    # 「明显更好」（该收紧配额了）。5ms 是拍的，但比「明显」可操作——下一轮
+    # 数据回来直接对号入座，不够再调。
+    "blind_quota_displace_diff_ms": 5,
     # 连续空结果轮数达到该值就主动告警（开 issue）。
     # CI 变红是给「看 CI 历史的人」看的，定时任务没人盯；这层是给
     # 「不看 CI 历史的人」看的。两者缺一不可。

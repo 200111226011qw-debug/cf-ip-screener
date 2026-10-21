@@ -1132,15 +1132,17 @@ def run_once(args, overrides, cfg=None):
             # 明显更慢）：若被挤掉的是延迟明显更好的普通候选，说明该区间
             # 配额应收紧（减半 / 只保底 3 个）。
             _displaced = filter_mod.displaced_by_quota(_normal_pass, clean)
+            _blind_kept = [r for r in clean if r.get("probe_blind")]
             _dlat = [r.get("avg_ms") for r in _displaced
                      if r.get("avg_ms") is not None]
-            _blat = [r.get("avg_ms") for r in clean if r.get("probe_blind")
-                     and r.get("avg_ms") is not None]
+            _blat = [r.get("avg_ms") for r in _blind_kept
+                     if r.get("avg_ms") is not None]
             if _dlat and _blat:
-                _dm, _bm = statistics.median(_dlat), statistics.median(_blat)
+                _ddiff, _dtext = filter_mod.describe_displacement(
+                    _displaced, _blind_kept,
+                    float(cfg.get("blind_quota_displace_diff_ms", 5) or 5))
                 log.info(f"      配额挤占：{len(_displaced)} 个普通候选出局"
-                      f"（被挤掉的延迟中位 {_dm:.1f}ms vs 入选盲区候选延迟中位"
-                      f" {_bm:.1f}ms，差 {_bm - _dm:+.1f}ms）")
+                      f"（{_dtext}）")
         if _qnote:
             log.info(f"      盲区保底名额：{_qnote}")
     else:

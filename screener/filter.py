@@ -5,6 +5,7 @@ import ipaddress
 import json
 import math
 import os
+import statistics
 
 
 def is_cf_ip(ip: str, nets) -> bool:
@@ -54,6 +55,42 @@ def apply_blind_quota(rows, quota, top_n):
     out = keep_blind + keep_normal
     # 输出顺序仍按全局排序（盲区候选在各自组内已排序）
     return sorted(out, key=lambda r: (r.get("loss_rate", 1), r.get("avg_ms", 1e9)))
+
+
+def describe_displacement(displaced, blind, threshold_ms=5.0):
+    """描述配额的**成本侧**：被挤掉的普通候选 vs 入选的盲区候选。
+
+    返回 (diff_ms, 说明)：
+
+    - `diff_ms` = **入选盲区候选延迟中位 − 被挤掉的延迟中位**。
+      **>0 = 被挤掉的更快（更好）= 配额的代价为正**。
+      符号约定与代码里其它地方一致（`盲区 − 产出` >0 表示盲区更差），
+      免得同一个仓库里两种符号方向。
+      方向必须在描述里**说清**：只给「+0.1ms」会让人猜符号。
+    - `说明`：面向人的一句话，含**方向**（快/慢/持平）+ 是否超出收紧阈值。
+      阈值 `threshold_ms` = 「被挤掉的明显更好」的判定线（默认 5ms）：
+      超过它就说明配额在拿更好的候选换更差的 → 该收紧。
+
+    数据不够（任一侧没有延迟数据）时返回 (None, "")——**不猜、不打 0**。
+    """
+    dlat = [r.get("avg_ms") for r in displaced if r.get("avg_ms") is not None]
+    blat = [r.get("avg_ms") for r in blind if r.get("avg_ms") is not None]
+    if not dlat or not blat:
+        return None, ""
+    dm = statistics.median(dlat)
+    bm = statistics.median(blat)
+    diff = bm - dm                      # >0 = 盲区更慢 = 被挤掉的更好（代价）
+    if diff > 0.05:
+        rel = f"被挤掉的比入选快 {diff:.1f}ms"
+    elif diff < -0.05:
+        rel = f"被挤掉的比入选慢 {-diff:.1f}ms"
+    else:
+        rel = "被挤掉的与入选持平"
+    over = diff > float(threshold_ms)
+    verdict = ("**超出收紧阈值**" if over else "未超出收紧阈值")
+    return diff, (f"被挤掉的延迟中位 {dm:.1f}ms vs 入选盲区候选延迟中位 "
+                   f"{bm:.1f}ms —— {rel}（收紧阈值 {float(threshold_ms):.0f}ms "
+                   f"→ {verdict}）")
 
 
 def displaced_by_quota(before, after):

@@ -242,5 +242,82 @@ class DisplacedTest(unittest.TestCase):
         self.assertEqual(filter_mod.displaced_by_quota(rows, rows), [])
 
 
+class DisplacementDescriptionTest(unittest.TestCase):
+    """成本侧的方向与阈值判定——**符号必须说清，不能只给 ±0.1ms**。
+
+    符号约定：`diff = 入选盲区延迟中位 − 被挤掉的延迟中位`，
+    **>0 = 被挤掉的更快（更好）= 配额的代价为正**（与代码里其它地方
+    「盲区 − 产出」的方向一致）。
+    """
+
+    def test_direction_is_explicit_when_displaced_are_faster(self):
+        """被挤掉的比入选快 → diff 为正，描述里写「快」。"""
+        displaced = [_row("n0", 3.0), _row("n1", 3.0)]
+        blind = [_row("b0", 5.0), _row("b1", 5.0)]
+        diff, text = filter_mod.describe_displacement(displaced, blind, 5.0)
+        self.assertAlmostEqual(diff, 2.0)     # 盲区(5.0) - 被挤掉(3.0)
+        self.assertIn("被挤掉的比入选快 2.0ms", text)
+        self.assertIn("未超出收紧阈值", text)
+
+    def test_direction_is_explicit_when_displaced_are_slower(self):
+        """被挤掉的比入选慢 → 描述里写「慢」（不是「差 -2.0ms」）。"""
+        displaced = [_row("n0", 7.0), _row("n1", 7.0)]
+        blind = [_row("b0", 5.0), _row("b1", 5.0)]
+        diff, text = filter_mod.describe_displacement(displaced, blind, 5.0)
+        self.assertAlmostEqual(diff, -2.0)
+        self.assertIn("被挤掉的比入选慢 2.0ms", text)
+
+    def test_over_threshold_is_flagged(self):
+        """被挤掉的明显更好（快 >5ms）→ 明确标出「超出收紧阈值」。"""
+        displaced = [_row("n0", 1.0), _row("n1", 1.0)]
+        blind = [_row("b0", 20.0), _row("b1", 20.0)]
+        diff, text = filter_mod.describe_displacement(displaced, blind, 5.0)
+        self.assertAlmostEqual(diff, 19.0)
+        self.assertIn("被挤掉的比入选快 19.0ms", text)
+        self.assertIn("超出收紧阈值", text)
+
+    def test_exactly_at_threshold_is_not_over(self):
+        """差正好 5ms → 不算超出（阈值是「>5ms」）。"""
+        displaced = [_row("n0", 1.0)]
+        blind = [_row("b0", 6.0)]
+        diff, text = filter_mod.describe_displacement(displaced, blind, 5.0)
+        self.assertAlmostEqual(diff, 5.0)
+        self.assertIn("未超出收紧阈值", text)
+
+    def test_parity(self):
+        displaced = [_row("n0", 5.0)]
+        blind = [_row("b0", 5.0)]
+        diff, text = filter_mod.describe_displacement(displaced, blind, 5.0)
+        self.assertAlmostEqual(diff, 0.0)
+        self.assertIn("持平", text)
+
+    def test_missing_latency_gives_no_guess(self):
+        """任一侧没有延迟数据 → 不猜、不打 0（返回 None）。"""
+        displaced = [{"ip": "n0", "avg_ms": None}]
+        blind = [_row("b0", 5.0)]
+        diff, text = filter_mod.describe_displacement(displaced, blind, 5.0)
+        self.assertIsNone(diff)
+        self.assertEqual(text, "")
+
+    def test_sign_convention_matches_enable_threshold_convention(self):
+        """同一套符号方向：盲区比别的东西差 → 差值为正。
+
+        启用阈值用的是「盲区中位 − 产出中位」，成本侧用的是「盲区中位 −
+        被挤掉中位」——两处方向一致（正数都表示「盲区更慢」），避免同一个
+        仓库里出现两种符号方向。
+        """
+        blind_meta = [{"avg_ms": 22.0}]
+        out_rows = [_row(f"n{i}", 2.0) for i in range(50)]
+        _q, _note = main_mod._blind_quota_decision(blind_meta, out_rows,
+                                                     {"blind_quota_enabled":
+                                                      True, "top_n": 50,
+                                                      "empty_streak_file": ""})
+        self.assertEqual(_q, 0)      # 20ms 差 → 不启用（>10ms 启用阈值）
+        displaced = [_row("n0", 2.0)]
+        blind = [_row("b0", 22.0)]
+        diff, _text = filter_mod.describe_displacement(displaced, blind, 5.0)
+        self.assertAlmostEqual(diff, 20.0)   # 同样是「盲区更慢 → 正」
+
+
 if __name__ == "__main__":
     unittest.main()
