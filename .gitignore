@@ -20,6 +20,8 @@ result-local/
 # 本地攒库实验（手动扫描结果 + 累积的通过 IP，不进仓库）
 local-runs/
 local-lib/
+# 本地订阅二次筛选产物（含节点，不进仓库）
+local-subscription.txt
 
 # IP 差集观察器（diff_new_ips.py）
 .seen-ips.json
