@@ -307,11 +307,13 @@ CLI 只有 `--verify-cert`，CI 不传。开启后 404 会变成 `connect` +
    `verify_cert: bool = True`），不是看执行者的“锚点命中”；
 3. CHANGELOG 的 Breaking 声明必须能对应到代码字节；没有代码就不要写；
 4. 如果找不到，先查 `git stash list` / `git branch -a` / `git fsck
-   --unreachable --no-reflogs`，再判断是“没提交”还是“在别的 worktree”。
+   --unreachable --no-reflogs`，再判断是“没提交”还是“在别的 worktree”；
+5. **提交后隔一轮（或换人）从干净 checkout 重新验证关键锚点**：`git log`
+   里有提交 ≠ 后续操作没有覆盖；不能只信提交当时的「锚点命中」。
 
 **实例（2026-10-23）**：口头记录称 batch 1 把 `verify_cert` 默认改 True、
 2-A 加 `BooleanOptionalAction`/`--no-verify-cert`，29 锚点/9 文件/+230−23；
 但 main 上是 `store_true` + 两处 False，CHANGELOG 2.3.1 写“默认关闭”，
 `git log --all -S` 无相关提交，blame 停在 81c405e8，stash/分支/dangling
 都没有 batch 1。结论：**batch 1 从未进入本仓库**，不是部分落地；也没有
-Breaking 声明需要修正。以后看到“已落地”的汇报，先按这四条验字节。
+Breaking 声明需要修正。以后看到“已落地”的汇报，先按这五条验字节。
