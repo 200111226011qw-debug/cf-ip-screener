@@ -70,14 +70,34 @@ print(len([l for l in lines if "域名可达" in l]))    # → 5
 的中文会变成乱码，**再拿去 grep 就更糟**。规范同上：**Python + subprocess +
 显式 decode**。
 
-## 3. 写文件：不要用 `Set-Content -Encoding UTF8`
+## 3. 写文件：PowerShell 5.1 的 `-Encoding utf8` 会注入 BOM
 
-PowerShell 5.1 的 `Set-Content -Encoding UTF8` 会**注入 BOM**（`\ufeff`），
-在 Python 侧读出来会多一个看不见的字符，导致 JSON 解析失败或内容对不上。
+**根因只有一条**：PS 5.1 的 `-Encoding utf8`（`Set-Content` / `Add-Content` /
+`Out-File` 都走它）写出来的是 **UTF-8 with BOM**（`\ufeff`）。BOM 是文件内容
+的一部分：Python 读出来多一个隐形字符 → JSON 解析失败 / 字符串比较失败；
+`git commit -F <file>` **不会**剥 BOM → BOM 原样进 commit subject。
 
-- 改代码文件：用编辑工具（`edit` / `write`）。
-- 需要脚本写文件：用 Python（`open(..., "w", encoding="utf-8")`，**不带**
-  `utf-8-sig`）。
+所以规则不是「`Set-Content` 要小心」，而是：**PS 5.1 下任何「写文件给程序
+消费」的场景都不要用 `-Encoding utf8`**——源码、配置、JSON、提交信息、
+`passed-ips.log` 都算。
+
+- 首选：用编辑工具（`edit` / `write`）；
+- 脚本写文件：
+  - PS 5.1：`[IO.File]::WriteAllText($path, $text, [Text.UTF8Encoding]::new($false))`
+  - PS 7+：`-Encoding utf8NoBOM`
+  - 或 Python：`open(..., "w", encoding="utf-8")`（**不带** `utf-8-sig`）
+- 追写同理用 `[IO.File]::AppendAllText(...)`；不要用 `Add-Content -Encoding UTF8`。
+- 验证：`open(path, "rb").read(3) != b"\xef\xbb\xbf"`；提交信息用
+  `git log -1 --format=%s` 交给 Python 看首字节（别走 PowerShell 管道）。
+
+**真实案例（同根因，两次）**：
+
+1. 用 `Set-Content -Encoding UTF8` 生成 Python 脚本 → 文件头 BOM →
+   `SyntaxError`；
+2. `git commit -F` 的提交信息文件用 `Out-File -Encoding utf8` 写 → BOM 进了
+   subject（`git log` 开头一个不可见字符）。修法：无 BOM 文件 +
+   `git commit --amend -F` + `git push --force-with-lease`（只重写刚推的那
+   一个 commit，比 `--force` 安全）。
 
 ## 4. 写测试：临时文件用 `tmp_path` 或 `TemporaryDirectory()`
 
