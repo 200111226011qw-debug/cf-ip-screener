@@ -455,10 +455,21 @@ def consensus_speed(rounds, consensus_k=0.3, floor_speed=0.0):
             continue
         if len(set(valid_colos)) != 1:
             continue
-        if sum(1 for s in speeds if s >= threshold) < speed_need:
+        rounds_ok = sum(1 for s in speeds if s >= threshold)
+        if rounds_ok < speed_need:
             continue
+        # **每轮的达标数一并带出去**（#3）：共识是二元的（过/不过），但
+        # 「3 轮里达标 2 轮」与「3 轮全达标」是**不同的质量**——前者说明
+        # 有抖动。数据本来就在 speeds 里（只是没导出），报告能显示它，
+        # 读者就能看到「过了共识但有波动」的节点。
+        # rounds_measured：真正测出速度的轮数（区分「测了但没达标」与
+        # 「这轮压根没测到」）。
+        rounds_measured = sum(1 for s in speeds if s > 0)
         out[key] = {"speed_mbps": round(statistics.median(speeds), 2),
                     "colo": valid_colos[0],
+                    "rounds_ok": rounds_ok,
+                    "rounds_total": len(speeds),
+                    "rounds_measured": rounds_measured,
                     "cert_ok": sp0.get("cert_ok")}
     return out
 

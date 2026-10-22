@@ -87,3 +87,36 @@ def test_json_detail_carries_components(tmp_path):
     assert data[0]["score_components"]["latency"] == 20
     assert data[0]["score_base"] == 60
     assert data[0]["score_raw"] == 140
+
+
+# ============================================================
+# #3：每轮达标数进报告（连续的质量信息，区别于二元的共识）
+# ============================================================
+
+def _row_rounds(ip, ok, total, measured=None):
+    r = _row(ip)
+    r["speed_rounds_ok"] = ok
+    r["speed_rounds_total"] = total
+    r["speed_rounds_measured"] = measured if measured is not None else total
+    return r
+
+
+def test_report_shows_rounds_ok(tmp_path):
+    """报告要显示「2/3」——过了共识但有抖动，读者一眼能看出来。"""
+    clean = [_row_rounds("104.16.1.1", 2, 3),
+             _row_rounds("104.16.1.2", 3, 3)]
+    _build(str(tmp_path), clean)
+    md = open(os.path.join(str(tmp_path), "report.md"), encoding="utf-8").read()
+    assert "2/3" in md
+    assert "3/3" in md
+    assert "达标轮次" in md
+
+
+def test_report_rounds_dash_for_non_consensus_rows(tmp_path):
+    """没进共识的候选（盲区候选）→ 显示「-」，不是「0/0」。"""
+    clean = [_row("104.16.1.1", speed_mbps=None)]
+    _build(str(tmp_path), clean)
+    md = open(os.path.join(str(tmp_path), "report.md"), encoding="utf-8").read()
+    line = [ln for ln in md.splitlines() if "104.16.1.1" in ln]
+    assert line, "报告里没有这一行"
+    assert "0/0" not in line[0], f"不该出现 0/0：{line[0]}"

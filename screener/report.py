@@ -38,6 +38,18 @@ _SCORE_COMP_LABELS = (
 )
 
 
+def _rounds_cells(r):
+    """每轮达标数 → 「2/3」（没进共识的候选 → 「-」）。
+
+    盲区候选没进共识（没有速度数据）→ 不显示「0/0」这种会被误读的值。
+    """
+    ok = r.get("speed_rounds_ok")
+    total = r.get("speed_rounds_total")
+    if ok is None or not total:
+        return "-"
+    return f"{ok}/{total}"
+
+
 def _score_cells(r):
     """分数构成 → (分数文本, 构成文本)。
 
@@ -240,8 +252,8 @@ def build_report(cfg, pool_stats, clean, total_tested, total_candidates,
     md.append("")
 
     md.append("## 纯净 IP 明细\n")
-    md.append("| IP:端口 | 延迟(ms) | 丢包 | TLS | 速度(MB/s) | 机房 | 原生 | 段 | 分数 | 分数构成 |")
-    md.append("| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |")
+    md.append("| IP:端口 | 延迟(ms) | 丢包 | TLS | 速度(MB/s) | 机房 | 原生 | 段 | 分数 | 分数构成 | 达标轮次 |")
+    md.append("| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |")
     for r in clean[:50]:
         tls = "OK" if r.get("tls_ok") else ("-" if r.get("tls_ok") is None else "FAIL")
         _sc, _scd = _score_cells(r)
@@ -249,7 +261,7 @@ def build_report(cfg, pool_stats, clean, total_tested, total_candidates,
                   f"{r.get('loss_rate', 0):.0%} | {tls} | "
                   f"{_fmt_mbps(r.get('speed_mbps'))} | {r.get('colo') or '-'} | "
                   f"{'是' if r.get('native') else '-'} | {_ip_scope(r)} | "
-                  f"{_sc} | {_scd} |")
+                  f"{_sc} | {_scd} | {_rounds_cells(r)} |")
     if len(clean) > 50:
         md.append(f"\n（其余 {len(clean) - 50} 条见 result/clean-ips.txt 与 .json）")
 
@@ -278,6 +290,7 @@ def build_report(cfg, pool_stats, clean, total_tested, total_candidates,
             tls = ("<span class='ok'>OK</span>" if r.get("tls_ok")
                    else ("-" if r.get("tls_ok") is None else "<span class='bad'>FAIL</span>"))
             _sc, _scd = _score_cells(r)
+            _rd = _rounds_cells(r)
             rows.append(
                 f"<tr><td>{html.escape(r['ip'])}:{r['port']}</td>"
                 f"<td class='num'>{_fmt_ms(r.get('avg_ms'))}</td>"
@@ -288,7 +301,8 @@ def build_report(cfg, pool_stats, clean, total_tested, total_candidates,
                 f"<td>{'是' if r.get('native') else '-'}</td>"
                 f"<td>{html.escape(_ip_scope(r))}</td>"
                 f"<td class='num'>{html.escape(_sc)}</td>"
-                f"<td><small>{html.escape(_scd)}</small></td></tr>")
+                f"<td><small>{html.escape(_scd)}</small></td>"
+                f"<td class='num'>{html.escape(_rd)}</td></tr>")
         return "".join(rows)
 
     def _pool_rows():
@@ -428,7 +442,7 @@ document.querySelectorAll('#ip-table th').forEach(function (th) {
 
 <h2>纯净 IP 明细（点击表头排序）</h2>
 <table id="ip-table">
-<tr><th data-num="0">IP:端口</th><th data-num="1">延迟(ms)</th><th data-num="1">丢包</th><th>TLS</th><th data-num="1">速度(MB/s)</th><th>机房</th><th>原生</th><th>段</th><th data-num="1">分数</th><th>分数构成</th></tr>
+<tr><th data-num="0">IP:端口</th><th data-num="1">延迟(ms)</th><th data-num="1">丢包</th><th>TLS</th><th data-num="1">速度(MB/s)</th><th>机房</th><th>原生</th><th>段</th><th data-num="1">分数</th><th>分数构成</th><th data-num="1">达标轮次</th></tr>
 {_rows()}
 </table>
 <p style="font-size:12px;color:#888;">完整明细见 result/clean-ips.txt 与 clean-ips.json。</p>

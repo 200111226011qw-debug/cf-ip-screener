@@ -53,6 +53,78 @@ class ConsensusThreeRoundTest(unittest.TestCase):
         # 慢节点 3 轮 10MB/s，T=16.5，0 轮达标 → 剔除
         self.assertNotIn(("2.2.2.2", 443), out)
 
+    def test_rounds_ok_is_exported(self):
+        """**每轮达标数**一并带出（#3）：共识是二元的，但「3 轮达标 2 轮」
+        与「3 轮全达标」是不同的质量（后者没抖动）。"""
+        out = speedtest.consensus_speed(self._rounds(), consensus_k=0.3)
+        hit = out[("1.1.1.1", 443)]
+        self.assertEqual(hit["rounds_ok"], 3)        # 三轮都 ≥ 门槛
+        self.assertEqual(hit["rounds_total"], 3)
+        self.assertEqual(hit["rounds_measured"], 3)  # 三轮都测出了速度
+
+    def test_rounds_ok_counts_jitter(self):
+        """一轮不达标但其余达标 → 仍然通过共识（允许 1 轮抖动），
+        但 rounds_ok 要如实记 2。"""
+        first = {
+            ("1.1.1.1", 443): sp(100.0, "MSP"),
+            ("2.2.2.2", 443): sp(10.0, "MSP"),
+        }
+        r2 = {
+            ("1.1.1.1", 443): sp(90.0, "MSP"),
+            ("2.2.2.2", 443): sp(10.0, "MSP"),
+        }
+        # 第三轮快节点掉到门槛以下（门槛 = 0.3 × 55 = 16.5）
+        r3 = {
+            ("1.1.1.1", 443): sp(5.0, "MSP"),
+            ("2.2.2.2", 443): sp(10.0, "MSP"),
+        }
+        out = speedtest.consensus_speed([first, r2, r3], consensus_k=0.3)
+        hit = out[("1.1.1.1", 443)]
+        self.assertEqual(hit["rounds_ok"], 2)        # 第三轮不达标
+        self.assertEqual(hit["rounds_total"], 3)
+        self.assertEqual(hit["rounds_measured"], 3)  # 三轮都测到了（只是没达标）
+
+    def test_rounds_measured_distinguishes_zero_speed_round(self):
+        """某轮**测到了 colo 但速度为 0**（例如被风控/短响应）→
+        rounds_measured 少于 total，而 rounds_ok 仍按「达到门槛」算。
+
+        注意：**缺一轮**（候选压根没出现）会被 colo 规则直接剔掉（colo 必须
+        n 轮都一致），所以幸存候选里 rounds_measured < total 的唯一成因
+        就是「这轮有 colo 但没测出速度」。
+        """
+        first = {
+            ("1.1.1.1", 443): sp(100.0, "MSP"),
+            ("2.2.2.2", 443): sp(10.0, "MSP"),
+        }
+        r2 = {
+            ("1.1.1.1", 443): sp(90.0, "MSP"),
+            ("2.2.2.2", 443): sp(10.0, "MSP"),
+        }
+        # 第三轮：有 colo，但速度为 0（没测出速度）
+        r3 = {
+            ("1.1.1.1", 443): sp(0.0, "MSP"),
+            ("2.2.2.2", 443): sp(10.0, "MSP"),
+        }
+        out = speedtest.consensus_speed([first, r2, r3], consensus_k=0.3)
+        hit = out[("1.1.1.1", 443)]
+        self.assertEqual(hit["rounds_ok"], 2)        # 第三轮没达标
+        self.assertEqual(hit["rounds_total"], 3)
+        self.assertEqual(hit["rounds_measured"], 2)   # 第三轮没测出速度
+
+    def test_missing_round_is_dropped_by_colo_rule(self):
+        """缺一轮 → colo 不齐 → 直接剔除（这是共识的既有语义，锁住它）。"""
+        first = {
+            ("1.1.1.1", 443): sp(100.0, "MSP"),
+            ("2.2.2.2", 443): sp(10.0, "MSP"),
+        }
+        r2 = {
+            ("1.1.1.1", 443): sp(90.0, "MSP"),
+            ("2.2.2.2", 443): sp(10.0, "MSP"),
+        }
+        r3 = {("2.2.2.2", 443): sp(10.0, "MSP")}   # 快节点这轮缺席
+        out = speedtest.consensus_speed([first, r2, r3], consensus_k=0.3)
+        self.assertNotIn(("1.1.1.1", 443), out)
+
     def test_colo_drift_dropped(self):
         rounds = [
             {("1.1.1.1", 443): sp(100.0, "MSP")},

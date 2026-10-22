@@ -1017,6 +1017,12 @@ def run_once(args, overrides, cfg=None):
             r["speed_mbps"] = hit["speed_mbps"]
             r["colo"] = hit["colo"]
             r["cert_ok"] = hit.get("cert_ok")
+            # 每轮达标数（#3）：共识是二元的，这个数是**连续**的质量信息
+            # （3/3 vs 2/3）。盲区候选没进共识 → 没有这两个字段 → 报告显示
+            # 「-」（不是「0/0」）。
+            r["speed_rounds_ok"] = hit.get("rounds_ok")
+            r["speed_rounds_total"] = hit.get("rounds_total")
+            r["speed_rounds_measured"] = hit.get("rounds_measured")
             kept.append(r)
         consensus_fail = len(ok_keys) - len(kept)
         # **共识前**的行要留着：探针盲区候选（403 → 速度 0）从来没进过
