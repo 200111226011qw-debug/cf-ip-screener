@@ -16,6 +16,7 @@ ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 
 from screener.filter import empty_streak_update  # noqa: E402
+import main as main_mod  # noqa: E402
 
 
 def _state_path(tmp_path):
@@ -134,4 +135,72 @@ def test_repo_ships_the_state_file():
     with open(path, encoding="utf-8") as f:
         data = json.load(f)
     assert "empty_streak" in data
+
+
+# ---------------------------------------------------------------- 回归（2026-10-22）
+# 实跑发现：`_BLIND_OFF_STREAK` 只在 `_blind_quota_decision()` 里被赋值，而该
+# 函数在「没有盲区候选」时提前 return → 状态更新那行抛 NameError → 被 except
+# 吞掉 → **连 empty_streak 都没更新**。连续空结果告警因此永远不会触发。
+# 下面几条锁的是「未知 ≠ 0」与「没有盲区候选也要更新连击」。
+
+
+@pytest.fixture
+def unknown_blind_streak(monkeypatch):
+    """模拟「本轮还没算过盲区连击数」（run_once 开头的状态）。"""
+    monkeypatch.setattr(main_mod, "_BLIND_OFF_STREAK", None, raising=False)
+
+
+def test_no_blind_candidates_still_updates_empty_streak(tmp_path,
+                                                        unknown_blind_streak):
+    """**回归**：没有盲区候选的轮次，空结果连击必须照常累计。"""
+    p = _state_path(tmp_path)
+    cfg = {"empty_streak_file": p, "empty_streak_alert_threshold": 3}
+    streak, alert, _state = main_mod._update_streak_state(cfg, 0)
+    assert streak == 1, "空结果连击没有更新——状态更新被静默跳过了"
+    assert alert is False
+    with open(p, encoding="utf-8") as f:
+        data = json.load(f)
+    assert data["empty_streak"] == 1
+    assert "blind_quota_off_streak" not in data, (
+        "本轮没算过盲区连击数，不应该往状态文件里写这个字段")
+
+
+def test_unknown_blind_streak_preserves_previous_value(tmp_path,
+                                                       unknown_blind_streak):
+    """没算过 → **不覆盖**旧值（未知 ≠ 0：写 0 会把跨轮累计清零）。"""
+    p = _state_path(tmp_path)
+    with open(p, "w", encoding="utf-8") as f:
+        json.dump({"empty_streak": 0, "last_clean": 50,
+                   "blind_quota_off_streak": 1}, f)
+    cfg = {"empty_streak_file": p, "empty_streak_alert_threshold": 3}
+    main_mod._update_streak_state(cfg, 0)
+    with open(p, encoding="utf-8") as f:
+        assert json.load(f)["blind_quota_off_streak"] == 1
+
+
+def test_computed_blind_streak_is_written(tmp_path, monkeypatch):
+    """算过 → 落盘（自动关闭的连击数要能跨轮累计）。"""
+    monkeypatch.setattr(main_mod, "_BLIND_OFF_STREAK", 2, raising=False)
+    p = _state_path(tmp_path)
+    cfg = {"empty_streak_file": p, "empty_streak_alert_threshold": 3}
+    main_mod._update_streak_state(cfg, 5)
+    with open(p, encoding="utf-8") as f:
+        assert json.load(f)["blind_quota_off_streak"] == 2
+
+
+def test_no_state_path_returns_zero_without_writing(unknown_blind_streak):
+    """没配状态文件 → 返回 0、不抛异常（不是「更新失败」）。"""
+    assert main_mod._update_streak_state({}, 0) == (0, False, {})
+
+
+def test_decision_makes_blind_streak_known(monkeypatch):
+    """决策函数算过之后，落盘字段必须变成**已知值**（0 也要写）。"""
+    monkeypatch.setattr(main_mod, "_BLIND_OFF_STREAK", None, raising=False)
+    cfg = {"top_n": 50, "blind_quota_enabled": True,
+           "blind_quota_enable_diff_ms": 10, "blind_quota_disable_diff_ms": 30,
+           "blind_quota_off_rounds": 2}
+    _q, _note = main_mod._blind_quota_decision(
+        [{"avg_ms": 100.0}], [{"avg_ms": 100.0}], cfg)
+    assert main_mod._blind_off_extra_state() == {"blind_quota_off_streak": 0}
+
 

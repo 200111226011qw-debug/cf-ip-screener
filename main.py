@@ -34,6 +34,15 @@ from screener import (bayes, dns_push, edge_crawler, fetcher,
 
 log = logging_setup.get_logger()
 
+# 本轮盲区配额的「自动关闭」连击数。**None = 本轮没算过**（写状态时保持旧值，
+# 不覆盖）。为什么是 None 而不是 0：这个值只有在「盲区候选」与「产出」都非空
+# 时才算得出来（要比延迟中位差）；没算过就写 0，会把跨轮累计的连击静默清零。
+# 之前它是 `_blind_quota_decision()` 里的纯副作用（global 赋值），而该函数在
+# 「没有盲区候选」时提前 return → 状态写入那行抛 NameError
+# （`name '_BLIND_OFF_STREAK' is not defined`）→ **整块空结果连击更新失败**
+# （2026-10-22 本地跑实测到；CI 上遇到无盲区候选的轮次同样会中）。
+_BLIND_OFF_STREAK = None
+
 
 def _register_builtins():
     """内置候选源插件注册（cidr 种子 / 边缘站点）。
@@ -262,6 +271,11 @@ def watch_loop(args, overrides):
 def run_once(args, overrides, cfg=None):
     """执行一轮完整筛选（配置已在 overrides/cfg 中组装好）。"""
     cfg = cfg or config.load(overrides)
+    # 每轮从「未知」开始：watch 模式在同一进程里连续跑多轮，若上一轮算过、
+    # 这一轮没算（例如这一轮没有盲区候选），残留值会被当成「本轮结果」写进
+    # 状态文件 → 跨轮计数被污染。None 表示「本轮没算过，别动旧值」。
+    global _BLIND_OFF_STREAK
+    _BLIND_OFF_STREAK = None
     # 输出目录统一在入口创建，保证后续任何阶段（如 [5/6] 画像缓存）都能写入
     os.makedirs(cfg["output_dir"], exist_ok=True)
 
@@ -1325,19 +1339,10 @@ def run_once(args, overrides, cfg=None):
     log.info("      生成报告...")
     # 空结果连击：先更新计数，报告里才能显示「已连续 N 轮空结果」。
     # 状态文件只在连击数变化时被重写 → 正常轮次不产生额外提交。
-    empty_streak = 0
-    _streak_file = cfg.get("empty_streak_file") or ""
-    if _streak_file:
-        try:
-            empty_streak, need_alert, _st = filter_mod.empty_streak_update(
-                _streak_file, len(clean),
-                int(cfg.get("empty_streak_alert_threshold", 3) or 3),
-                extra_state={"blind_quota_off_streak": _BLIND_OFF_STREAK})
-            if empty_streak:
-                log.warning(f"      [warn] 已连续 {empty_streak} 轮空结果"
-                           f"（阈值 {cfg.get('empty_streak_alert_threshold', 3)}）")
-        except Exception as e:
-            log.info(f"      空结果连击计数更新失败（不影响主流程）: {e}")
+    empty_streak, need_alert, _st = _update_streak_state(cfg, len(clean))
+    if empty_streak:
+        log.warning(f"      [warn] 已连续 {empty_streak} 轮空结果"
+                    f"（阈值 {cfg.get('empty_streak_alert_threshold', 3)}）")
     try:
         rep_paths = report.build_report(
             cfg, pool_stats, clean, len(results), len(candidates),
@@ -1391,6 +1396,37 @@ def run_once(args, overrides, cfg=None):
               "或候选池/连通性阶段整体失败。")
         return 3
     return 0
+
+
+def _blind_off_extra_state():
+    """本轮盲区连击数的落盘字段；**没算过 → None**（不覆盖状态文件里的旧值）。
+
+    「未知 ≠ 0」：None 表示本轮算不出这个数（没有盲区候选 / 没有产出），
+    此时绝不能写 0——那会把跨轮累计清零，自动关闭机制永远攒不满 2 轮。
+    """
+    if _BLIND_OFF_STREAK is None:
+        return None
+    return {"blind_quota_off_streak": int(_BLIND_OFF_STREAK)}
+
+
+def _update_streak_state(cfg, n_clean):
+    """更新空结果连击（连同盲区连击数落盘），返回 (连击数, 是否告警, 状态字典)。
+
+    抽成函数是为了能测「**没有盲区候选**的轮次」——正常流程里跑不到，而那
+    正是 2026-10-22 那个 NameError 的触发条件：状态更新整块被跳过（连
+    `empty_streak` 都不更新），连续空结果告警因此永远不会触发。
+    """
+    path = cfg.get("empty_streak_file") or ""
+    if not path:
+        return 0, False, {}
+    try:
+        return filter_mod.empty_streak_update(
+            path, n_clean,
+            int(cfg.get("empty_streak_alert_threshold", 3) or 3),
+            extra_state=_blind_off_extra_state())
+    except Exception as e:
+        log.info(f"      空结果连击计数更新失败（不影响主流程）: {e}")
+        return 0, False, {}
 
 
 def _cfg_diff_enable(cfg):
