@@ -355,23 +355,31 @@ class TestDocstringMatchesBehavior:
     """
 
     def test_rotate_ua_docstring_does_not_claim_per_request_rotation(self):
-        """**参数说明行**必须说「每次抓取」而不是「每次请求」。
+        """**参数说明行不得声称「每次请求」轮换**（关键词级判定）。
 
-        按行判定而不是整篇包含：docstring 里可以**引用**旧说法讲历史
-        （「这里曾经写着…」），那不是对行为的声明——要判定的是
-        `rotate_ua：` 那一行本身怎么描述这个参数。
+        为什么是**关键词判定**、不是「必须包含某段精确文本」：后者太脆——
+        下次有人只是换了个说法、意思没变，测试就误报。关键词表覆盖常见
+        中英文说法（每次请求 / 每请求 / 每个请求 / per request / each
+        request），任何一种「每次请求都换」的表述都会被抓到。
+
+        判定范围是**以 `rotate_ua：` 开头的行**（即参数本身的说明）——
+        docstring 里引用旧说法讲历史（「⚠️ 这里曾经写着…」）不是在声明
+        行为，不该被误伤。
         """
         doc = fetcher.fetch.__doc__ or ""
         claim_lines = [ln.strip() for ln in doc.splitlines()
                        if ln.strip().startswith("rotate_ua：")]
         assert claim_lines, "docstring 里找不到 rotate_ua 的说明行"
+        forbidden = ["每次请求", "每请求", "每个请求",
+                     "per request", "each request"]
         for ln in claim_lines:
-            assert "每次抓取" in ln, (
-                f"rotate_ua 的说明行应写明是「每次抓取」取一次：{ln}")
-            assert "每次请求" not in ln, (
-                f"rotate_ua 的说明行仍在声称「每次请求」：{ln}")
+            low = ln.lower()
+            for kw in forbidden:
+                assert kw.lower() not in low, (
+                    f"rotate_ua 的说明行仍在声称「{kw}」：{ln}")
 
     def test_rotate_ua_docstring_states_retries_reuse_the_same_ua(self):
+        """重试沿用同一个 UA 这件事，docstring 必须写明（概念级要求）。"""
         doc = fetcher.fetch.__doc__ or ""
         assert "重试" in doc and "同一个 UA" in doc, (
             "docstring 应写明同池内的重试沿用同一个 UA")

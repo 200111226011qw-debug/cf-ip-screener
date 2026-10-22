@@ -176,6 +176,10 @@ python main.py --single 43.175.131.30
 python main.py --single speed.cloudflare.com:443
 # 单目标模式默认不查 IP 归属画像（与批量模式一致）；需要时加 --ipinfo
 python main.py --single 43.175.131.30 --ipinfo
+# 单目标模式额外探测一次「普通域名」的 HTTP 可用性（默认关闭；关闭时输出不变）
+#   → 区分「端口可达」与「应用层可用」：测速端点 403 但普通域名 200 的
+#     就是「探针盲区」——对订阅者可用，只是测不到速度
+python main.py --single 43.175.131.30 --probe-domain
 
 # 对筛选结果批量标注 IP 归属画像（地理位置/ISP/ASN/网络类型）
 python main.py --isp ct --ipinfo
@@ -235,6 +239,7 @@ HTML 锚点 `#`（如 `<a href="#top">1.2.3.4</a>`）位于 IP 之前，不会�
 | `--allow-no-cf-nets`    | 关      | 官方网段拉取失败时仍继续（段校验降级为仅标记）。段校验承担防线职责时（`--cf-net-strict` 或 `--no-speed`）默认直接中止本轮 |
 | `--verify-cert`         | 关      | 测速 TLS 握手强制校验证书：以 SNI=speed.cloudflare.com 验证书链+主机名，只有真 Cloudflare 边缘能出示受信证书，挡掉伪造 cf-ray 的非 CF 反代（P1-5），同时保留外延段。默认关闭，首次开启建议单独观察一轮 |
 | `--single TARGET`       | -      | 单目标快速检测：`IP[:端口]` 或 `域名[:端口]`，实测 TCP/TLS/延迟/丢包/测速/机房（归属画像需加 `--ipinfo`）（借鉴 ProxyIP 检测站的“真实链路验证”思路，不做静态解析） |
+| `--probe-domain`        | 关      | **仅 `--single`**：额外探测一次「普通域名」的 HTTP 可用性（复用 403 二次验证的同一探测），区分「端口可达」与「应用层可用」——测速端点 403 但普通域名 200 即「探针盲区」，对订阅者可用。**默认关闭，关闭时输出不变**；CI 批量模式**不需要**（它已在做 403 二次验证） |
 | `--ipinfo`              | 关      | 开启 IP 归属画像（地理位置/ISP/ASN/网络类型，公开 ip-api.com 接口，免费额度约 45 次/分钟，串行查询 + 本地缓存）；批量模式与 `--single` 单目标模式通用，默认均关闭 |
 | `--outdir DIR`          | result | 输出目录                  |
 | `--version`             | -      | 显示版本号（v2.3.1）       |

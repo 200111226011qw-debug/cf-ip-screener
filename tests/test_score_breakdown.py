@@ -68,12 +68,17 @@ def test_report_marks_unmeasured_speed(tmp_path):
 
 
 def test_report_shows_raw_score_when_clamped(tmp_path):
-    """触顶（原始分 > 100）→ 报告里要能看到原始分，读者才能对上账。"""
-    clean = [_row("104.16.1.1")]     # 原始 140 → 截断 100
+    """触顶（各维度净贡献合计 > 100）→ 报告里要能看到合计值与封顶。
+
+    显示成「合计140→封顶100」而不是「原始140→100」：后者会让读者以为
+    算错了——合计超过 100 是**设计特征**（好节点在多个维度都能拿满分）。
+    """
+    clean = [_row("104.16.1.1")]     # 基础60 + 20+15+15+10+10+10 = 140
     _build(str(tmp_path), clean)
     md = open(os.path.join(str(tmp_path), "report.md"), encoding="utf-8").read()
-    assert "原始140" in md or "原始 140" in md
-    assert "→100" in md
+    assert "合计140" in md
+    assert "封顶100" in md
+    assert "原始140" not in md
 
 
 def test_json_detail_carries_components(tmp_path):

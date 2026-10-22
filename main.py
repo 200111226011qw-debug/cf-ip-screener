@@ -89,6 +89,11 @@ def parse_args():
                    help="运营商过滤，逗号分隔：ct,cu,cmcc（默认不限）")
     p.add_argument("--no-tls", action="store_true",
                    help="跳过 TLS 握手校验")
+    p.add_argument("--probe-domain", action="store_true",
+                   help="--single 模式额外探测一次**普通域名**的 HTTP 可用性"
+                        "（区分「端口可达」与「应用层可用」；默认关闭，"
+                        "关闭时输出不变。CI 批量模式不需要——它已在做 403 "
+                        "二次验证）")
     p.add_argument("--no-speed", action="store_true",
                    help="跳过真实下载测速")
     p.add_argument("--speed-url", default=None,
@@ -211,6 +216,8 @@ def main():
     }
     if args.no_tls:
         overrides["tls_check"] = False
+    if args.probe_domain:
+        overrides["probe_domain"] = True
     if args.cf_net_strict:
         overrides["cf_net_strict"] = True
     if args.verify_cert:
@@ -1510,6 +1517,48 @@ def empty_result_guard(clean, results, cfg, speed_candidate_count=None):
     return bool(cfg.get("fail_on_empty_result", True))
 
 
+def _probe_domain_line(ip, port, cfg):
+    """普通域名 HTTP 探测 → 一行可读结论（异常 → None）。
+
+    复用现成的 `speedtest.probe_host_status`——**403 二次验证用的同一个
+    函数**：它打的是**普通域名**（www.cloudflare.com/cdn-cgi/trace），不是
+    测速端点。「这个 IP 对订阅者到底能不能用」问的就是这个 Host（测速端点
+    恰恰是会 403 的那个），所以口径天然一致。
+    """
+    url = (cfg.get("speed_blind_probe_url")
+           or "https://www.cloudflare.com/cdn-cgi/trace")
+    _u = urllib.parse.urlparse(url)
+    try:
+        status, colo, server = asyncio.run(speedtest.probe_host_status(
+            ip, port, _u.hostname or "www.cloudflare.com", _u.path or "/"))
+    except Exception:
+        return None
+    if status is None:
+        # 连接/TLS 层失败 → **不是盲区**，是真不可用（与 403 区分开）
+        return "不可达（连接/TLS 层失败——不是盲区，是真不可用）"
+    txt = str(status)
+    if colo:
+        txt += f"（机房 {colo}）"
+    if server:
+        txt += f" server={server}"
+    if 200 <= status < 400:
+        txt += " → 对订阅者可用"
+    elif status == 403:
+        txt += " → 该 Host 也不服务（真不可用）"
+    return txt
+
+
+def _maybe_probe_domain(ip, port, cfg):
+    """**默认关闭** → 返回 None 且**不发任何请求**；开启 → 返回一行结论。
+
+    关闭时必须**完全无副作用**（不探测、不改输出）——所以判断放在这里，
+    而不是散在调用处。
+    """
+    if not cfg.get("probe_domain"):
+        return None
+    return _probe_domain_line(ip, port, cfg)
+
+
 def run_single(cfg: dict, target: str) -> int:
     """单目标快速检测：实测 TCP/TLS/延迟/丢包，可选测速与机房识别。
 
@@ -1621,6 +1670,14 @@ def run_single(cfg: dict, target: str) -> int:
             log.info("归属画像:      查询失败（可能超过免费额度，稍后再试）")
     else:
         log.info("归属画像:      未查询（加 --ipinfo 查看）")
+
+    # 普通域名 HTTP 探测（--probe-domain，**默认关闭**）：
+    # 区分「端口可达」与「应用层可用」——403 探针盲区问的就是这个。
+    # 放在输出末尾：读者能连着看到「测速端点失败」与「普通域名可用」，
+    # 这正是探针盲区的典型画面。关闭时**输出不变**（不探测、不多打一行）。
+    _pline = _maybe_probe_domain(ip, port, cfg)
+    if _pline:
+        log.info(f"普通域名 HTTP: {_pline}")
 
     log.info("-" * 60)
     ok = res["avg_ms"] is not None and (

@@ -80,7 +80,10 @@ def _score_cells(r):
         parts.append(f"{label}{v:+d}")
     raw = r.get("score_raw")
     if raw is not None and raw != score:
-        parts.append(f"(原始{raw}→{score})")
+        # 说清「为什么能超过 100」：各维度净贡献合计 > 100 是**设计特征**
+        # （好节点在延迟/丢包/速度/TLS/colo/原生段上都能拿满分），不是算错。
+        # 写「原始140→100」会让读者以为算错了 → 直接写成「合计140→封顶100」。
+        parts.append(f"(合计{raw}→封顶{score})")
     if not parts:
         parts.append("(无加减项)")
     return f"{score} {r.get('status', '')}".strip(), " ".join(parts)
@@ -446,7 +449,7 @@ document.querySelectorAll('#ip-table th').forEach(function (th) {
 {_rows()}
 </table>
 <p style="font-size:12px;color:#888;">完整明细见 result/clean-ips.txt 与 clean-ips.json。</p>
-<p style="font-size:12px;color:#888;">分数构成 = 基础 60 + 各项净贡献（加分项 +X、扣分项 −X），总分上限 100；括号里是触顶时的原始分→最终分。速度「未测」= 没测到速度（该项记 0 分），不是「测出 0MB/s」。</p>
+<p style="font-size:12px;color:#888;">分数构成 = 基础 60 + 各项净贡献（加分项 +X、扣分项 −X），总分上限 100；括号里是「各维度净贡献合计 → 封顶后的分数」——好节点在多个维度上都能拿满分，<b>合计超过 100 是设计特征，不是算错</b>。速度「未测」= 没测到速度（该项记 0 分），不是「测出 0MB/s」。</p>
 
 {interactive_js}
 </body>
