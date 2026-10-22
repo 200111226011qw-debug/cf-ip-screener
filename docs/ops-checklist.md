@@ -212,3 +212,26 @@ git rev-parse HEAD; git rev-parse origin/main    # 两者必须一致
 **已知例外**：`tests/test_tcp_probe_loopback.py` 在本机（Windows 沙箱）单跑
 与全量跑都失败，在 CI（ubuntu）上通过——与本机网络栈有关，**不是代码问题**。
 改动前后都失败即可确认与本次改动无关。
+
+## 8. 本地跑：用 `--state-file` 隔离 CI 状态文件
+
+**规范**：本地手动跑（尤其是 10MB 攒库跑）一律加
+`--state-file local-runs\<目录>\.ci-state.json`。
+
+**为什么**：`empty_streak_file` 默认是仓库根的 `.ci-state.json`，它受版本
+控制、是 CI「连续空结果告警」的数据源。2026-10-22 修 `_BLIND_OFF_STREAK`
+的 NameError **之前**，本地跑恰好不写它（bug 掩盖）；修复后本地每轮都会写：
+
+- 正常轮：`last_clean` 被改成本地产出数（只写不读，提交上去是噪声）；
+- **空结果轮：`empty_streak +1`**——连跑 3 次空结果再提交，CI 读到 STREAK=3
+  会**误开 issue**。
+
+指到本次输出目录后：仓库文件一个字节不动；且每轮都是新文件，本地连击数
+永远从 0 起，**根本不会**触发告警。父目录不存在会自动创建——不建的话
+`empty_streak_update` 的 `except OSError: pass` 会静默跳过写入。
+
+```powershell
+python main.py --speed-url "https://speed.cloudflare.com/__down?bytes=10485760" `
+  --speed-rate-limit 1 --speed-concurrency 1 `
+  --outdir local-runs\<目录> --state-file local-runs\<目录>\.ci-state.json
+```

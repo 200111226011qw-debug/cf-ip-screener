@@ -144,6 +144,11 @@ def parse_args():
                         "使用公开 ip-api.com 接口，免费额度约 45 次/分钟）；"
                         "批量模式与 --single 单目标模式通用，默认均关闭")
     p.add_argument("--outdir", default=None, help="输出目录（默认 result）")
+    p.add_argument("--state-file", default=None,
+                   help="空结果连击状态文件路径（默认 config 的 .ci-state.json）；"
+                        "本地跑建议指到本次输出目录下的独立文件，避免污染 CI 状态"
+                        "（独立文件也让本地 empty_streak 永远从 0 起，不会误触发告警）；"
+                        "父目录不存在时自动创建；传空字符串等同不传")
     p.add_argument("--allow-no-cf-nets", action="store_true",
                    help="官方网段拉取失败时仍继续（关闭非 CF 节点校验，"
                         "结果可能混入非 Cloudflare 节点）")
@@ -222,6 +227,9 @@ def main():
         # 覆盖 config 里显式设置的 True
         "ipinfo": args.ipinfo or None,
         "output_dir": args.outdir,
+        # "" 视为未提供（与 None 同义）：空路径在 _update_streak_state 里
+        # 是「禁用状态写入」，容易被误当成「用默认值」，这里统一归一化
+        "empty_streak_file": args.state_file or None,
     }
     if args.no_tls:
         overrides["tls_check"] = False
@@ -1420,6 +1428,13 @@ def _update_streak_state(cfg, n_clean):
     if not path:
         return 0, False, {}
     try:
+        # 父目录自动创建：--state-file 常指向本次输出目录（如
+        # local-runs/<时间>/.ci-state.json），目录还不存在。不建的话
+        # empty_streak_update 里的 open() 会 OSError，被它自己的
+        # `except OSError: pass` 静默吞掉——日志上看不出「没写」。
+        parent = os.path.dirname(path)
+        if parent:
+            os.makedirs(parent, exist_ok=True)
         return filter_mod.empty_streak_update(
             path, n_clean,
             int(cfg.get("empty_streak_alert_threshold", 3) or 3),

@@ -1085,6 +1085,9 @@ g2 轮首轮的 12 个 403（已落地网段聚集诊断后可直接看出聚集
      `python main.py --speed-url "https://speed.cloudflare.com/__down?bytes=10485760" --speed-rate-limit 1`
      （本地每个 10MB 下载要 2s，天然就是 ~0.5 req/s；限速器保证不越过
      字节型限流的阈值。）
+     **另外加 `--state-file local-runs\<目录>\.ci-state.json`**：默认路径是
+     仓库根受版本控制的 `.ci-state.json`，本地跑会改它（见
+     `docs/ops-checklist.md` §8）。
 
 ### 体量选择是**视角相关**的，不是单一最优解
 
@@ -1198,6 +1201,17 @@ g2 轮首轮的 12 个 403（已落地网段聚集诊断后可直接看出聚集
 
 - 每次 10MB 跑完，把 `clean-ips.txt` 逐行加日期前缀追加到
   `local-lib/passed-ips.log`（`local-lib/` 与 `local-runs/` 都不入库）；
+- **本地跑必须加 `--state-file`**（2026-10-23 起）：
+
+  ```powershell
+  python main.py --speed-url "https://speed.cloudflare.com/__down?bytes=10485760" `
+    --speed-rate-limit 1 --speed-concurrency 1 `
+    --outdir local-runs\<目录> --state-file local-runs\<目录>\.ci-state.json
+  ```
+
+  不传会写仓库根的 `.ci-state.json`（CI 连击告警的数据源）——本地空结果轮
+  会把 CI 的 `empty_streak` 推高，连推 3 次就误开 issue。独立文件还让本地
+  连击数每轮从 0 起（不会累积到阈值）；
 - 攒 ~10 次后人工数出现次数：出现 ≥5 次的 IP 就是「本机网络上稳定可用」的，
   直接当本地库；没有重复出现 → 说明波动大，本地库不值得建；
 - **不用 256KB 替代**：256KB 的通过率接近 100%（本轮 429 的 4 个 IP 换
