@@ -246,3 +246,11 @@ python main.py --speed-url "https://speed.cloudflare.com/__down?bytes=10485760" 
 任务会把它吃光。`validate-mihomo.yml` 在 2026-10-22 16:33 UTC 就撞上 403
 （同一 commit 的 `test` 是绿的），`curl -f` 直接退出码 22 → 整步失败。
 带 token 后按 token 计（5000 次/小时），再把 5xx 用 `--retry 3` 兜住。
+**`--retry` 不兜 403**（curl 默认只重试 5xx/连接错误）：token 失效之类的 403
+就该显式失败，不能被重试掩盖。
+
+**asset 选择依赖返回顺序（未改）**：`jq ... | head -1` 取第一个匹配项，
+过滤条件**已经排除了 `compatible`**；当前先匹配到
+`mihomo-linux-amd64-v1-go120-...gz`（官方构建，`-t` 语义相同），但顺序变化
+可能换到另一个变体（go123 / 标准 v1 等）。下次有人觉得「validate 行为变了」，
+先看日志里 `Downloading:` 那一行的**资产名**，而不是先怀疑 YAML 生成。

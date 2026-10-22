@@ -72,7 +72,9 @@ def test_writes_custom_path_and_repo_state_is_untouched(tmp_path):
 
     比较的是 `open(..., "rb").read()`（内容），**不是 mtime**——mtime 在粗粒度
     文件系统/CI 上会误报。另外**先断言文件存在**：若它被删掉，`None == None`
-    会让这条测试假绿，而它正是「隔离」的唯一直接证据。
+    会让这条测试假绿，而它正是「隔离」的唯一直接证据。该文件受版本控制，
+    干净 checkout 上必然存在；若哪天被 gitignore，这条会红——**那种红是正确的**
+    （隔离断言失去了基准）。
     """
     repo_state = os.path.join(ROOT, ".ci-state.json")
     assert os.path.exists(repo_state), "仓库 .ci-state.json 不存在，隔离断言会假绿"
