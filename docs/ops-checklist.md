@@ -49,6 +49,18 @@ print(len([l for l in lines if "域名可达" in l]))    # → 5
 | `Select-String -Encoding UTF8` | ⚠️ 部分可用 | 显式指定编码；仍受控制台输出编码影响（只是**读取**这步对了） |
 | `Select-String`（默认） | ❌ 不可用 | 中文 pattern 静默匹配 0 条 |
 
+**同一族的「捕获」陷阱**：`python main.py ... *> out.txt` 或 `| Out-File`
+会把子进程的 UTF-8 输出**先按控制台代码页解码、再按 PowerShell 默认编码
+（5.1 是 UTF-16LE）写盘** → 中文变成**不可逆**的乱码（替换成 PUA 字符，
+事后怎么解码都救不回来）。要核对中文输出：
+
+- ✅ 用仓库自带的 `--log-file`（UTF-8）拿日志，再按 UTF-8 读；
+- ✅ 或先 `[Console]::OutputEncoding = [Text.Encoding]::UTF8` 再捕获；
+- ❌ 不要用 `*>` / `Out-File` 直接落盘做「字节级」判断。
+
+**真实案例**（2026-10-22 核对 `--single --probe-domain` 的真实输出）：`*>`
+写出的文件里中文全是 `鍗曠洰鏍囧疄娴?`，同一个进程改用 `--log-file` 一次就对。
+
 **推论**：**控制台里显示的乱码不是「文件坏了」**。看到 `������` 先怀疑代码页，
 再去用 Python 复核字节——不要据此改代码。
 
