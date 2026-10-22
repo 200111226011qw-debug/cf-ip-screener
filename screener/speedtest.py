@@ -41,14 +41,24 @@ _CF_RAY_COLO = re.compile(r"^[0-9a-f]{8,}-([A-Za-z0-9]{3})$")
 _SCORE_SCALE_BY_BYTES = {10485760: 1.0, 1048576: 5.0, 262144: 9.0}
 
 
-def _probe_egress_ip_sync(host, timeout):
-    """同步取本机出口 IP（CF 看到的客户端地址）。返回字符串或 None。"""
+def _probe_egress_ip_sync(host, timeout, family=None):
+    """同步取本机出口 IP（CF 看到的客户端地址）。返回字符串或 None。
+
+    family: socket.AF_INET / AF_INET6；None = 系统默认（通常优先 IPv6）。
+    显式指定 family 是为了分别记录 runner 的 v4/v6 出口——测速候选以
+    IPv4 为主，只记 IPv6 出口不能代表那些请求的限流配额。
+    """
     import socket
     import ssl as _ssl
 
     tls = None
     try:
-        raw = socket.create_connection((host, 443), timeout=timeout)
+        infos = socket.getaddrinfo(host, 443, family or socket.AF_UNSPEC,
+                                   socket.SOCK_STREAM)
+        if not infos:
+            return None
+        ip = infos[0][4][0]
+        raw = socket.create_connection((ip, 443), timeout=timeout)
         ctx = _ssl.create_default_context()
         tls = ctx.wrap_socket(raw, server_hostname=host)
         tls.settimeout(timeout)
@@ -76,18 +86,23 @@ def _probe_egress_ip_sync(host, timeout):
                 pass
 
 
-async def probe_egress_ip(host="speed.cloudflare.com", timeout=5.0):
+async def probe_egress_ip(host="speed.cloudflare.com", timeout=5.0,
+                          family=None):
     """取本机出口 IP；失败返回 None（调用方如实标注「不可得」）。
 
     为什么需要独立探针：**429 响应不带 cf-meta-ip**（实测 0/24），
     而 429 恰恰是最需要出口 IP 的场景——风控配额按出口计。若测速响应
     全部是 429，就一个出口 IP 都拿不到。故用一次独立的 /cdn-cgi/trace
     兜底（一次极小的请求，与测速端点不同，不吃 __down 的配额）。
+
+    注意：**不能用测速响应的 cf-meta-ip 当 runner 出口**——外延段
+    （第三方地址反代到 CF）的 cf-meta-ip 是反代自己的出口。runner 出口
+    必须来自这条独立 trace；family 用来分别取 IPv4 / IPv6。
     """
     loop = asyncio.get_running_loop()
     try:
         return await loop.run_in_executor(
-            None, _probe_egress_ip_sync, host, timeout)
+            None, _probe_egress_ip_sync, host, timeout, family)
     except Exception:
         return None
 

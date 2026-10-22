@@ -274,3 +274,24 @@ python main.py --speed-url "https://speed.cloudflare.com/__down?bytes=10485760" 
 `mihomo-linux-amd64-v1-go120-...gz`（官方构建，`-t` 语义相同），但顺序变化
 可能换到另一个变体（go123 / 标准 v1 等）。下次有人觉得「validate 行为变了」，
 先看日志里 `Downloading:` 那一行的**资产名**，而不是先怀疑 YAML 生成。
+
+## 10. 出口 IP：`cf-meta-ip` 是候选侧的，runner 出口必须独立 trace
+
+**规范**：跨轮比较 429 只用 `出口 IP（runner IPv4/IPv6, cdn-cgi/trace）` 两行；
+`候选侧 cf-meta-ip（首个非空，外延段反代，非 runner）` 只用于判断候选混合。
+
+**为什么**：`cf-meta-ip` 是 CF 边缘看到的**客户端**地址。直连 CF 边缘时它等于
+runner 出口；外延段（第三方地址反代到 CF）时，它是**反代自己的出口**。旧日志
+取测速结果里首个非空 `client_ip` 当 runner 出口，于是 2026-10-23 出现「runner
+出口每轮都换」的误判——`8.148.151.180` 就是该候选自己的出口，`43.168.146.238`
+是 `43.175.131.30` 的出口。独立 trace 实测 runner 是 IPv4 `113.242.117.193`
+（LAX）/ IPv6 `240e:381:…`（SJC），与那些值都不是一回事。
+
+**同一旧值跨簇**（`43.168.146.238` 在 run1 70.3% / run7 82.3%，
+`8.148.151.180` 在 run2 66.7% / run6 85.3%）不能当「runner 同出口不同 429」
+的证据——它是候选侧；只能说明旧日志无法回答 runner 出口是否变化。
+
+**404 / verify_cert 顺带**：404 的 `fail_reason` 是 `http_error`（不是
+`cert`）；`verify_cert` 默认 False（`config.py:171` / `config_model.py:78`），
+CLI 只有 `--verify-cert`，CI 不传。开启后 404 会变成 `connect` +
+`cert_ok=False`（六类闭集里没有 `cert`）。别再按「有 cert 类别」去查日志。

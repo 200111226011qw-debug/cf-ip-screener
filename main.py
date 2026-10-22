@@ -23,6 +23,7 @@ import concurrent.futures as futures
 import os
 import json
 import random
+import socket
 import statistics
 import time
 import urllib.parse
@@ -884,23 +885,29 @@ def run_once(args, overrides, cfg=None):
                 if _d:
                     log.info(f"      复测第 {ri} 轮收满门禁剔除 {_d} 条")
             round_data.append(_rnd)
-        # runner 出口 IP（cf-meta-ip，CF 回给客户端的本机出口地址）。
-        # 限流实验必须记录：不同出口 IP 的限流配额不同，429 比例不可跨
-        # 出口比较——这是「26 条样本 35% vs 300 条样本 69%」这类差异的
-        # 头号候选解释。
-        # 注意：**429 响应不带 cf-meta-ip**（实测 0/24），而 429 恰恰是
-        # 最需要出口 IP 的场景 → 测速响应里没拿到时，用一次独立的
-        # /cdn-cgi/trace 兜底。
-        _cip = next((sp.get("client_ip") for sp in r1
-                     if sp.get("client_ip")), None)
-        _cip_src = "cf-meta-ip"
-        if not _cip:
-            _cip = asyncio.run(speedtest.probe_egress_ip())
-            _cip_src = "cdn-cgi/trace"
-        if _cip:
-            log.info(f"      出口 IP（{_cip_src}）: {_cip}")
-        else:
-            log.info("      出口 IP: 不可得（cf-meta-ip 与 cdn-cgi/trace 均失败）")
+        # runner 出口 IP：必须用独立 /cdn-cgi/trace，不能用测速响应的
+        # cf-meta-ip——外延段（第三方地址反代到 CF）的 cf-meta-ip 是
+        # **反代自己的出口**，不是 runner 的。旧口径取首个非空
+        # cf-meta-ip，导致「runner 出口每轮都换」的误判：实际只是首个
+        # 成功候选换了（例如 run 6 的 8.148.151.180 就是该候选自己的
+        # client_ip；run 1 的 43.168.146.238 是 43.175.131.30 的出口）。
+        # 分别取 IPv4/IPv6：测速候选以 IPv4 为主，只记 IPv6 出口不能
+        # 代表那些请求的限流配额。429 响应不带 cf-meta-ip，所以独立
+        # 探针也是 429 场景下唯一能拿到 runner 出口的方式。
+        _runner4 = asyncio.run(speedtest.probe_egress_ip(family=socket.AF_INET))
+        _runner6 = asyncio.run(speedtest.probe_egress_ip(family=socket.AF_INET6))
+        if _runner4:
+            log.info(f"      出口 IP（runner IPv4, cdn-cgi/trace）: {_runner4}")
+        if _runner6:
+            log.info(f"      出口 IP（runner IPv6, cdn-cgi/trace）: {_runner6}")
+        if not (_runner4 or _runner6):
+            log.info("      出口 IP（runner）: 不可得"
+                     "（cdn-cgi/trace IPv4/IPv6 均失败）")
+        _cand_ip = next((sp.get("client_ip") for sp in r1
+                         if sp.get("client_ip")), None)
+        if _cand_ip:
+            log.info("      候选侧 cf-meta-ip（首个非空，外延段反代，"
+                     f"非 runner）: {_cand_ip}")
         # 在飞下载峰值（实际并发 ground truth）：信号量只约束「进入
         # speed_one 的任务数」，而线程在 asyncio 超时后不会被真正取消，
         # 仍可能占着连接——实际并发可能高于信号量。
