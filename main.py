@@ -800,7 +800,9 @@ def run_once(args, overrides, cfg=None):
         # 失败 IP 明细（限流归因必需）：只记 IP:port，不记其它。
         # 有了它才能回答「这轮被 403 的 IP，上一轮是不是被 429 过」
         # （即风控的副作用是否会持续到下一轮、污染候选池）。
-        for _code in (429, 403):
+        # 404 也记 IP（2026-10-23）：两轮出现 404×6 / ×3，旧日志只有聚合数，
+        # 无法判断是「所有边缘都 404」还是「部分边缘」——先补数据，不扩二次验证。
+        for _code in (429, 403, 404):
             _ips = [f"{k[0]}:{k[1]}" for k, sp in zip(all_keys, r1)
                     if sp.get("status") == _code]
             if _ips:
@@ -1021,10 +1023,10 @@ def run_once(args, overrides, cfg=None):
                       + " / ".join(f"{k} {v}" for k, v in
                                    sorted(_creason.items(),
                                           key=lambda kv: -kv[1])))
-            # 对照侧的 429/403 IP 明细：与主侧的 403 列表对照，就能回答
+            # 对照侧的 404/429/403 IP 明细：与主侧的 403 列表对照，就能回答
             # 「这轮被 429 的 IP，下一轮是不是变成 403 了」（风控副作用
             # 是否会持续到下一轮、污染候选池）。
-            for _code in (429, 403):
+            for _code in (429, 403, 404):
                 _ips = [f"{k[0]}:{k[1]}" for k, sp in zip(all_keys, _cres)
                         if sp.get("status") == _code]
                 if _ips:
