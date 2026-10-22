@@ -144,6 +144,38 @@ def parse_args():
     return p.parse_args()
 
 
+def _fetch_one_pool(pool, cfg, isp_filter=""):
+    """抓单个池，返回 (pool, parsed_or_None, err)。
+
+    err 约定：
+      None       → 成功
+      "__SKIP__" → 运营商过滤跳过
+      其他字符串  → 抓取失败的异常消息
+
+    **「单个池失败不影响整体」的实现就在这里**：抓取异常被捕获成 err 字符串
+    返回，调用方把它记进池级统计（stat["err"]），其余池照常参与聚合。
+
+    为什么提到模块级：这段逻辑原先是 main() 里的嵌套闭包 → **没法单测**，
+    而 README 把它当成对外承诺写着。承诺必须能被测试锁住（改坏了没人
+    知道是最危险的一类缺口）。逻辑**未做任何改动**，只是搬到了可测的位置。
+    """
+    url = pool["url"]
+    if isp_filter and pool.get("isp") and pool["isp"] not in isp_filter:
+        return pool, None, "__SKIP__"
+    try:
+        parsed = fetcher.fetch_pool(
+            pool, cfg["default_port"], cfg["fetch_timeout"],
+            cfg.get("cidr_sample", 64),
+            cfg.get("fetch_retries", 2),
+            cfg.get("fetch_retry_delay", 2.0),
+            float(cfg.get("request_jitter_max", 0.0)),
+            bool(cfg.get("rotate_ua", True)),
+        )
+        return pool, parsed, None
+    except Exception as e:
+        return pool, None, str(e)
+
+
 def main():
     args = parse_args()
     logging_setup.setup_logging(args.log_level, args.log_file or "")
@@ -324,27 +356,8 @@ def run_once(args, overrides, cfg=None):
     log.info(f"[1/6] 并发抓取候选池（{len(cfg['pools'])} 个来源，并发 {fetch_workers}，"
           f"失败自动重试 {cfg['fetch_retries']} 次）...")
     def _fetch_one(pool):
-        """线程池内执行：抓单个池，返回 (pool, parsed_or_None, err)。
-        err 约定：
-          None       → 成功
-          "__SKIP__" → 运营商过滤跳过
-          其他字符串  → 抓取失败的异常消息
-        """
-        url = pool["url"]
-        if isp_filter and pool.get("isp") and pool["isp"] not in isp_filter:
-            return pool, None, "__SKIP__"
-        try:
-            parsed = fetcher.fetch_pool(
-                pool, cfg["default_port"], cfg["fetch_timeout"],
-                cfg.get("cidr_sample", 64),
-                cfg.get("fetch_retries", 2),
-                cfg.get("fetch_retry_delay", 2.0),
-                float(cfg.get("request_jitter_max", 0.0)),
-                bool(cfg.get("rotate_ua", True)),
-            )
-            return pool, parsed, None
-        except Exception as e:
-            return pool, None, str(e)
+        """线程池内执行：抓单个池（转发到模块级实现，便于单测）。"""
+        return _fetch_one_pool(pool, cfg, isp_filter)
     # 并发抓取（保留原顺序聚合，避免 pool_stats 顺序乱）
     fetch_results = {}
     with futures.ThreadPoolExecutor(max_workers=fetch_workers) as ex:
