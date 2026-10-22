@@ -237,4 +237,25 @@ def test_legacy_null_in_state_file_is_read_as_zero(tmp_path):
     assert main_mod._BLIND_OFF_STREAK == 1       # 0（null 当 0）+ 1
 
 
+def test_string_null_in_state_file_does_not_crash(tmp_path):
+    """**已知边界**（不阻塞）：状态文件被手动改成字符串 `"null"`。
+
+    `int("null" or 0)` 会抛 ValueError（`"null"` 是 truthy，`or 0` 不生效），
+    但读侧外面有 `try/except Exception` → 归 0，不崩（实际 streak 0→1）。
+    这条锁的是「人为改坏文件也不炸」；将来若把读侧改成
+    `isinstance(v, int) else 0`，结果不变、这条仍然通过。
+    """
+    p = _state_path(tmp_path)
+    with open(p, "w", encoding="utf-8") as f:
+        json.dump({"empty_streak": 0, "last_clean": 50,
+                   "blind_quota_off_streak": "null"}, f)
+    cfg = {"top_n": 50, "blind_quota_enabled": True,
+           "blind_quota_enable_diff_ms": 10, "blind_quota_disable_diff_ms": 30,
+           "blind_quota_off_rounds": 2, "empty_streak_file": p}
+    _q, _note = main_mod._blind_quota_decision(
+        [{"avg_ms": 500.0}], [{"avg_ms": 100.0}], cfg)
+    assert main_mod._BLIND_OFF_STREAK == 1       # 异常分支归 0，再 +1
+
+
+
 

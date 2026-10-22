@@ -276,6 +276,11 @@
     `empty_streak`/`last_clean` → 写回」，所以**旧字段原样保留**，未知时
     **不会写成 `null`**（null 会被下一轮 `int(...)` 炸掉，也会被读侧当成 0）；
     读侧对历史遗留的 null 用 `int(... or 0)` 兜底。
+    - **已知边界（不阻塞、未改）**：读侧是 `int(v or 0)`，若状态文件被**手动**
+      改成字符串 `"null"`，`int("null" or 0)` 会抛 ValueError——但外层有
+      `try/except Exception`，归 0 后继续（实测 streak 0→1，不崩）。程序自己
+      不会写出这种形态；要更精确可改成 `isinstance(v, int) else 0`。已加
+      行为锁 `test_string_null_in_state_file_does_not_crash`。
   - 每轮开始（`run_once`）重置为 `None`：`--watch` 在同一进程连跑多轮时，
     上一轮的残留值不会被当成这一轮的结果写进状态文件。
   - 回归测试 5 条 + 变异检验（把「未知」改成写 0 → 两条红）。
