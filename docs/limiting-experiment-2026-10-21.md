@@ -1244,7 +1244,10 @@ IPv6 行都带 `#IPv6` 标记，统计时与 IPv4 **分开**——混在一起�
   `local-lib/passed-ips.log`，格式 `<date> <slot> <IP:port>#…`
   （`local-lib/` 与 `local-runs/` 都不入库）。时段取目录名后缀
   （`evening`/`night`/`day`）——不然分不清「凌晨高产」是 IP 好还是时段好；
-  **旧行已按目录名回填**（第一轮 evening、第二/三轮 night）；
+  **旧行已按目录名回填**（第一轮 evening、第二/三轮 night）。`night` 目前
+  偏粗（01:05 / 03:11 / 04:02 都归 night）；等 10 轮跑完，先看 night 内部
+  的 429 比例和通过率有没有可见差异，再决定是否细分 `late-night`
+  （23:00–01:00）/ `early-morning`（02:00–05:00）——**现在不改**；
 - **本地跑必须加 `--state-file`**（2026-10-23 起）：
 
   ```powershell
