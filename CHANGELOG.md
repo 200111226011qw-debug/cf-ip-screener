@@ -334,6 +334,13 @@
 - **攒库统计口径**：文档改为 **IPv4 有速度 / IPv6 有速度 / 盲区** 三组分开
   算；盲区的 ≥5 只表示「域名可达稳定」，不等于速度稳定。第七轮后
   80 行 / 49 unique = 27 + 19 + 3。
+- **batch 1 落地核对（2026-10-23）**：当前 main 的 `--verify-cert` 是
+  `store_true`，两处 `verify_cert` 默认 False；CHANGELOG 2.3.1 已写
+  「默认关闭」，没有 Breaking True 声明。`git log --all -S`、stash、分支、
+  dangling commit 均无 batch 1 的 True/BooleanOptionalAction 改动；
+  blame 停在 81c405e8（2026-10-17）。**batch 1 未进入本仓库，不是部分
+  落地**。若后续要改默认值，应作为独立 breaking change 重新评审，不在
+  攒库中途做。
 
 ## Unreleased — 收满门禁 + 限流归因埋点（v2.4.0 预备）
 为「限流类型实验」铺路：先把**收满判定**做实（独立，不影响限流结论），

@@ -1359,8 +1359,16 @@ False，不是 True。这 6 个 IP 能走到 HTTP 层，是因为证书校验从
   `--no-verify-cert`；CI `auto-run.yml:85` 是
   `python main.py --top-n 50 $EXTRA_ARGS`，不传该开关。`git log --all -S`
   查不到任何把默认值改成 True 的提交（该行由 81c405e8 设为 False）。
-  「batch 1 把默认改成 True」在当前 main 上没有落地；如果那是另一个
-  分支/工作区的计划，需要单独核对。
+  「batch 1 把默认改成 True」在**本仓库没有任何落地**：`--verify-cert` 是
+  `store_true`，不是 `BooleanOptionalAction`；两处默认值是 False；
+  CHANGELOG 2.3.1 明确写「默认关闭」，没有 Breaking 声明；`git log --all
+  -S` 查不到 True 默认或 `BooleanOptionalAction`；`git blame` 两行都停在
+  81c405e8（2026-10-17，引入该功能时就是 False），之后没有提交改回；
+  `git stash` 为空，分支只有 main/exp，26 个 dangling commit 里也没有
+  batch 1；提交统计里没有 9 文件/+230/−23 的 verify_cert 改动（唯一接近
+  文件数的是 c79c0ad 的 `--probe-domain`，+243/−14，无关）。结论：**不是
+  「部分落地」，是从未进入本仓库**；没有 Breaking 声明需要修正。如果那是
+  另一个分支/工作区的计划，需单独核对；本仓库不改默认值。
 - 404 归因：`speedtest._fail_reason()` 先判状态码——非 200/403/429 一律
   `http_error`。第五轮 `http_error 15` = 404×6 + 502×2 + 504×2 + 400×2 +
   303×1 + 406×1 + 421×1；第六轮 `http_error 8` = 404×3 + 400×2 + 504×1 +
