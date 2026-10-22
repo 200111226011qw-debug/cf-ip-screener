@@ -68,9 +68,15 @@ def test_empty_string_is_treated_as_none(monkeypatch):
 
 
 def test_writes_custom_path_and_repo_state_is_untouched(tmp_path):
-    """写到指定路径；仓库根的 `.ci-state.json` 一个字节都不变。"""
+    """写到指定路径；仓库根的 `.ci-state.json` **内容字节**一个都不变。
+
+    比较的是 `open(..., "rb").read()`（内容），**不是 mtime**——mtime 在粗粒度
+    文件系统/CI 上会误报。另外**先断言文件存在**：若它被删掉，`None == None`
+    会让这条测试假绿，而它正是「隔离」的唯一直接证据。
+    """
     repo_state = os.path.join(ROOT, ".ci-state.json")
-    before = open(repo_state, "rb").read() if os.path.exists(repo_state) else None
+    assert os.path.exists(repo_state), "仓库 .ci-state.json 不存在，隔离断言会假绿"
+    before = open(repo_state, "rb").read()
 
     custom = str(tmp_path / "run" / ".ci-state.json")
     cfg = {"empty_streak_file": custom, "empty_streak_alert_threshold": 3}
@@ -80,7 +86,7 @@ def test_writes_custom_path_and_repo_state_is_untouched(tmp_path):
     with open(custom, encoding="utf-8") as f:
         assert json.load(f)["empty_streak"] == 1
 
-    after = open(repo_state, "rb").read() if os.path.exists(repo_state) else None
+    after = open(repo_state, "rb").read()
     assert after == before, "本地跑动了仓库的 .ci-state.json"
 
 

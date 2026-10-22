@@ -297,6 +297,13 @@
     **父目录不存在时自动创建**（不建的话 `open()` 的 `OSError` 会被
     `empty_streak_update` 的 `except OSError: pass` 静默吞掉，日志上只剩
     「没写」，很难查）。
+    - **已知边界（不阻塞、未改）**：`os.makedirs` 在 `try` 内，权限不足 /
+      磁盘满 / 路径非法时会被同一个 `except` 吞掉，随后写文件也失败、也被
+      `empty_streak_update` 的 `except OSError: pass` 吞掉 → 仍是「静默不写」。
+      与 NameError 同类（告警机制自己哑了），区别是触发条件为环境异常，且影响
+      已被 `--state-file` 隔离在本地（CI 的写失败是原有行为，未变差）。将来若
+      「该响没响」，先查这两处；要区分原因，把 makedirs 单独 `log.warning`
+      即可（**未做**）。
   - **传 `""` → 等同不传**（不报错）。空路径在内部是「禁用状态写入」，
     容易被误当成「用默认值」，故在 override 处归一化为 `None`。
   - **意外的好处**：本地每轮用新目录/新文件 → `empty_streak` 永远从 0 起，
