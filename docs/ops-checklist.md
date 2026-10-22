@@ -317,3 +317,34 @@ CLI 只有 `--verify-cert`，CI 不传。开启后 404 会变成 `connect` +
 `git log --all -S` 无相关提交，blame 停在 81c405e8，stash/分支/dangling
 都没有 batch 1。结论：**batch 1 从未进入本仓库**，不是部分落地；也没有
 Breaking 声明需要修正。以后看到“已落地”的汇报，先按这五条验字节。
+
+## 12. `Validate Clash YAML` 是只读 smoke test，不校验已提交产物
+
+**规范**：`Validate Clash YAML` 绿灯只说明「当前代码用 `--limit 10 --no-speed`
+临时生成的 YAML 能被 Mihomo 接受」，**不能推断**仓库里已提交的
+`result/clash_proxies.yaml` 没问题。
+
+**机制**：
+
+- `validate-mihomo.yml` 由 `schedule`（每 4 小时）、`push` 到 main/tag、
+  `workflow_dispatch` 自动触发，但权限是 `contents: read`，步骤里没有
+  `git add` / `git commit` / `git push`；
+- 它 checkout 后自己跑 `python main.py --limit 10 --no-speed`，在 runner
+  的临时工作区生成 `result/clash_proxies.yaml`，再用 `mihomo -t -f` 校验；
+  文件随 runner 丢弃，不会回到仓库；
+- 所以它校验的是**代码路径**，不是 `auto-run` 已提交的那份产物。如果
+  `auto-run` 的 `--top-n 50` 结果因参数组合或数据特征坏了，而 10 条
+  `--no-speed` 临时生成没有复现，这个 workflow 仍可能绿；
+- `--limit 10 --no-speed` 只走连通性路径，不覆盖测速、收满门禁、盲区回收。
+  这些由 `test` 的单元/契约和 `auto-run` 的完整参数覆盖；`test` 同样不校验
+  已提交的 `result/` 产物。
+
+**自动触发 ≠ 自动更新**：定时/推送触发只代表校验会跑，不代表结果文件会被
+更新或提交。唯一会提交 `result/` 的是 `auto-run.yml`。
+
+**排查顺序**：
+
+1. 先看 `auto-run` 本轮的参数、漏斗、报告和 `result/` 字节；
+2. 要确认已提交的 YAML，直接对 `result/clash_proxies.yaml` 跑 Mihomo
+   `-t`，不要只看 validate 绿灯；
+3. 不要因为 validate 绿就判定线上订阅文件无问题。

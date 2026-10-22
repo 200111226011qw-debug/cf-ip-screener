@@ -386,6 +386,11 @@ workflow 运行。提交行为：**结果无变化时跳过提交**（池子稳�
 说明：工作流为**单 job 全运营商**运行（一次跑出总表 + 三运营商分表），
 不使用矩阵并行——多 job 并发写同一批 `result/` 文件会导致 rebase 冲突。
 
+> **`Validate Clash YAML` 是只读 smoke test**：它自己生成 10 条
+> `--no-speed` 候选并用 Mihomo 校验，不提交，也不校验仓库里已提交的
+> `result/clash_proxies.yaml`；绿灯只代表代码路径和 YAML 语法可接受。
+> 边界见 `docs/ops-checklist.md` §12。
+
 ## 输出口径（重要）
 
 > ⚠️ **产出基线已变（v2.4.0）**：**收满门禁默认开启**（`speed_full_gate`），
