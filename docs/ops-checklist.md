@@ -235,3 +235,14 @@ python main.py --speed-url "https://speed.cloudflare.com/__down?bytes=10485760" 
   --speed-rate-limit 1 --speed-concurrency 1 `
   --outdir local-runs\<目录> --state-file local-runs\<目录>\.ci-state.json
 ```
+
+## 9. CI 调 GitHub API：必须带 token
+
+**规范**：workflow 里 `curl https://api.github.com/...` 一律带
+`-H "Authorization: Bearer ${{ github.token }}"`。
+
+**为什么**：runner 的出口 IP 是共享的，**未认证**的 API 限流是
+**60 次/小时/IP**（不是每仓库）——与本仓库的用量无关，同一台机器上的别的
+任务会把它吃光。`validate-mihomo.yml` 在 2026-10-22 16:33 UTC 就撞上 403
+（同一 commit 的 `test` 是绿的），`curl -f` 直接退出码 22 → 整步失败。
+带 token 后按 token 计（5000 次/小时），再把 5xx 用 `--retry 3` 兜住。

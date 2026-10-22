@@ -29,9 +29,17 @@ jobs:
           echo "--- head of clash.yaml ---"
           head -20 result/clash_proxies.yaml
       - name: Download mihomo (latest amd64)
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euxo pipefail
-          RESP=$(curl -fsSL https://api.github.com/repos/MetaCubeX/mihomo/releases/latest)
+          # runner 的出口 IP 是共享的：未认证的 api.github.com 限流是
+          # 60 次/小时/IP（不是每仓库），2026-10-22 16:33 UTC 就这样吃过 403。
+          # 带 token 后按 token 计（5000 次/小时），并重试 5xx。
+          RESP=$(curl -fsSL --retry 3 --retry-delay 5 \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/repos/MetaCubeX/mihomo/releases/latest)
           echo "--- available assets ---"
           echo "$RESP" | jq -r '.assets[].name'
           URL=$(echo "$RESP" | jq -r '.assets[]
