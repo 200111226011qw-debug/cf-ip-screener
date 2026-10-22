@@ -204,3 +204,37 @@ def test_decision_makes_blind_streak_known(monkeypatch):
     assert main_mod._blind_off_extra_state() == {"blind_quota_off_streak": 0}
 
 
+def test_unknown_streak_never_writes_null(tmp_path, unknown_blind_streak):
+    """未知时**不写 null**：null 会把「未知」变成 0，下一轮 `int(None)` 也危险。
+
+    真正落盘的是「从旧状态整份读出来、只改 empty_streak/last_clean 再写回」
+    ——所以已有字段会被**保留**，不会因为本轮没算就被删掉或写成 null。
+    """
+    p = _state_path(tmp_path)
+    with open(p, "w", encoding="utf-8") as f:
+        json.dump({"empty_streak": 0, "last_clean": 0,
+                   "blind_quota_off_streak": 1}, f)
+    cfg = {"empty_streak_file": p, "empty_streak_alert_threshold": 3}
+    main_mod._update_streak_state(cfg, 0)       # 触发重写（0 → 1）
+    raw = open(p, encoding="utf-8").read()
+    assert "null" not in raw
+    data = json.loads(raw)
+    assert data["blind_quota_off_streak"] == 1, "未知轮次把旧值覆盖了"
+    assert data["empty_streak"] == 1, "连击数没有更新"
+
+
+def test_legacy_null_in_state_file_is_read_as_zero(tmp_path):
+    """旧文件里若是 `null`，读侧要按 0 处理——`None + 1` 不能炸。"""
+    p = _state_path(tmp_path)
+    with open(p, "w", encoding="utf-8") as f:
+        json.dump({"empty_streak": 0, "last_clean": 50,
+                   "blind_quota_off_streak": None}, f)
+    cfg = {"top_n": 50, "blind_quota_enabled": True,
+           "blind_quota_enable_diff_ms": 10, "blind_quota_disable_diff_ms": 30,
+           "blind_quota_off_rounds": 2, "empty_streak_file": p}
+    _q, _note = main_mod._blind_quota_decision(
+        [{"avg_ms": 500.0}], [{"avg_ms": 100.0}], cfg)   # diff +400ms > 30ms
+    assert main_mod._BLIND_OFF_STREAK == 1       # 0（null 当 0）+ 1
+
+
+
