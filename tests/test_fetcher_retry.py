@@ -211,3 +211,133 @@ class TestSinglePoolFailureIsolation:
         _gp, gparsed, gerr = main_mod._fetch_one_pool(good, cfg)
         assert bparsed is None and "bad pool down" in berr
         assert gerr is None and ("1.1.1.1", 443) in gparsed
+
+
+class TestConfigPassThrough:
+    """**配置项必须真的传到 fetch_pool**。
+
+    为什么单列一组：`_fetch_one` 从 `main()` 的嵌套闭包提到模块级
+    `_fetch_one_pool` 时，闭包原本可以**隐式**读外层的 `cfg` / `isp_filter`，
+    提到模块级后必须**显式传参**——漏一个就是「逻辑被改了一处」，而
+    「重试次数对」这类测试**不一定**能发现漏传（例如 rotate_ua 漏传时，
+    抓取照样成功、重试次数照样对，只有 UA 不再轮换）。
+
+    （AST 核验：旧闭包的自由变量 = {cfg, isp_filter, fetcher}；新函数把
+    cfg / isp_filter 变成显式参数，fetcher 仍是模块级导入 → 无遗漏，
+    且两个函数体去掉 docstring 后 AST 逐条相同。）
+    """
+
+    def test_all_config_values_reach_fetch_pool(self, monkeypatch):
+        """cfg 里的 8 个取值必须**原样**传下去（含 rotate_ua / jitter）。"""
+        seen = {}
+
+        def _fake_fetch_pool(pool, default_port, timeout, cidr_sample,
+                             retries, retry_delay, jitter, rotate_ua):
+            seen.update(pool=pool, default_port=default_port, timeout=timeout,
+                        cidr_sample=cidr_sample, retries=retries,
+                        retry_delay=retry_delay, jitter=jitter,
+                        rotate_ua=rotate_ua)
+            return {}
+
+        monkeypatch.setattr(fetcher, "fetch_pool", _fake_fetch_pool)
+        cfg = {"default_port": 8443, "fetch_timeout": 9, "cidr_sample": 128,
+               "fetch_retries": 5, "fetch_retry_delay": 3.5,
+               "request_jitter_max": 1.25, "rotate_ua": True}
+        pool = {"url": "https://example.invalid/pool.txt"}
+        main_mod._fetch_one_pool(pool, cfg)
+        assert seen["pool"] is pool
+        assert seen["default_port"] == 8443
+        assert seen["timeout"] == 9
+        assert seen["cidr_sample"] == 128
+        assert seen["retries"] == 5
+        assert seen["retry_delay"] == 3.5
+        assert seen["jitter"] == 1.25
+        assert seen["rotate_ua"] is True
+
+    def test_config_defaults_are_used_when_absent(self, monkeypatch):
+        """cfg 里缺项 → 用 fetcher 的默认值（与闭包版行为一致）。"""
+        seen = {}
+
+        def _fake_fetch_pool(pool, default_port, timeout, cidr_sample,
+                             retries, retry_delay, jitter, rotate_ua):
+            seen.update(cidr_sample=cidr_sample, retries=retries,
+                        retry_delay=retry_delay, jitter=jitter,
+                        rotate_ua=rotate_ua)
+            return {}
+
+        monkeypatch.setattr(fetcher, "fetch_pool", _fake_fetch_pool)
+        cfg = {"default_port": 443, "fetch_timeout": 15}
+        main_mod._fetch_one_pool({"url": "https://example.invalid/p.txt"}, cfg)
+        assert seen["cidr_sample"] == 64
+        assert seen["retries"] == 2
+        assert seen["retry_delay"] == 2.0
+        assert seen["jitter"] == 0.0
+        assert seen["rotate_ua"] is True
+
+
+class TestUserAgentRotation:
+    """UA 轮换：每次尝试都**重新取**（不是只取一次），且受 rotate_ua 控制。"""
+
+    def _record_requests(self, monkeypatch, script):
+        reqs = []
+
+        def _fake_urlopen(req, timeout=None):
+            reqs.append(req)
+            kind, payload = script[min(len(reqs) - 1, len(script) - 1)]
+            if kind == "ok":
+                return _FakeResponse(payload)
+            raise payload
+
+        monkeypatch.setattr(fetcher.urllib.request, "urlopen", _fake_urlopen)
+        return reqs
+
+    def test_ua_is_picked_once_per_fetch_and_reused_by_retries(self, monkeypatch):
+        """**一次抓取只取一次 UA**，同一池的重试沿用同一个 UA。
+
+        为什么锁这条：docstring 曾写「每次请求随机选 UA」而实现是「每次
+        抓取取一次」——文档与实现脱节，靠肉眼看不出来。重试 = 同一个客户
+        端再试（不是换个人），轮换发生在**池与池之间**。
+
+        （若将来有数据表明源站按 UA 封禁、该改成每次尝试换 UA，把
+        `_pick_ua` 挪进重试循环即可——那时这条断言会变红，提示同步更新。）
+        """
+        seq = list(fetcher.UA_LIST[:3])
+        picked = []
+
+        def _fake_choice(_seq):
+            picked.append(len(picked))
+            return seq[len(picked) - 1]
+
+        monkeypatch.setattr(fetcher.random, "choice", _fake_choice)
+        reqs = self._record_requests(monkeypatch, [("err", OSError("x"))])
+        _install_sleep(monkeypatch)
+        with pytest.raises(OSError):
+            fetcher.fetch("https://example.invalid/pool.txt",
+                          retries=2, retry_delay=0.0, jitter=0.0,
+                          rotate_ua=True)
+        assert len(picked) == 1          # 3 次尝试，只取 1 次 UA
+        assert len(reqs) == 3
+        for req in reqs:
+            assert req.get_header("User-agent") == seq[0]
+
+    def test_rotate_true_uses_ua_from_list(self, monkeypatch):
+        """rotate_ua=True → UA 取自 UA_LIST（不是只用那一个主 UA）。"""
+        reqs = self._record_requests(monkeypatch, [("err", OSError("x"))])
+        _install_sleep(monkeypatch)
+        with pytest.raises(OSError):
+            fetcher.fetch("https://example.invalid/pool.txt",
+                          retries=0, retry_delay=0.0, jitter=0.0,
+                          rotate_ua=True)
+        assert reqs[0].get_header("User-agent") in fetcher.UA_LIST
+
+    def test_rotate_false_keeps_single_ua(self, monkeypatch):
+        """rotate_ua=False → 每次都用同一个主 UA（不轮换）。"""
+        reqs = self._record_requests(monkeypatch, [("err", OSError("x"))])
+        _install_sleep(monkeypatch)
+        with pytest.raises(OSError):
+            fetcher.fetch("https://example.invalid/pool.txt",
+                          retries=2, retry_delay=0.0, jitter=0.0,
+                          rotate_ua=False)
+        assert len(reqs) == 3
+        for req in reqs:
+            assert req.get_header("User-agent") == fetcher.UA
