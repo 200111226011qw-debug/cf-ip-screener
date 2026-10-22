@@ -324,9 +324,10 @@
   是**反代自己的出口**。现在 `main.py` 独立用 `/cdn-cgi/trace` 分别取 runner
   IPv4/IPv6，另起一行记候选侧 `cf-meta-ip`（明确标「非 runner」）；
   `speedtest.probe_egress_ip()` 增加 `family` 参数；新增
-  `tests/test_egress_ip.py` 锁 family 透传。第八、九轮实测相同：runner IPv4
-  `113.242.117.193` / IPv6 `240e:381:9543:ef00:f903:a958:2a8b:4e9`，候选侧
-  `2001:df1:7880:4::58e`（非 runner）；两轮 429 从 72.3% 回到 84.7% 而出口
+  `tests/test_egress_ip.py` 锁 family 透传。第八至十轮实测相同：runner IPv4
+  `113.242.117.193` / IPv6 `240e:381:9543:ef00:f903:a958:2a8b:4e9`；候选侧
+  第八/九轮为 `2001:df1:7880:4::58e`、第十轮为 `43.168.146.238`（非
+  runner，候选侧会变）；三轮 429 为 72.3% → 84.7% → 87.7% 而 runner 出口
   没变。旧轮次没有同口径数据。**选择逻辑未变。**
 - **404 / verify_cert 复核**：当前 `verify_cert` 默认 False
   （`config.py:171` / `screener/config_model.py:78`），404 记
@@ -335,8 +336,8 @@
   与证书校验不矛盾——校验从未开启。`166.88.98.231` 补测后 7/7 个 404 IP
   都是非 CF 主机。
 - **攒库统计口径**：文档改为 **IPv4 有速度 / IPv6 有速度 / 盲区** 三组分开
-  算；盲区的 ≥5 只表示「域名可达稳定」，不等于速度稳定。第九轮后
-  108 行 / 59 unique = 35 + 21 + 3（night 104 行 / 56 unique；evening 4 行 /
+  算；盲区的 ≥5 只表示「域名可达稳定」，不等于速度稳定。第十轮后
+  119 行 / 62 unique = 38 + 21 + 3（night 115 行 / 59 unique；evening 4 行 /
   4 unique；≥5 只在 night 组内）。
 - **batch 1 落地核对（2026-10-23）**：当前 main 的 `--verify-cert` 是
   `store_true`，两处 `verify_cert` 默认 False；CHANGELOG 2.3.1 已写
