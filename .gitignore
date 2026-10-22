@@ -17,8 +17,9 @@ Thumbs.db
 watch.log
 watch.err
 result-local/
-# 本地攒库实验（手动扫描结果，不进仓库）
+# 本地攒库实验（手动扫描结果 + 累积的通过 IP，不进仓库）
 local-runs/
+local-lib/
 
 # IP 差集观察器（diff_new_ips.py）
 .seen-ips.json
