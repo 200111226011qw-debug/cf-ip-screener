@@ -26,6 +26,54 @@ def _fmt_mbps(v):
 _SCOPE_CN = {"announced": "公告段", "extended": "外延段", "unknown": "未知"}
 
 
+# 分数构成的展示名（顺序 = 读者最关心的顺序：先看扣分的，再看加分的）
+_SCORE_COMP_LABELS = (
+    ("latency", "延迟"),
+    ("loss", "丢包"),
+    ("speed", "速度"),
+    ("tls", "TLS"),
+    ("colo", "colo"),
+    ("native", "原生段"),
+    ("risk", "反标记"),
+)
+
+
+def _score_cells(r):
+    """分数构成 → (分数文本, 构成文本)。
+
+    - **绝对值**（不是百分比）：读者要的是「延迟贡献了多少分」，占比还得
+      再乘一次总分，多一步。
+    - **净贡献**（加分项 +X、扣分项 −X）：算法是「基础 60 + 各项净贡献」，
+      不是「100 减扣分」→ 显示「扣了多少」会让人以为还有别的加项。
+    - **只列非零项**：全 0 的项对读者是噪声。
+    - **触顶要看得见**：原始分 ≠ 最终分说明被 clamp 到 100，读者才能对上账。
+    - **速度「未测」不是「0 分」**：speed_mbps=None 的候选速度项记 0 分，
+      但那是「没测到」，必须标出来（否则会被读成「测出 0MB/s 的坏节点」）。
+    """
+    score = r.get("score")
+    if score is None:
+        return "-", "-"
+    comp = r.get("score_components") or {}
+    parts = []
+    for key, label in _SCORE_COMP_LABELS:
+        v = comp.get(key)
+        if key == "speed" and not r.get("speed_measured", True):
+            # **未测**要显式标出来：速度项记 0 分是「没测到速度」，不是
+            # 「测出 0MB/s」。若因为值是 0 就跳过，读者会以为「速度这项
+            # 没参与」——与「没测到」是两回事。
+            parts.append("速度 未测(0)")
+            continue
+        if not v:
+            continue
+        parts.append(f"{label}{v:+d}")
+    raw = r.get("score_raw")
+    if raw is not None and raw != score:
+        parts.append(f"(原始{raw}→{score})")
+    if not parts:
+        parts.append("(无加减项)")
+    return f"{score} {r.get('status', '')}".strip(), " ".join(parts)
+
+
 def _ip_scope(r):
     return _SCOPE_CN.get(r.get("net_scope"), "未知")
 
@@ -192,14 +240,16 @@ def build_report(cfg, pool_stats, clean, total_tested, total_candidates,
     md.append("")
 
     md.append("## 纯净 IP 明细\n")
-    md.append("| IP:端口 | 延迟(ms) | 丢包 | TLS | 速度(MB/s) | 机房 | 原生 | 段 |")
-    md.append("| --- | --- | --- | --- | --- | --- | --- | --- |")
+    md.append("| IP:端口 | 延迟(ms) | 丢包 | TLS | 速度(MB/s) | 机房 | 原生 | 段 | 分数 | 分数构成 |")
+    md.append("| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |")
     for r in clean[:50]:
         tls = "OK" if r.get("tls_ok") else ("-" if r.get("tls_ok") is None else "FAIL")
+        _sc, _scd = _score_cells(r)
         md.append(f"| {r['ip']}:{r['port']} | {_fmt_ms(r.get('avg_ms'))} | "
                   f"{r.get('loss_rate', 0):.0%} | {tls} | "
                   f"{_fmt_mbps(r.get('speed_mbps'))} | {r.get('colo') or '-'} | "
-                  f"{'是' if r.get('native') else '-'} | {_ip_scope(r)} |")
+                  f"{'是' if r.get('native') else '-'} | {_ip_scope(r)} | "
+                  f"{_sc} | {_scd} |")
     if len(clean) > 50:
         md.append(f"\n（其余 {len(clean) - 50} 条见 result/clean-ips.txt 与 .json）")
 
@@ -227,6 +277,7 @@ def build_report(cfg, pool_stats, clean, total_tested, total_candidates,
         for r in clean[:100]:
             tls = ("<span class='ok'>OK</span>" if r.get("tls_ok")
                    else ("-" if r.get("tls_ok") is None else "<span class='bad'>FAIL</span>"))
+            _sc, _scd = _score_cells(r)
             rows.append(
                 f"<tr><td>{html.escape(r['ip'])}:{r['port']}</td>"
                 f"<td class='num'>{_fmt_ms(r.get('avg_ms'))}</td>"
@@ -235,7 +286,9 @@ def build_report(cfg, pool_stats, clean, total_tested, total_candidates,
                 f"<td class='num'>{_fmt_mbps(r.get('speed_mbps'))}</td>"
                 f"<td>{html.escape(r.get('colo') or '-')}</td>"
                 f"<td>{'是' if r.get('native') else '-'}</td>"
-                f"<td>{html.escape(_ip_scope(r))}</td></tr>")
+                f"<td>{html.escape(_ip_scope(r))}</td>"
+                f"<td class='num'>{html.escape(_sc)}</td>"
+                f"<td><small>{html.escape(_scd)}</small></td></tr>")
         return "".join(rows)
 
     def _pool_rows():
@@ -375,10 +428,11 @@ document.querySelectorAll('#ip-table th').forEach(function (th) {
 
 <h2>纯净 IP 明细（点击表头排序）</h2>
 <table id="ip-table">
-<tr><th data-num="0">IP:端口</th><th data-num="1">延迟(ms)</th><th data-num="1">丢包</th><th>TLS</th><th data-num="1">速度(MB/s)</th><th>机房</th><th>原生</th><th>段</th></tr>
+<tr><th data-num="0">IP:端口</th><th data-num="1">延迟(ms)</th><th data-num="1">丢包</th><th>TLS</th><th data-num="1">速度(MB/s)</th><th>机房</th><th>原生</th><th>段</th><th data-num="1">分数</th><th>分数构成</th></tr>
 {_rows()}
 </table>
 <p style="font-size:12px;color:#888;">完整明细见 result/clean-ips.txt 与 clean-ips.json。</p>
+<p style="font-size:12px;color:#888;">分数构成 = 基础 60 + 各项净贡献（加分项 +X、扣分项 −X），总分上限 100；括号里是触顶时的原始分→最终分。速度「未测」= 没测到速度（该项记 0 分），不是「测出 0MB/s」。</p>
 
 {interactive_js}
 </body>

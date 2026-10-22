@@ -29,8 +29,17 @@ def score_result(result, ipinfo_data=None, speed_scale=1.0):
         proxy, hosting, mobile, country, regionName, city, isp, as
       speed_scale: 速度分档的标定系数（见下方「速度分档的标定」）
 
-    返回：{score:int|None, status:str, checked_at:iso8601, flags:{...}}
+    返回：{score:int|None, status:str, checked_at:iso8601, flags:{...},
+           score_base:int, score_components:dict, score_raw:int}
     当 result 本身探测失败（avg_ms 为 None）时 score=None、status=unknown。
+
+    **分数构成（为什么暴露出来）**：算法是「基础 60 + 各项净贡献（可正可负），
+    总分上限 100」——不是「100 减扣分」。所以每个组件报的是**净贡献**
+    （加分项 +X、扣分项 −X），外加 `score_base`（基础分）与 `score_raw`
+    （clamp 之前的原始分）。读者据此能自己把分数加出来；原始分 ≠ 最终分
+    说明触发了上限截断（**必须能看见**，否则加不出总分）。
+    分数**逐位不变**：重构只是把「就地累加」换成「按组件累加」，数学等价，
+    由 tests/_score_golden.json（重构前抓的黄金值）锁住。
     """
     avg_ms = result.get("avg_ms")
     if avg_ms is None:
@@ -39,34 +48,44 @@ def score_result(result, ipinfo_data=None, speed_scale=1.0):
             "status": "unknown",
             "checked_at": datetime.now(timezone.utc).isoformat(),
             "flags": _flags(ipinfo_data),
+            # 无数据 → 没有构成可拆（不是「各项 0 分」）
+            "score_base": None,
+            "score_components": None,
+            "score_raw": None,
+            "speed_measured": None,
         }
 
-    score = 60
+    # 基础分 60 + 各项**净贡献**（可正可负）。分量单独记，是为了报告里能
+    # 把「分数怎么来的」拆开显示（见 docstring）。
+    base = 60
+    comp = {"latency": 0, "loss": 0, "speed": 0, "tls": 0,
+            "colo": 0, "native": 0, "risk": 0}
+    speed_measured = result.get("speed_mbps") is not None
 
     # 延迟
     if avg_ms < 50:
-        score += 20
+        comp["latency"] += 20
     elif avg_ms < 100:
-        score += 10
+        comp["latency"] += 10
     elif avg_ms < 200:
         pass
     elif avg_ms < 400:
-        score -= 10
+        comp["latency"] -= 10
     else:
-        score -= 20
+        comp["latency"] -= 20
 
     # 丢包
     loss = result.get("loss_rate") or 0.0
     if loss <= 0:
-        score += 15
+        comp["loss"] += 15
     elif loss < 0.05:
-        score += 10
+        comp["loss"] += 10
     elif loss < 0.15:
         pass
     elif loss < 0.3:
-        score -= 10
+        comp["loss"] -= 10
     else:
-        score -= 25
+        comp["loss"] -= 25
 
     # 速度（None = 没跑测速 / 速度未知，不扣不加）
     #
@@ -107,39 +126,41 @@ def score_result(result, ipinfo_data=None, speed_scale=1.0):
     if spd is not None:
         spd = spd * (speed_scale or 1.0)
         if spd > 20:
-            score += 15
+            comp["speed"] += 15
         elif spd > 10:
-            score += 10
+            comp["speed"] += 10
         elif spd > 5:
-            score += 5
+            comp["speed"] += 5
         elif spd > 1:
             pass
         else:
-            score -= 10
+            comp["speed"] -= 10
 
     # TLS 校验
     tls = result.get("tls_ok")
     if tls is True:
-        score += 10
+        comp["tls"] += 10
     elif tls is False:
-        score -= 15
+        comp["tls"] -= 15
 
     # cf-ray 命中（真实边缘节点证据）
     if result.get("colo"):
-        score += 10
+        comp["colo"] += 10
 
     # 官方原生段加分
     if result.get("native") is True:
-        score += 10
+        comp["native"] += 10
 
     # ipinfo 反标记（proxy 才扣；hosting 不扣——CF 本身就是数据中心）
     info = ipinfo_data or {}
     if info.get("proxy"):
-        score -= 20
+        comp["risk"] -= 20
     if info.get("tor"):
-        score -= 20
+        comp["risk"] -= 20
 
-    score = int(round(_clamp(score)))
+    # 原始分（clamp 之前）——触顶时读者才能对上账
+    raw = base + sum(comp.values())
+    score = int(round(_clamp(raw)))
     if score >= 75:
         status = "good"
     elif score >= 45:
@@ -152,6 +173,13 @@ def score_result(result, ipinfo_data=None, speed_scale=1.0):
         "status": status,
         "checked_at": datetime.now(timezone.utc).isoformat(),
         "flags": _flags(info),
+        # 分数构成（报告里拆开显示用）
+        "score_base": base,
+        "score_components": dict(comp),
+        "score_raw": raw,
+        # 速度是否真的测过（None → 0 分是「没测到」，不是「测出 0」）——
+        # 报告里要区分显示，不能让读者把「未测」当成「0 分的坏节点」
+        "speed_measured": speed_measured,
     }
 
 

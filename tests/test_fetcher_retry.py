@@ -341,3 +341,37 @@ class TestUserAgentRotation:
         assert len(reqs) == 3
         for req in reqs:
             assert req.get_header("User-agent") == fetcher.UA
+
+
+class TestDocstringMatchesBehavior:
+    """**docstring 必须描述实际行为**——「文档说每次、实现取一次」这类脱节
+    肉眼读不出来（2026-10-22 真的发生过：docstring 写「每次请求随机选 UA」，
+    实现是每次抓取取一次）。
+
+    为什么连文档都要断言：本仓库的纪律是「承诺必须能被测试锁住」，而
+    docstring 就是对**配置项语义**的承诺。行为断言（上面那几条）锁住
+    *行为*，这一条锁住 *文档与行为一致*——两者缺一，就可能出现「代码对、
+    文档错」或「代码错、文档对」的半吊子状态。
+    """
+
+    def test_rotate_ua_docstring_does_not_claim_per_request_rotation(self):
+        """**参数说明行**必须说「每次抓取」而不是「每次请求」。
+
+        按行判定而不是整篇包含：docstring 里可以**引用**旧说法讲历史
+        （「这里曾经写着…」），那不是对行为的声明——要判定的是
+        `rotate_ua：` 那一行本身怎么描述这个参数。
+        """
+        doc = fetcher.fetch.__doc__ or ""
+        claim_lines = [ln.strip() for ln in doc.splitlines()
+                       if ln.strip().startswith("rotate_ua：")]
+        assert claim_lines, "docstring 里找不到 rotate_ua 的说明行"
+        for ln in claim_lines:
+            assert "每次抓取" in ln, (
+                f"rotate_ua 的说明行应写明是「每次抓取」取一次：{ln}")
+            assert "每次请求" not in ln, (
+                f"rotate_ua 的说明行仍在声称「每次请求」：{ln}")
+
+    def test_rotate_ua_docstring_states_retries_reuse_the_same_ua(self):
+        doc = fetcher.fetch.__doc__ or ""
+        assert "重试" in doc and "同一个 UA" in doc, (
+            "docstring 应写明同池内的重试沿用同一个 UA")

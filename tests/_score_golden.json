@@ -1,0 +1,34 @@
+{
+  "excellent": {
+    "score": 100,
+    "status": "good"
+  },
+  "good_plain": {
+    "score": 100,
+    "status": "good"
+  },
+  "mid": {
+    "score": 95,
+    "status": "good"
+  },
+  "narrow_band": {
+    "score": 85,
+    "status": "good"
+  },
+  "slow": {
+    "score": 0,
+    "status": "poor"
+  },
+  "blind_no_speed": {
+    "score": 100,
+    "status": "good"
+  },
+  "proxy": {
+    "score": 100,
+    "status": "good"
+  },
+  "unknown": {
+    "score": null,
+    "status": "unknown"
+  }
+}
