@@ -1439,8 +1439,8 @@ def _update_streak_state(cfg, n_clean):
     try:
         # 父目录自动创建：--state-file 常指向本次输出目录（如
         # local-runs/<时间>/.ci-state.json），目录还不存在。不建的话
-        # empty_streak_update 里的 open() 会 OSError，被它自己的
-        # `except OSError: pass` 静默吞掉——日志上看不出「没写」。
+        # empty_streak_update 里的 open() 会 OSError；7c54604 后写失败会记
+        # warning（不再静默），但预创建父目录仍能避免这类失败。
         parent = os.path.dirname(path)
         if parent:
             os.makedirs(parent, exist_ok=True)

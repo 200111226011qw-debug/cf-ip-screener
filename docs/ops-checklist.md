@@ -248,7 +248,8 @@ git rev-parse HEAD; git rev-parse origin/main    # 两者必须一致
 
 指到本次输出目录后：仓库文件一个字节不动；且每轮都是新文件，本地连击数
 永远从 0 起，**根本不会**触发告警。父目录不存在会自动创建——不建的话
-`empty_streak_update` 的 `except OSError: pass` 会静默跳过写入。
+`empty_streak_update` 写状态会失败；`7c54604` 起失败会记 `log.warning`
+（此前是静默 `pass`）。
 
 ```powershell
 python main.py --speed-url "https://speed.cloudflare.com/__down?bytes=10485760" `

@@ -10,9 +10,8 @@ CI 的 `empty_streak` 推高，连推 3 次就会误开 issue。
      CI 行为逐字节不变
   2. 传路径 → 原样进 overrides，并解析成 cfg 的这一项
   3. 传 `""` → 等同不传（不报错、不把状态写入禁用掉）
-  4. 指定路径的父目录不存在 → **自动创建**（否则 open() 的 OSError 会被
-     `empty_streak_update` 的 `except OSError: pass` 静默吞掉，日志上只是
-     「没写」，很难查）
+  4. 指定路径的父目录不存在 → **自动创建**（否则 open() 的 OSError 会让
+     `empty_streak_update` 写状态失败；7c54604 前是静默 pass，现在记 warning）
 
 独立文件的额外好处（非契约、但值得说）：本地每轮都是一个新目录/新文件，
 `empty_streak` 永远从 0 起——本地空结果**根本不会**累积到告警阈值。
