@@ -19,7 +19,8 @@
 
 
 
-* 纯 Python 标准库实现，**零第三方依赖**（仅 Python ≥ 3.8）
+* 核心筛选逻辑保持**纯 Python 标准库**、**零第三方依赖**（需 Python ≥ 3.10，
+  与 `requirements.txt` 一致；代码未在 3.9 上做 CI 覆盖；可选功能依赖见上方「依赖定位」）
 
 * 自动识别多种候选格式：`IP:端口#备注`、裸 IP、**CIDR 段（如 1.1.1.0/24）**、HTML 表格、JSON 等
 
@@ -243,7 +244,7 @@ HTML 锚点 `#`（如 `<a href="#top">1.2.3.4</a>`）位于 IP 之前，不会�
 | `--ipinfo`              | 关      | 开启 IP 归属画像（地理位置/ISP/ASN/网络类型，公开 ip-api.com 接口，免费额度约 45 次/分钟，串行查询 + 本地缓存）；批量模式与 `--single` 单目标模式通用，默认均关闭 |
 | `--outdir DIR`          | result | 输出目录                  |
 | `--state-file PATH`     | `.ci-state.json` | 空结果连击状态文件（默认 config 里的仓库根文件）。**本地跑请指到本次输出目录**（如 `local-runs\<时间>\.ci-state.json`）：仓库的 CI 状态一个字节都不动，且本地 `empty_streak` 每轮从 0 起（不会误开 issue）。父目录不存在自动创建；传空串等同不传 |
-| `--version`             | -      | 显示版本号（v2.3.1）       |
+| `--version`             | -      | 显示版本号（v2.4.0）       |
 | `--log-file PATH`       | -      | 日志文件路径（开启分级日志 + 文件记录） |
 | `--log-level LV`        | INFO   | 日志级别 DEBUG/INFO/WARNING/ERROR |
 | `--watch`               | 关      | 热重载循环模式：每轮后检查 `config.py` 变更自动重载，不重启 |
