@@ -3,9 +3,12 @@
 
 import ipaddress
 import json
+import logging
 import math
 import os
 import statistics
+
+log = logging.getLogger(__name__)
 
 
 def is_cf_ip(ip: str, nets) -> bool:
@@ -191,8 +194,12 @@ def empty_streak_update(state_path, clean_count, threshold=3, extra_state=None):
             with open(state_path, "w", encoding="utf-8") as f:
                 json.dump(state, f, ensure_ascii=False, indent=2)
                 f.write("\n")
-        except OSError:
-            pass
+        except OSError as e:
+            # 静默 pass 会让「状态没写进去」在日志上不可见：main 侧预创建
+            # 父目录只挡了「目录不存在」，权限不足/磁盘满/路径非法仍会走到
+            # 这里。记 warning、不中断主流程（连击计数丢失可接受，下一轮
+            # 会重新累计；但连击数是告警依据，写不进去必须可见）。
+            log.warning("空结果连击状态写入失败: %s（路径 %s）", e, state_path)
     return streak, streak >= threshold, state
 
 
