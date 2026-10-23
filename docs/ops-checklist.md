@@ -326,9 +326,9 @@ Breaking 声明需要修正。以后看到“已落地”的汇报，先按这�
 
 **机制**：
 
-- `validate-mihomo.yml` 由 `schedule`（每 4 小时）、`push` 到 main/tag、
-  `workflow_dispatch` 自动触发，但权限是 `contents: read`，步骤里没有
-  `git add` / `git commit` / `git push`；
+- `validate-mihomo.yml` 配置了 `schedule`（每 4 小时）、`push` 到 main/tag、
+  `workflow_dispatch`；但 `GITHUB_TOKEN` 产生的 push 不会触发它（见下条）。
+  权限是 `contents: read`，步骤里没有 `git add` / `git commit` / `git push`；
 - 它 checkout 后自己跑 `python main.py --limit 10 --no-speed`，在 runner
   的临时工作区生成 `result/clash_proxies.yaml`，再用 `mihomo -t -f` 校验；
   文件随 runner 丢弃，不会回到仓库；
@@ -342,9 +342,24 @@ Breaking 声明需要修正。以后看到“已落地”的汇报，先按这�
 **自动触发 ≠ 自动更新**：定时/推送触发只代表校验会跑，不代表结果文件会被
 更新或提交。唯一会提交 `result/` 的是 `auto-run.yml`。
 
+**第五条边界（`GITHUB_TOKEN` push 不触发下游 workflow）**：`auto-run.yml`
+用仓库的 `GITHUB_TOKEN` 提交并 push `result/`；GitHub 不会为这类 push
+启动新 workflow（防递归）。因此 `auto-run` 的定时轮和手动轮结果提交都
+**没有** `Validate Clash YAML` 的 push run 覆盖；定时 validate 即使之后
+checkout 到最新提交，也仍然只校验自己临时生成的 10 条，不校验已提交的
+`result/clash_proxies.yaml`。
+
+实测 `3229a45`（2026-10-23 11:21 UTC 结果提交）`check_runs=0`、
+`workflow_runs=0`。结论：**auto-run 的结果提交没有被 Validate 覆盖；要
+验证已提交产物，必须手动对 `result/clash_proxies.yaml` 跑 `mihomo -t`。**
+未被覆盖是事实，不等于结果本身坏了。
+
 **排查顺序**：
 
 1. 先看 `auto-run` 本轮的参数、漏斗、报告和 `result/` 字节；
 2. 要确认已提交的 YAML，直接对 `result/clash_proxies.yaml` 跑 Mihomo
    `-t`，不要只看 validate 绿灯；
-3. 不要因为 validate 绿就判定线上订阅文件无问题。
+3. 不要因为 validate 绿就判定线上订阅文件无问题；
+4. 没有 `mihomo` 可执行文件时，PyYAML 结构检查只能说明「YAML 语法正确、
+   proxy 字段完整」，**不能**说「Mihomo 校验通过」；trojan 必填字段、
+   端口范围、server 格式等 schema 约束还未验证。
