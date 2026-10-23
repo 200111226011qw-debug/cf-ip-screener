@@ -349,10 +349,26 @@ Breaking 声明需要修正。以后看到“已落地”的汇报，先按这�
 checkout 到最新提交，也仍然只校验自己临时生成的 10 条，不校验已提交的
 `result/clash_proxies.yaml`。
 
-实测 `3229a45`（2026-10-23 11:21 UTC 结果提交）`check_runs=0`、
+实测 `3229a45`（2026-10-23 11:21 UTC 结果提交）查询时 `check_runs=0`、
 `workflow_runs=0`。结论：**auto-run 的结果提交没有被 Validate 覆盖；要
 验证已提交产物，必须手动对 `result/clash_proxies.yaml` 跑 `mihomo -t`。**
 未被覆盖是事实，不等于结果本身坏了。
+
+**复查口径**：`check_runs` 查
+`GET /repos/{owner}/{repo}/commits/{sha}/check-runs`；`workflow_runs` 查
+`GET /repos/{owner}/{repo}/actions/runs?head_sha={sha}`。两项都查、都为 0，
+才能说「该 commit 既没被 check 覆盖、也没作为 head 触发过任何 workflow」；
+只查其中一项，结论不完整。
+
+**人工 push 的 validate 也不校验已提交产物**：`cdcd3e8` 的绿色 run
+`39950709113` 是人工 push 触发的，它仍只校验自己临时生成的 10 条，不校验
+`3229a45` 的 `result/clash_proxies.yaml`；这次绿色只证明 validate 自身能
+跑通，不证明最新结果文件合格。
+
+**未来机制（仅记录，不实现）**：要自动覆盖已提交产物，可用 `workflow_run`
+监听 `auto-run` 完成（`on: workflow_run: workflows: ["auto-run"]`）；触发源
+是 auto-run 的 run 完成，不是 `GITHUB_TOKEN` 的 push，因此不受该防递归限制。
+当前不做，保持「记录边界、不把未覆盖当普通失败重跑」的定位。
 
 **排查顺序**：
 
