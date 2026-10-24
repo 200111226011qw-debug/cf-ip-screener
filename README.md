@@ -361,6 +361,10 @@ CF 限流窗口不同（时段配额不同）、候选混合（直连边缘 vs �
 workflow 运行。提交行为：**结果无变化时跳过提交**（池子稳定时可能隔多轮
 才有一个 commit，属正常，不是 CI 故障）。
 
+受 GitHub schedule 事件丢弃影响（取证见
+[`REVIEW-2026-10-06.md`](REVIEW-2026-10-06.md)：约 60% 槽位不产生运行），
+实际有效轮次约 4–5 轮/天、间隔 2–8 小时不等，以 `result/` 最近提交时间为准。
+
 使用前提：仓库 `Settings → Actions → General` 已允许写入权限
 （Workflow permissions → Read and write），否则 `git push` 一步会失败。
 
@@ -450,7 +454,7 @@ cf-ray 验证为 CF 边缘（公告段或外延段）。
   https://cdn.jsdelivr.net/gh/<用户名>/cf-ip-screener@main/result/clean-ips.txt
   ```
 
-  ⚠️ 本项目结果每 2 小时更新一次，jsDelivr 缓存可能导致订阅内容滞后；追求实时请直接用 raw 链接。
+  ⚠️ 本项目结果定时更新：名义每 2 小时一轮，受 GitHub schedule 事件丢弃影响，实际间隔约 2–8 小时不等（以 `result/` 最近提交时间为准）；jsDelivr 约 12h 的缓存会进一步放大滞后，追求实时请直接用 raw 链接。
 
 * **GitHub Pages / Cloudflare Pages**：把 `result/` 发布为静态站点（或同步到 `docs/` 分支），获得无缓存、稳定的访问地址。
 
