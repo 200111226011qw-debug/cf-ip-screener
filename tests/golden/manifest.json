@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-14T15:13:07",
+  "generated_at": "2026-11-01T18:40:44",
   "fixture_count": 7,
   "files": [
     "by_isp/clean-ips-cmcc.json",
@@ -12,6 +12,7 @@
     "by_isp/clean-ips-other.txt",
     "by_isp/clean-ips.json",
     "by_isp/clean-ips.txt",
+    "by_isp/ipinfo.json",
     "clash_proxies.yaml",
     "clean.json",
     "clean.txt",

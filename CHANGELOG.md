@@ -17,6 +17,12 @@
   （Merged-IP-Data，免费无 key，含 ASN 三元组 + proxy 布尔族），带新鲜度守卫
   与 gh-proxy 国内镜像兜底；CI `auto-run.yml` 每次运行前自动更新并默认开启
   `--ipinfo`。
+- **`country_name` / `continent` 内置回填**：数据源缺这两个字段时，用内置
+  ISO 3166 表按 `country`（ISO 码）反查补全（零依赖）；`timezone` 无法反查、
+  保持数据源原值。
+- **`clean-ips.json` 画像瘦身**：`ipinfo` 只保留核心子集（`country`/`city`/
+  `as`/`asn_org`/`hosting`/`cdn`/`proxy`/`anonymous`），完整画像按 IP 索引拆到
+  `result/ipinfo.json`；`clean-ips.txt` 订阅行不变。
 
 ### 行为变更（Breaking-ish）
 
