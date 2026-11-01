@@ -43,7 +43,7 @@
 
 ### 测试
 
-- 全量 **466 passed**（新增 `tests/test_geo.py` 离线归一化/回填/下载更新、
+- 全量 **468 passed**（新增 `tests/test_geo.py` 离线归一化/回填/下载更新、
   `tests/test_ipinfo.py` 离线优先+在线兜底+双失效降级，及 score/output 的
   flags/标记/瘦身增补）。
 

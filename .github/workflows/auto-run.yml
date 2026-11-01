@@ -60,14 +60,19 @@ jobs:
           fi
 
       # 离线地理库缓存：GitHub runner 是一次性的、geo/ 又被 .gitignore 掉，
-      # 不缓存则每轮都全量重下 ~93MB。用按日 key（run_date）缓存 geo/，
-      # 当天第一轮下载、后续轮次命中缓存 + 新鲜度守卫跳过下载，兑现
-      # 「一天约只下一次」的承诺。
+      # 不缓存则每轮都全量重下 ~93MB。用按日 key 缓存 geo/：当天第一轮下载、
+      # 后续轮次命中缓存 + 新鲜度守卫跳过下载；restore-keys 让跨天第一轮还能
+      # 蹭到昨天的库（<24h 直接跳过，>24h 才重下并存入新 key）。
+      - name: 取当日日期（UTC）
+        id: geo_date
+        run: echo "date=$(date -u +%F)" >> "$GITHUB_OUTPUT"
+
       - name: 缓存离线地理库（MMDB）
         uses: actions/cache@v4
         with:
           path: ${{ env.PROJECT_DIR || '.' }}/geo/
-          key: geo-${{ github.run_date }}
+          key: geo-${{ steps.geo_date.outputs.date }}
+          restore-keys: geo-
 
       # 下载/更新 Merged-IP.mmdb（非致命——失败则 enrich 降级到在线 ip-api
       # 兜底，不阻断筛选）。配合上面的按日缓存 + 新鲜度守卫
