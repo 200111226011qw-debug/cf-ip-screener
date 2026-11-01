@@ -267,7 +267,14 @@ python main.py --ipinfo              # 批量跑 + 离线画像
 python main.py --single 1.2.3.4 --ipinfo
 ```
 
-新增字段（写入 `result/clean-ips.json` 的 `ipinfo` 与订阅行备注）：`asn_number`、`asn_org`、`continent`、`timezone`、`lat`/`lon`、`vpn`、`tor`、`cdn` 等。打分侧 `flags.vpn`/`flags.tor` 由此填充（原先恒为 `None`），`proxy`/`tor` 参与既有 risk 扣分。
+新增字段（写入 `result/clean-ips.json` 的 `ipinfo` 与订阅行备注）：`asn_number`、`asn_org`、`continent`、`timezone`、`lat`/`lon`、`vpn`、`tor`、`cdn`、`anonymous` 等。打分侧 `flags.vpn`/`flags.tor` 由此填充（原先恒为 `None`），`proxy`/`tor` 参与既有 risk 扣分。
+
+字段语义说明：
+
+- `anonymous` 是「匿名化基础设施」的**聚合标记**（涵盖代理/VPN/中继/CDN），与 `vpn`/`tor` 是不同粒度的两个维度——`anonymous=true` **不代表**是 VPN 或 Tor 出口。Cloudflare 任播 IP 通常 `anonymous=true` 但 `vpn=tor=None`（DB 不把 CF 标成 VPN/Tor），属正常。
+- `country_name` / `continent` 若数据源缺失，会**用内置 ISO 3166 表按 country（ISO 码）回填**（零依赖）；`timezone` 无法从国家码反查，**仅当数据源提供时才有值**（Merged-IP 实测约 2/50）。核心字段 `country`/`city`/`regionName`/ASN/经纬度/proxy 覆盖 48~50/50。
+
+**输出体积瘦身**：`clean-ips.json` 的 `ipinfo` 只保留核心子集（`country`/`city`/`as`/`asn_org`/`hosting`/`cdn`/`proxy`/`anonymous`），完整画像按 IP 索引拆到同目录 `ipinfo.json`（含 `lat`/`lon`/`timezone`/`vpn`/`tor`/`continent` 等）。`clean-ips.txt` 订阅行不变（仍带 `country`/`city`/`ASN`）。
 
 相关配置项（`config.py`）：`geo_db_path` / `geo_db_url` / `geo_db_url_backup`（gh-proxy 国内镜像）/ `geo_offline_first` / `geo_online_fallback` / `geo_max_age_hours` / `geo_lang`。库文件不入 git（`geo/` 已忽略），CI 每次运行前自动 `--update-geo`。
 

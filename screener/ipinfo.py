@@ -61,6 +61,8 @@ def _normalize_online(data: dict) -> dict:
               "tor", "cdn", "school", "anonymous", "continent", "timezone",
               "lat", "lon"):
         data.setdefault(k, None)
+    # continent 用内置 ISO3166 表回填（ip-api 不提供；country_name 已有全名）
+    geo._fill_country_meta(data)
     data["network_type"] = classify_network(data)
     return data
 

@@ -83,6 +83,26 @@ def test_normalize_as_missing_entirely():
     assert info["network_type"] == "运营商网络"   # 无任何标记 → 兜底
 
 
+def test_normalize_backfills_country_meta():
+    """country 只有 ISO 码、无 names/continent 时，用内置表回填 name/continent。"""
+    rec = {"country": {"iso_code": "CA"},          # 无 names、无 continent
+           "city": {"names": {"en": "Toronto"}},
+           "location": {"latitude": 43.6, "longitude": -79.3}}
+    info = geo.normalize(rec)
+    assert info["country"] == "CA"
+    assert info["country_name"] == "Canada"        # 内置表回填
+    assert info["continent"] == "NA"               # 内置表回填
+    assert info["timezone"] is None                # timezone 不补
+
+
+def test_fill_country_meta_keeps_existing():
+    info = {"country": "US", "country_name": "United States",
+            "continent": None}
+    geo._fill_country_meta(info)
+    assert info["country_name"] == "United States"  # 已有值不动
+    assert info["continent"] == "NA"                # 缺失才回填
+
+
 def test_normalize_subdivisions_empty():
     rec = dict(FULL_RECORD)
     rec["subdivisions"] = []

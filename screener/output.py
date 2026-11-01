@@ -84,6 +84,44 @@ def write_json(clean, path: str):
     return path
 
 
+# clean-ips*.json 里 ipinfo 只保留的核心子集（完整画像见同目录 ipinfo.json）。
+# 完整字段清单见 screener/geo.py 的 normalize()；这里只留消费方最常读的
+# 国家/城市/ASN/托管·CDN·代理·匿名标记。network_type 可由此 + flags 反推，
+# 不重复存。缺字段时显式写 null（保持 schema 稳定）。
+CORE_IPINFO_FIELDS = ("country", "city", "as", "asn_org", "hosting",
+                      "cdn", "proxy", "anonymous")
+
+
+def _trim_ipinfo(clean):
+    """返回新 list：每条 ipinfo 只留核心子集（不改变原对象）。
+
+    txt / report / 打分都在 write_all 之前消费完整 ipinfo，这里只影响
+    json 序列化的体量——瘦身只发生在落盘阶段。
+    """
+    out = []
+    for r in clean:
+        info = r.get("ipinfo")
+        if not info:
+            out.append(r)
+            continue
+        r2 = dict(r)
+        r2["ipinfo"] = {k: info.get(k) for k in CORE_IPINFO_FIELDS}
+        out.append(r2)
+    return out
+
+
+def write_ipinfo_json(clean, path: str):
+    """完整 ipinfo 按 IP 索引写独立文件（{ip: 完整画像}），供需要全字段的消费方按需读。"""
+    data = {}
+    for r in clean:
+        info = r.get("ipinfo")
+        if info:
+            data[r["ip"]] = info
+    content = json.dumps(data, ensure_ascii=False, indent=2)
+    atomic_write(path, content)
+    return path
+
+
 def write_all(clean, outdir: str, cfg: dict) -> dict:
     """写总文件 + 各运营商文件，返回 {路径: 条数}。"""
     written = {}
@@ -91,9 +129,14 @@ def write_all(clean, outdir: str, cfg: dict) -> dict:
     total_txt = os.path.join(outdir, cfg["output_txt"])
     total_json = os.path.join(outdir, cfg["output_json"])
     write_txt(clean, total_txt)
-    write_json(clean, total_json)
+    write_json(_trim_ipinfo(clean), total_json)
     written[total_txt] = len(clean)
     written[total_json] = len(clean)
+
+    # 完整画像按 IP 索引拆到独立文件（json 瘦身，见 CORE_IPINFO_FIELDS）
+    ipinfo_json = os.path.join(outdir, "ipinfo.json")
+    write_ipinfo_json(clean, ipinfo_json)
+    written[ipinfo_json] = sum(1 for r in clean if r.get("ipinfo"))
 
     groups = {}
     for r in clean:
@@ -106,7 +149,7 @@ def write_all(clean, outdir: str, cfg: dict) -> dict:
         txt = os.path.join(outdir, cfg["output_txt_by_isp"].format(isp=suffix))
         js = os.path.join(outdir, cfg["output_json_by_isp"].format(isp=suffix))
         write_txt(items, txt)
-        write_json(items, js)
+        write_json(_trim_ipinfo(items), js)
         written[txt] = len(items)
         written[js] = len(items)
 

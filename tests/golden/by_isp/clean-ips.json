@@ -13,8 +13,12 @@
     "ipinfo": {
       "country": "US",
       "city": "San Jose",
-      "network_type": "residential",
-      "as": "AS13335"
+      "as": "AS13335",
+      "asn_org": null,
+      "hosting": null,
+      "cdn": null,
+      "proxy": null,
+      "anonymous": null
     }
   },
   {

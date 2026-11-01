@@ -67,3 +67,10 @@ python scripts/generate_golden.py
 3. `git diff tests/golden/` 逐文件检查字节变化
 4. 在本文件表格里加一行"更新原因"
 5. 如果是 bug 导致的变化，先修 bug 再重新生成 golden，**不要为了让测试通过而更新 golden**
+
+## 更新记录
+
+- **2026-11-01（离线画像 json 瘦身）**：`by_isp/clean-ips-*.json` 的 `ipinfo`
+  由全量改为只保留核心子集（country/city/as/asn_org/hosting/cdn/proxy/anonymous），
+  并新增 `by_isp/ipinfo.json`（完整画像按 IP 索引）。原因：离线 mmdb 画像引入后
+  `clean-ips.json` 体积 +70%（51KB→88KB）；瘦身只动 json，txt 订阅行不变。
