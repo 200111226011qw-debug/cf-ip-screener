@@ -74,3 +74,7 @@ python scripts/generate_golden.py
   由全量改为只保留核心子集（country/city/as/asn_org/hosting/cdn/proxy/anonymous），
   并新增 `by_isp/ipinfo.json`（完整画像按 IP 索引）。原因：离线 mmdb 画像引入后
   `clean-ips.json` 体积 +70%（51KB→88KB）；瘦身只动 json，txt 订阅行不变。
+- **2026-11-01（txt 撤掉 network_type 噪声档）**：`clean.txt` 的 remark 不再拼接
+  `network_type`（机房/云 / 代理标记 / 运营商网络）。原因：Merged-IP 下 hosting
+  稀疏时该字段落到「代理标记」档且随上游每日发布波动，对 CF 任播 IP 是噪声；
+  clean-ips.json 已裁掉它，txt 备注对齐。

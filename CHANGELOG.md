@@ -34,6 +34,12 @@
   `proxy.is_vpn` / `proxy.is_tor` 填充；`tor` 开始触发既有 risk 扣分
   （-20，打分在选品后，不影响筛选）。
 - **`network_type` 新增 `VPN` / `Tor出口` 两档**（优先级高于「机房/云」）。
+- **txt 订阅备注撤掉 `network_type` 噪声档**：Merged-IP 下 hosting 稀疏时该字段
+  落到「代理标记」档且随上游发布波动，对 CF 任播 IP 是噪声；`clean-ips.json`
+  已裁掉它，txt 备注对齐（仍保留 country/city/ASN）。
+- **`purity_filter` 承重墙警告**：Merged-IP 把 Cloudflare 全段标为 is_proxy=true，
+  开启 purity_filter + reject_proxy 会把产出全灭（0 产出 + 空结果告警），config
+  注释已写明勿开；`proxy` 字段来源注释由「ip-api 免费字段」更正为 mmdb。
 - 新增依赖 `maxminddb>=2.0`（纯 Python，懒加载，缺失则降级纯在线）。
 
 ### 兼容

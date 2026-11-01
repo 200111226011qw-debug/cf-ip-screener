@@ -56,9 +56,13 @@ def to_subscribe_line(r: dict) -> str:
     if info:
         loc = "/".join(x for x in
                        [info.get("country"), info.get("city")] if x)
-        remark = (f"{remark} | {info.get('network_type', '')}"
-                  f"{(' | ' + loc) if loc else ''}"
-                  f"{(' | ' + info['as']) if info.get('as') else ''}")
+        # network_type（机房/云 / 代理标记 / 运营商网络）在 Merged-IP 下对 CF 任播
+        # IP 是噪声：hosting 稀疏时落到「代理标记」档，且随上游每日发布波动。
+        # clean-ips.json 已裁掉它，txt 备注同样不再展示（见 F-B 复核）。
+        if loc:
+            remark = f"{remark} | {loc}"
+        if info.get("as"):
+            remark = f"{remark} | {info['as']}"
         # 离线画像新增的 VPN / Tor 标记（ip-api 不提供，在线路径恒为 None，
         # 因此不会影响纯在线模式的既有输出）
         if info.get("vpn"):

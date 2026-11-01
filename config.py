@@ -258,8 +258,12 @@ DEFAULT_CONFIG = {
                                      # 连通性/测速并发，避免本地网络阻塞
 
     # ========== 纯净度校验与代理池（升级清单） ==========
+    # ⚠️ Merged-IP-Data 把 Cloudflare 全段标为 is_proxy=true（CF 本身就是反向代理
+    # 网络，上游 OpenProxyDB 类来源必收编 CF 段）。开启 purity_filter + reject_proxy
+    # 会把产出全灭（0 条 → fail_on_empty_result 非零退出 + 空结果连击告警）。
+    # 默认 purity_filter=False 是承重墙，勿改 True。
     "purity_filter": False,          # 启用纯净度校验：画像后剔除
-                                     # proxy=true 的 IP（ip-api 免费字段）
+                                     # proxy=true 的 IP（Merged-IP 离线画像 proxy 字段）
     "purity_reject_proxy": True,     # 配合 purity_filter：剔除代理标记
     "proxy_enabled": False,          # 走 HTTP CONNECT 代理池探测
     "proxies": [],                   # "http://user:pass@host:port" 列表
