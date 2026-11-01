@@ -8,6 +8,9 @@ venv/
 result/*
 !result/.gitkeep
 
+# 离线地理库（大二进制，不提交进 git；用 --update-geo 获取）
+geo/
+
 # 系统
 .DS_Store
 Thumbs.db

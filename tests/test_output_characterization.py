@@ -95,6 +95,35 @@ class TestToSubscribeLine:
                                   "remark": "电信 | 09-28 20:01"})
         assert "09-28" not in line
 
+    def test_ipinfo_vpn_marker_appended(self):
+        """离线画像 is_vpn=True 时追加 "| VPN"；is_tor=False 不追加 Tor。"""
+        line = to_subscribe_line({"ip": "1.2.3.4", "port": 443,
+                                  "remark": "x",
+                                  "ipinfo": {"vpn": True, "tor": False,
+                                             "country": "US", "city": "X",
+                                             "network_type": "VPN",
+                                             "as": "AS13335"}})
+        assert "| VPN" in line
+        assert "| Tor" not in line
+
+    def test_ipinfo_tor_marker_appended(self):
+        line = to_subscribe_line({"ip": "1.2.3.4", "port": 443,
+                                  "remark": "x",
+                                  "ipinfo": {"tor": True, "vpn": False,
+                                             "as": "AS13335"}})
+        assert "| Tor" in line
+        assert "| VPN" not in line
+
+    def test_ipinfo_no_vpn_tor_no_marker(self):
+        """无 vpn/tor 字段（在线 ip-api 画像）不追加任何标记，输出不变。"""
+        line = to_subscribe_line({"ip": "1.2.3.4", "port": 443,
+                                  "remark": "x",
+                                  "ipinfo": {"country": "US", "city": "X",
+                                             "network_type": "运营商网络",
+                                             "as": "AS13335"}})
+        assert "| VPN" not in line
+        assert "| Tor" not in line
+
     # QUIRK 标记：以下行为是当前代码的现状，不是设计意图。
     # 锁死 ≠ 认可，PR 1 不改动，但另开 issue 追踪。
 

@@ -42,7 +42,7 @@
 
 * **种子源健康检查（运维工具）**：`python check_seeds.py` 对 `config.py` 的 `seed_sources` 清单做探活 + 格式嗅探（`ip_port` / `cidr` / `text_only` 三种预期格式），输出人类可读报告（存活 / 失效 / 格式变更 / 返回 HTML）。只读前 4KB、串行执行、**不抓候选、不改 config**，与筛选主流程完全解耦；异常时退出码 1。CI 中 `seed-health` workflow 每天 03:00 UTC 自动跑一次，异常即失败通知（`screener/seed_health.py`，纯标准库）
 
-* **IP 归属画像（可选）**：`--ipinfo` 对候选结果批量查询地理位置 / ISP / ASN / 网络类型（机房/云、移动/蜂窝、代理标记、运营商网络），用公开 ip-api.com 接口；`--single` 单目标模式与批量模式统一，默认均关闭，加 `--ipinfo` 开启
+* **IP 归属画像（可选）**：`--ipinfo` 对候选结果批量查询地理位置 / ISP / ASN / 网络类型（机房/云、移动/蜂窝、代理标记、运营商网络、VPN、Tor 出口）。**离线优先**：本地 `Merged-IP.mmdb`（Merged-IP-Data，免费无 key，含 ASN 三元组 + proxy 布尔族）毫秒级、无限额查询，miss 时回退在线 ip-api.com；`--single` 单目标模式与批量模式统一，默认均关闭，加 `--ipinfo` 开启。用 `python main.py --update-geo` 下载/更新离线库
 
 * **抓取容错**：单池抓取失败自动重试（指数退避，`fetch_retries` / `fetch_retry_delay` 可调），单池失败不影响整体；支持 JSON 数组/对象格式的候选池
 
@@ -241,7 +241,9 @@ HTML 锚点 `#`（如 `<a href="#top">1.2.3.4</a>`）位于 IP 之前，不会�
 | `--verify-cert`         | 关      | 测速 TLS 握手强制校验证书：以 SNI=speed.cloudflare.com 验证书链+主机名，只有真 Cloudflare 边缘能出示受信证书，挡掉伪造 cf-ray 的非 CF 反代（P1-5），同时保留外延段。默认关闭，首次开启建议单独观察一轮 |
 | `--single TARGET`       | -      | 单目标快速检测：`IP[:端口]` 或 `域名[:端口]`，实测 TCP/TLS/延迟/丢包/测速/机房（归属画像需加 `--ipinfo`）（借鉴 ProxyIP 检测站的“真实链路验证”思路，不做静态解析） |
 | `--probe-domain`        | 关      | **仅 `--single`**：额外探测一次「普通域名」的 HTTP 可用性（复用 403 二次验证的同一探测），区分「端口可达」与「应用层可用」——测速端点 403 但普通域名 200 即「探针盲区」，对订阅者可用。**默认关闭，关闭时输出不变**；CI 批量模式**不需要**（它已在做 403 二次验证） |
-| `--ipinfo`              | 关      | 开启 IP 归属画像（地理位置/ISP/ASN/网络类型，公开 ip-api.com 接口，免费额度约 45 次/分钟，串行查询 + 本地缓存）；批量模式与 `--single` 单目标模式通用，默认均关闭 |
+| `--ipinfo`              | 关      | 开启 IP 归属画像（地理位置/ISP/ASN/网络类型/VPN/Tor，离线 mmdb 优先、ip-api.com 在线兜底）；批量模式与 `--single` 单目标模式通用，默认均关闭 |
+| `--update-geo`          | -      | 下载/更新离线 MMDB 地理库后退出（不跑筛选）；库文件较新（< `geo_max_age_hours`）自动跳过，加 `--geo-force` 强制重下 |
+| `--geo-db PATH`         | geo/Merged-IP.mmdb | MMDB 库路径覆盖（默认 config 的 `geo_db_path`） |
 | `--outdir DIR`          | result | 输出目录                  |
 | `--state-file PATH`     | `.ci-state.json` | 空结果连击状态文件（默认 config 里的仓库根文件）。**本地跑请指到本次输出目录**（如 `local-runs\<时间>\.ci-state.json`）：仓库的 CI 状态一个字节都不动，且本地 `empty_streak` 每轮从 0 起（不会误开 issue）。父目录不存在自动创建；传空串等同不传 |
 | `--version`             | -      | 显示版本号（v2.4.0）       |
@@ -249,6 +251,27 @@ HTML 锚点 `#`（如 `<a href="#top">1.2.3.4</a>`）位于 IP 之前，不会�
 | `--log-level LV`        | INFO   | 日志级别 DEBUG/INFO/WARNING/ERROR |
 | `--watch`               | 关      | 热重载循环模式：每轮后检查 `config.py` 变更自动重载，不重启 |
 | `--interval N`          | 3600   | `--watch` 模式轮间隔秒数    |
+
+## 离线 IP 画像（MMDB）
+
+`--ipinfo` 的画像后端是「离线优先 + 在线兜底」：
+
+1. **离线**：本地 `Merged-IP.mmdb`（[Merged-IP-Data](https://github.com/NetworkCats/Merged-IP-Data)）毫秒级、无限额、零外部依赖。提供国家/省/市（ISO 码 + 多语言名）、经纬度、时区、大陆、ASN 三元组（号码/组织/域名）以及 proxy 布尔族（`is_cdn` / `is_hosting` / `is_vpn` / `is_tor` / `is_anonymous`）。
+2. **在线兜底**：mmdb 未命中的 IP 回退 ip-api.com（串行 + 本地缓存 `ipinfo-cache.json`，遵守免费额度）。
+
+用法：
+
+```bash
+python main.py --update-geo          # 下载/更新离线库（库较新时自动跳过）
+python main.py --ipinfo              # 批量跑 + 离线画像
+python main.py --single 1.2.3.4 --ipinfo
+```
+
+新增字段（写入 `result/clean-ips.json` 的 `ipinfo` 与订阅行备注）：`asn_number`、`asn_org`、`continent`、`timezone`、`lat`/`lon`、`vpn`、`tor`、`cdn` 等。打分侧 `flags.vpn`/`flags.tor` 由此填充（原先恒为 `None`），`proxy`/`tor` 参与既有 risk 扣分。
+
+相关配置项（`config.py`）：`geo_db_path` / `geo_db_url` / `geo_db_url_backup`（gh-proxy 国内镜像）/ `geo_offline_first` / `geo_online_fallback` / `geo_max_age_hours` / `geo_lang`。库文件不入 git（`geo/` 已忽略），CI 每次运行前自动 `--update-geo`。
+
+> 数据许可：Merged-IP-Data 的数据库是多家数据的编译物（GeoLite2 / IPinfo Lite 为 CC BY-SA 4.0，DB-IP / GeoNames 为 CC BY 4.0，OpenProxyDB 为 CC0，X4B 为 MIT）。本项目只**下载 + 本地查询**、不重分发二进制，署名见本段所列上游。若未来随项目分发库文件，需重新评估各上游许可边界。
 
 ## 配置
 

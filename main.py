@@ -30,7 +30,7 @@ import urllib.parse
 
 import config
 from screener import (bayes, dns_push, edge_crawler, fetcher,
-                      filter as filter_mod, ipinfo, logging_setup, notify,
+                      filter as filter_mod, geo, ipinfo, logging_setup, notify,
                       output, plugins, report, score, speedtest, tester)
 
 log = logging_setup.get_logger()
@@ -142,8 +142,15 @@ def parse_args():
                         "不做静态解析，实测 TCP/TLS/延迟/丢包/测速/机房/归属画像")
     p.add_argument("--ipinfo", action="store_true",
                    help="开启 IP 归属画像（地理位置/ISP/ASN/网络类型，"
-                        "使用公开 ip-api.com 接口，免费额度约 45 次/分钟）；"
+                        "离线 mmdb 优先、ip-api.com 在线兜底）；"
                         "批量模式与 --single 单目标模式通用，默认均关闭")
+    p.add_argument("--update-geo", action="store_true",
+                   help="下载/更新离线 MMDB 地理库后退出（不跑筛选）；"
+                        "库文件较新时会自动跳过，加 --geo-force 强制重下")
+    p.add_argument("--geo-db", default=None,
+                   help="MMDB 库路径覆盖（默认 config 的 geo_db_path）")
+    p.add_argument("--geo-force", action="store_true",
+                   help="--update-geo 时无视新鲜度强制重新下载")
     p.add_argument("--outdir", default=None, help="输出目录（默认 result）")
     p.add_argument("--state-file", default=None,
                    help="空结果连击状态文件路径（默认 config 的 .ci-state.json）；"
@@ -227,6 +234,7 @@ def main():
         # 布尔开关：False 视为未提供（or None），避免命令行不传时
         # 覆盖 config 里显式设置的 True
         "ipinfo": args.ipinfo or None,
+        "geo_db_path": args.geo_db,
         "output_dir": args.outdir,
         # "" 视为未提供（与 None 同义）：空路径在 _update_streak_state 里
         # 是「禁用状态写入」，容易被误当成「用默认值」，这里统一归一化
@@ -244,7 +252,35 @@ def main():
         overrides["speed_full_gate"] = False
     if args.watch:
         return watch_loop(args, overrides)
+    if args.update_geo:
+        return _update_geo(args, overrides)
     return run_once(args, overrides)
+
+
+def _update_geo(args, overrides):
+    """--update-geo：下载/更新离线 MMDB 地理库后退出。"""
+    cfg = config.load(overrides)
+    try:
+        r = geo.update_db(cfg["geo_db_path"], cfg["geo_db_url"],
+                          cfg["geo_db_url_backup"], force=args.geo_force,
+                          max_age_hours=cfg["geo_max_age_hours"])
+    except Exception as e:
+        log.error(f"地理库更新失败：{e}")
+        return 1
+    if r.get("skipped"):
+        log.info(f"地理库无需更新：{r['reason']}")
+    else:
+        log.info(f"地理库已更新：{r['path']}（来源 {r['url']}）")
+    return 0
+
+
+def _geo_cfg(cfg):
+    """从 config 提取 ipinfo.enrich 需要的离线地理库参数。"""
+    return {
+        "db_path": cfg.get("geo_db_path"),
+        "offline_first": cfg.get("geo_offline_first", True),
+        "online_fallback": cfg.get("geo_online_fallback", True),
+    }
 
 
 def watch_loop(args, overrides):
@@ -1236,9 +1272,10 @@ def run_once(args, overrides, cfg=None):
     # 5) 输出
     # 5.1) 可选：IP 归属画像（地理位置/ISP/ASN/网络类型）
     if cfg["ipinfo"] and clean:
-        log.info("[5/6] 批量查询 IP 归属画像（带本地缓存）...")
+        log.info("[5/6] 批量查询 IP 归属画像（离线 mmdb 优先 + 在线兜底）...")
         cache_path = os.path.join(cfg["output_dir"], "ipinfo-cache.json")
-        infos = ipinfo.enrich([r["ip"] for r in clean], cache_path=cache_path)
+        infos = ipinfo.enrich([r["ip"] for r in clean], cache_path=cache_path,
+                              geo_cfg=_geo_cfg(cfg))
         for r in clean:
             info = infos.get(r["ip"])
             if info:
@@ -1716,7 +1753,7 @@ def run_single(cfg: dict, target: str) -> int:
     #    与批量模式一致：默认关闭，加 --ipinfo 开启
     if cfg.get("ipinfo"):
         cache_path = os.path.join(cfg["output_dir"], "ipinfo-cache.json")
-        infos = ipinfo.enrich([ip], cache_path=cache_path)
+        infos = ipinfo.enrich([ip], cache_path=cache_path, geo_cfg=_geo_cfg(cfg))
         info = infos.get(ip)
         if info:
             loc = " / ".join(x for x in

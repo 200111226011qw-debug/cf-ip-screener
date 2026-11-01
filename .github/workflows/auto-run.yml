@@ -59,6 +59,14 @@ jobs:
             exit 1
           fi
 
+      # 离线地理库：下载/更新 Merged-IP.mmdb（非致命——失败则 enrich 降级
+      # 到在线 ip-api 兜底，不阻断筛选）。新鲜度守卫（geo_max_age_hours=24）
+      # 保证一天约只下一次，不拖慢每 2 小时一轮的调度。
+      - name: 更新离线地理库（MMDB）
+        run: |
+          cd "${PROJECT_DIR:-.}"
+          python main.py --update-geo || echo "地理库更新失败，画像将降级为在线 ip-api"
+
       # 单 job 一次跑出总表 + 三运营商分表 + 其他：
       # 不拆矩阵，避免多 job 并发写同一批 result/ 文件导致 rebase 冲突
       - name: 运行筛选（全运营商）
@@ -82,7 +90,7 @@ jobs:
           # main.py 的退出码（空结果守卫靠它让工作流失败）
           set -o pipefail
           # shellcheck disable=SC2086
-          python main.py --top-n 50 $EXTRA_ARGS 2>&1 | tee run.log
+          python main.py --top-n 50 --ipinfo $EXTRA_ARGS 2>&1 | tee run.log
           rc=${PIPESTATUS[0]}
           {
             echo ""

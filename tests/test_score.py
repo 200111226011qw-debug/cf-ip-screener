@@ -79,6 +79,26 @@ def test_flags_unknown_are_none():
     assert f["abuser"] is None
 
 
+def test_flags_vpn_tor_populated_from_mmdb():
+    # 离线 mmdb 画像提供 is_vpn / is_tor，flags 不再恒 None
+    f = score._flags({"vpn": True, "tor": False, "hosting": True,
+                      "mobile": False, "proxy": False})
+    assert f["vpn"] is True
+    assert f["tor"] is False
+    assert f["datacenter"] is True
+
+
+def test_tor_penalizes():
+    # tor=True 触发 risk -20（打分在选品后，不影响筛选，只影响 score/status）
+    base = _r(avg_ms=150.0, loss_rate=0.10, speed_mbps=None,
+              colo=None, native=False)
+    with_tor = score.score_result(base, {"tor": True})
+    without = score.score_result(base, {})
+    assert without["score"] == 70
+    assert with_tor["score"] == 50
+    assert with_tor["flags"]["tor"] is True
+
+
 # ============================================================
 # 分数构成（#2：把「分数怎么来的」暴露出来）
 # ============================================================

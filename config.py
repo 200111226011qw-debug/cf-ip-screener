@@ -424,6 +424,22 @@ DEFAULT_CONFIG = {
     # 是否开启 IP 归属画像（--ipinfo；批量与 --single 单目标模式通用，默认关）
     "ipinfo": False,
 
+    # ========== 离线地理库（MMDB，借鉴 goip / ip2geo） ==========
+    # 离线库本地路径（相对仓库根；不提交进 git，见 .gitignore 的 geo/）
+    "geo_db_path": "geo/Merged-IP.mmdb",
+    # 数据源：Merged-IP-Data 最新发布（免费无 key，含 ASN + proxy 族字段）
+    "geo_db_url": "https://github.com/NetworkCats/Merged-IP-Data/releases/latest/download/Merged-IP.mmdb",
+    # 国内镜像兜底（gh-proxy 前缀）
+    "geo_db_url_backup": "https://gh-proxy.com/https://github.com/NetworkCats/Merged-IP-Data/releases/latest/download/Merged-IP.mmdb",
+    # 离线优先：有库本地查；False 则纯在线（与旧行为一致）
+    "geo_offline_first": True,
+    # 在线兜底：离线 miss 时回退 ip-api；False 则只离线、不调在线
+    "geo_online_fallback": True,
+    # --update-geo 的新鲜度阈值（小时）：库 mtime 距今小于该值则跳过下载
+    "geo_max_age_hours": 24,
+    # names 字段语言（Merged-IP 含 en / zh-CN 等；对齐 ip-api 的英文输出）
+    "geo_lang": "en",
+
     # 调试/裁剪：只为快速验证而设；0 表示不限制
     "limit": 0,
 

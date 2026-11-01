@@ -59,6 +59,12 @@ def to_subscribe_line(r: dict) -> str:
         remark = (f"{remark} | {info.get('network_type', '')}"
                   f"{(' | ' + loc) if loc else ''}"
                   f"{(' | ' + info['as']) if info.get('as') else ''}")
+        # 离线画像新增的 VPN / Tor 标记（ip-api 不提供，在线路径恒为 None，
+        # 因此不会影响纯在线模式的既有输出）
+        if info.get("vpn"):
+            remark = f"{remark} | VPN"
+        if info.get("tor"):
+            remark = f"{remark} | Tor"
     remark = remark.replace("\n", " ").replace("\r", " ").replace("#", "＃")
     return f"{r['ip']}:{r['port']}#{remark}"
 

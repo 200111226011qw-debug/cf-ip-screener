@@ -1,14 +1,16 @@
 # -*- coding: utf-8 -*-
-"""IP 归属画像：通过公开 IP 情报接口（ip-api.com，免费、无需 key）
-查询 IP 的地理位置、ISP、ASN 归属与网络类型标记。
+"""IP 归属画像：离线优先（Merged-IP.mmdb）+ 在线兜底（ip-api.com）。
 
-借鉴 check.proxyip / ilovestudy 类工具的思路：对 IP 做“画像”，
-区分机房/云、移动、代理等网络属性。本模块仅做中性的归属画像，
-不包含欺诈分值与“纯净出口”筛选逻辑。
+借鉴 goip / ip2geo：把原来「纯在线 ip-api（限速约 45 次/分钟、串行、
+国内可能不可达）」升级为「离线 mmdb 优先（毫秒级、无限额、零外部依赖），
+miss 再回退 ip-api」。字段归一化后与 ``geo.normalize()`` 的输出同构，
+score / output / main 完全「来源无关」。
 
-注意：ip-api.com 的 batch 接口在国内网络可能不可达，因此默认使用
-单查接口（HTTP JSON），串行查询并在间隔停顿以遵守免费额度
-（约 45 次/分钟）。
+注意：
+- ip-api.com 的 batch 接口在国内网络可能不可达，因此在线兜底仍用单查接口
+  （HTTP JSON），串行查询并间隔停顿遵守免费额度。
+- 离线结果每次现查、不写本地缓存（免费且快，避免 mmdb 更新后缓存陈旧）；
+  本地缓存 ``ipinfo-cache.json`` 只存在线兜底结果。
 """
 
 import json
@@ -16,31 +18,55 @@ import time
 import urllib.parse
 import urllib.request
 
-UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " \
-     "(KHTML, like Gecko) Chrome/120.0 Safari/537.36"
+from screener import geo
 
-_FIELDS = "status,message,country,regionName,city,isp,org,as,reverse,mobile,proxy,hosting"
+UA = geo.UA
+
+# 加 countryCode：在线路径把 country 归一为 ISO 码（与离线 mmdb 一致），
+# 全名存 country_name。见 _normalize_online()。
+_FIELDS = ("status,message,country,countryCode,regionName,city,isp,org,"
+           "as,reverse,mobile,proxy,hosting")
+
+# 网络类型标签的唯一实现（含 tor/vpn 分支），在线/离线共用。
+classify_network = geo.classify_network
 
 
-def classify_network(info: dict) -> str:
-    """根据接口字段给出网络类型标签。
+def _load_cache(cache_path):
+    if not cache_path:
+        return {}
+    try:
+        with open(cache_path, encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
 
-    - hosting=true  → 机房/云
-    - mobile=true   → 移动/蜂窝
-    - proxy=true    → 代理（仅标注属性，不做“纯净”判定）
-    - 否则          → 运营商网络（家宽/企业等，接口无法细分）
-    """
-    if info.get("hosting"):
-        return "机房/云"
-    if info.get("mobile"):
-        return "移动/蜂窝"
-    if info.get("proxy"):
-        return "代理标记"
-    return "运营商网络"
+
+def _save_cache(cache_path, cache):
+    if cache_path and cache:
+        try:
+            with open(cache_path, "w", encoding="utf-8") as f:
+                json.dump(cache, f, ensure_ascii=False, indent=2)
+        except Exception:
+            pass
+
+
+def _normalize_online(data: dict) -> dict:
+    """在线结果的字段归一化：country 名 → ISO 码（对齐离线 mmdb 契约）。"""
+    code = data.pop("countryCode", None)
+    if code:
+        data["country_name"] = data.get("country")
+        data["country"] = code
+    # 统一补上 mmdb 侧才有、ip-api 没有的字段为 None，避免下游 get 出 KeyError
+    for k in ("region_code", "asn_org", "asn_number", "as_domain", "vpn",
+              "tor", "cdn", "school", "anonymous", "continent", "timezone",
+              "lat", "lon"):
+        data.setdefault(k, None)
+    data["network_type"] = classify_network(data)
+    return data
 
 
 def query_one(ip: str, retries: int = 1) -> dict:
-    """单查一个 IP，成功返回画像 dict，失败返回 None。
+    """单查一个 IP（在线 ip-api），成功返回画像 dict，失败返回 None。
 
     retries：失败（超时/连接重置等）后额外重试次数，应对瞬时抖动。
     免费额度约 45 次/分钟，重试计入额度，谨慎使用。
@@ -54,8 +80,7 @@ def query_one(ip: str, retries: int = 1) -> dict:
                 data = json.loads(resp.read().decode("utf-8"))
             if not isinstance(data, dict) or data.get("status") != "success":
                 return None
-            data["network_type"] = classify_network(data)
-            return data
+            return _normalize_online(data)
         except Exception:
             if attempt < retries:
                 time.sleep(1.0)
@@ -63,45 +88,52 @@ def query_one(ip: str, retries: int = 1) -> dict:
     return None
 
 
-def enrich(ips, pause=1.5, cache_path=None):
+def enrich(ips, pause=1.5, cache_path=None, geo_cfg=None):
     """批量查询 IP 画像，返回 {ip: {画像字段}}。
 
-    串行单查 + 批间停顿，遵守免费额度（约 45 次/分钟）。
-    查询失败或超限的 IP 直接跳过，不影响主流程。
+    离线优先 + 在线兜底：
+      1. 若开启离线（geo_cfg["offline_first"] 且给了 db_path），先本地 mmdb
+         查——毫秒级、无限额、无缓存写。
+      2. mmdb miss 且本地缓存命中 → 复用在线缓存（不重复消耗额度）。
+      3. 都 miss → 回退 ip-api 单查（串行 + pause 停顿遵守免费额度），
+         结果写回本地缓存。
 
-    优化（Issue 7）：
-    - 本地缓存：cache_path 指向 JSON 缓存文件，已查过的 IP 直接复用，
-      避免重复消耗额度；enrich 结束时把本次新结果写回缓存。
-    - 失败重试一次：瞬时抖动（连接重置/超时）后自动补查一次。
+    geo_cfg: dict | None = {"db_path", "offline_first", "online_fallback"}。
+      - 传 None 或 offline_first=False → 退化为纯在线（与旧行为一致）。
+      - online_fallback=False → 离线 miss 直接跳过，不调 ip-api。
+
+    查询失败或超限的 IP 直接跳过，不影响主流程。
     """
     result = {}
-    cache = {}
-    if cache_path:
-        try:
-            with open(cache_path, encoding="utf-8") as f:
-                cache = json.load(f)
-        except Exception:
-            cache = {}
+    cache = _load_cache(cache_path)
 
-    miss = []
-    for ip in ips:
-        if ip in cache:
-            result[ip] = cache[ip]
-        else:
-            miss.append(ip)
+    reader = None
+    if geo_cfg and geo_cfg.get("offline_first") and geo_cfg.get("db_path"):
+        reader = geo.open_reader(geo_cfg["db_path"])
 
-    for i, ip in enumerate(miss):
-        info = query_one(ip, retries=1)
-        if info:
-            result[ip] = info
-            cache[ip] = info
-        if i + 1 < len(miss):
-            time.sleep(pause)
+    online_miss = []
+    try:
+        for ip in ips:
+            info = geo.lookup(reader, ip) if reader is not None else None
+            if info:
+                result[ip] = info
+            elif ip in cache:
+                result[ip] = cache[ip]
+            else:
+                online_miss.append(ip)
+    finally:
+        geo.close(reader)
 
-    if cache_path and cache:
-        try:
-            with open(cache_path, "w", encoding="utf-8") as f:
-                json.dump(cache, f, ensure_ascii=False, indent=2)
-        except Exception:
-            pass
+    online_fallback = (geo_cfg is None
+                       or geo_cfg.get("online_fallback") is not False)
+    if online_fallback:
+        for i, ip in enumerate(online_miss):
+            info = query_one(ip, retries=1)
+            if info:
+                result[ip] = info
+                cache[ip] = info
+            if i + 1 < len(online_miss):
+                time.sleep(pause)
+
+    _save_cache(cache_path, cache)
     return result

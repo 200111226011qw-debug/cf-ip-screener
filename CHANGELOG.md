@@ -1,5 +1,39 @@
 # Changelog
 
+## Unreleased — 离线 IP 画像（MMDB）
+
+借鉴 [goip](https://github.com/hezhizheng/goip) 与
+[ip2geo](https://github.com/haxqer/ip2geo)，把 `--ipinfo` 的画像后端从
+「纯在线 ip-api.com（限速约 45 次/分钟、串行、国内可能不可达）」升级为
+「离线 mmdb 优先 + 在线兜底」。
+
+### 新增
+
+- **`screener/geo.py`**：离线 MMDB 访问 + 字段归一化 + 下载更新（原子替换 +
+  校验）。`normalize()` 输出与 ip-api 在线结果同构，score/output/main 来源无关。
+- **离线优先 + 在线兜底**：`ipinfo.enrich()` 重写——mmdb 命中本地查（毫秒级、
+  无限额、无缓存写），miss 回退 ip-api；本地缓存只存在线结果。
+- **`--update-geo` / `--geo-db` / `--geo-force`**：下载/更新 `Merged-IP.mmdb`
+  （Merged-IP-Data，免费无 key，含 ASN 三元组 + proxy 布尔族），带新鲜度守卫
+  与 gh-proxy 国内镜像兜底；CI `auto-run.yml` 每次运行前自动更新并默认开启
+  `--ipinfo`。
+
+### 行为变更（Breaking-ish）
+
+- **`country` 在线路径由全名 → ISO 码**：离线(mmdb)与在线(ip-api)统一输出
+  ISO 码（如 `US`），全名存 `country_name`；订阅行 `United States/San Jose`
+  变为 `US/San Jose`。
+- **`flags.vpn` / `flags.tor` 由恒 `None` → 真实值**：离线画像下由
+  `proxy.is_vpn` / `proxy.is_tor` 填充；`tor` 开始触发既有 risk 扣分
+  （-20，打分在选品后，不影响筛选）。
+- **`network_type` 新增 `VPN` / `Tor出口` 两档**（优先级高于「机房/云」）。
+- 新增依赖 `maxminddb>=2.0`（纯 Python，懒加载，缺失则降级纯在线）。
+
+### 兼容
+
+- 不加 `--ipinfo` 零变化；加 `--ipinfo` 但无库文件 → 在线兜底（同旧行为）；
+  `geo/` 已加入 `.gitignore`，库文件不入 git。
+
 ## v2.4.0 — 限流归因 + 字节型限流定位 + 默认体量改 256KB
 
 **限流类型实验结论：CF 的 429 是字节型**（完整数据见

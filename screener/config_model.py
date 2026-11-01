@@ -170,6 +170,16 @@ class AppConfig(DictCompatMixin, BaseModel):
     colo_filter: str = ""
     isp_filter: str = ""
     ipinfo: bool = False
+
+    # 离线地理库（MMDB，借鉴 goip / ip2geo）
+    geo_db_path: str = "geo/Merged-IP.mmdb"
+    geo_db_url: str = ""
+    geo_db_url_backup: str = ""
+    geo_offline_first: bool = True
+    geo_online_fallback: bool = True
+    geo_max_age_hours: int = Field(24, ge=1)
+    geo_lang: str = "en"
+
     limit: int = Field(0, ge=0)
     # 纯净为空时非零退出（防止空结果覆盖上一轮好产出）
     fail_on_empty_result: bool = True

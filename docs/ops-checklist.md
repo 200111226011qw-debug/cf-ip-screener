@@ -204,6 +204,21 @@ print(len([l for l in lines if "域名可达" in l]))    # → 5
 - 读 `LICENSE` 文件头（GPL 会写明 "Version 3, 29 June 2007"）；
 - README 里也可能只有一句声明没有文件——**两边都要看**。
 
+**离线地理库 Merged-IP-Data 的许可证核实结论**（2026-11-01，`--update-geo` 引入时）：
+
+- 仓库**有 LICENSE 文件**（2026-02-08 添加），但其内容是「merge tool source code
+  as-is for **educational and personal use**」——约束的是**合并工具代码**，不是
+  数据库本身。
+- **数据库是编译物**，上游许可：GeoLite2 / IPinfo Lite（CC BY-SA 4.0）、
+  DB-IP / GeoNames（CC BY 4.0）、OpenProxyDB（CC0）、X4B（MIT）、Origin ASN
+  （CDLA Permissive 2.0）。
+- 本项目只**下载 + 本地查询**、**不重分发二进制**（`geo/` git-ignored），
+  CC BY / CC BY-SA 的署名义务不因「查询」触发，但**必须署名**全部上游
+  （已在 README「离线 IP 画像（MMDB）」一节列明）。
+- **风险点**：若将来要把 mmdb 随项目发布/商业化，「educational and personal
+  use」与 CC BY-SA 的传染边界需重新评估；备选是直连 MaxMind GeoLite2
+  （单一 CC BY-SA）自建合并。当前「下载器 + 查询器」定位下可接受。
+
 **「0 条」这类信号，先确认取样范围再下结论**：统计为 0 之前，先确认被统计的
 run/文件**确实走过那条路径**（看执行痕迹，如 `Download action repository
 'actions/upload-artifact@v6'`、artifact 的大小与存在性），而不是只看结论行。
