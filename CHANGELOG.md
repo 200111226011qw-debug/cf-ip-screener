@@ -22,7 +22,8 @@
   保持数据源原值。
 - **`clean-ips.json` 画像瘦身**：`ipinfo` 只保留核心子集（`country`/`city`/
   `as`/`asn_org`/`hosting`/`cdn`/`proxy`/`anonymous`），完整画像按 IP 索引拆到
-  `result/ipinfo.json`；`clean-ips.txt` 订阅行不变。
+  `result/ipinfo.json`；`clean-ips.txt` 订阅行不变。体积：51KB（旧版无画像）→
+  88KB（完整画像）→ 63KB（瘦身后），相对旧版净 **+22%**、相对完整版 -28%。
 
 ### 行为变更（Breaking-ish）
 
