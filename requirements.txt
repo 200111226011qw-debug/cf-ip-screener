@@ -1,7 +1,9 @@
 # 核心筛选逻辑保持纯 Python 标准库；仅 CIDR 种子源抓取引入 aiohttp。
+# 离线 IP 画像：maxminddb（纯 Python mmdb 读取器，可选增强，缺失则降级纯在线）。
 # 测试框架：pytest（含 pytest-asyncio，用于异步抓取的单元测试；pytest-cov 覆盖率）。
 # Python >= 3.10 即可运行。
 aiohttp>=3.9
+maxminddb>=2.0
 pytest>=7.4
 pytest-asyncio>=0.23
 pytest-cov>=4.0

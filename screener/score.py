@@ -189,7 +189,8 @@ def _flags(info):
     hosting = info.get("hosting")   # True / False / None（ip-api 有，未查为 None）
     mobile = info.get("mobile")
     proxy = info.get("proxy")
-    tor = info.get("tor")
+    tor = info.get("tor")           # mmdb 的 proxy.is_tor；ip-api 无此字段
+    vpn = info.get("vpn")           # mmdb 的 proxy.is_vpn；ip-api 无此字段
     # 住宅：既不是机房、也不是移动蜂窝、也不是代理
     residential = None
     if hosting is not None or mobile is not None:
@@ -198,7 +199,7 @@ def _flags(info):
         "residential": residential,
         "datacenter": hosting,
         "mobile": mobile,
-        "vpn": None,        # ip-api 未直接给 vpn；保持 None
+        "vpn": vpn,                 # 离线画像下由 is_vpn 填充；无画像仍 None
         "proxy": proxy,
         "tor": tor,
         "crawler": None,
