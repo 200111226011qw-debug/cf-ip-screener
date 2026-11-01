@@ -41,6 +41,13 @@
 - 不加 `--ipinfo` 零变化；加 `--ipinfo` 但无库文件 → 在线兜底（同旧行为）；
   `geo/` 已加入 `.gitignore`，库文件不入 git。
 
+### 待办
+
+- **Docker 四步验收待补跑**（v2.1.1 / v2.2.0-rc1 遗留）：`docker build` →
+  `--version` → `--limit 5 --no-speed --outdir /tmp/out` → 检查输出文件。本次
+  新增的 `maxminddb` 依赖随 `pip install -r requirements.txt` 一并验证；待在有
+  Docker 环境跑通后，在本条补「已于 XX 环境通过」并回填 v2.1.1 / v2.2.0-rc1。
+
 ## v2.4.0 — 限流归因 + 字节型限流定位 + 默认体量改 256KB
 
 **限流类型实验结论：CF 的 429 是字节型**（完整数据见
