@@ -219,6 +219,16 @@ print(len([l for l in lines if "域名可达" in l]))    # → 5
   use」与 CC BY-SA 的传染边界需重新评估；备选是直连 MaxMind GeoLite2
   （单一 CC BY-SA）自建合并。当前「下载器 + 查询器」定位下可接受。
 
+**镜像兜底无密码学完整性校验（边界记录）**：`--update-geo` 主源是上游
+GitHub release（HTTPS），备份走 `gh-proxy.com` 第三方镜像。下载校验只验证
+「maxminddb 能打开」，**被篡改的库照样过验**——极端情形下 `is_proxy` 毒化会
+静默改变纯净度过滤（全 false → 质量下降不可见；全 true → 空结果守卫接住）。
+概率很低，但：
+- `--update-geo` 成功后在日志记 sha256（`screener/geo.py` 的 `download_db`
+  已返回），留取证痕迹；
+- 若担心，可加校验和固定清单（上游 release 附 sha256 时比对），或禁用备份
+  镜像、直连上游。当前「下载器 + 查询器」定位下记录即可，不强制。
+
 **「0 条」这类信号，先确认取样范围再下结论**：统计为 0 之前，先确认被统计的
 run/文件**确实走过那条路径**（看执行痕迹，如 `Download action repository
 'actions/upload-artifact@v6'`、artifact 的大小与存在性），而不是只看结论行。

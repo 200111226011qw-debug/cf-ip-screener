@@ -133,10 +133,13 @@ def write_all(clean, outdir: str, cfg: dict) -> dict:
     written[total_txt] = len(clean)
     written[total_json] = len(clean)
 
-    # 完整画像按 IP 索引拆到独立文件（json 瘦身，见 CORE_IPINFO_FIELDS）
-    ipinfo_json = os.path.join(outdir, "ipinfo.json")
-    write_ipinfo_json(clean, ipinfo_json)
-    written[ipinfo_json] = sum(1 for r in clean if r.get("ipinfo"))
+    # 完整画像按 IP 索引拆到独立文件（json 瘦身，见 CORE_IPINFO_FIELDS）。
+    # 无任何 ipinfo 时不落空文件，保证「不加 --ipinfo 零变化」。
+    n_ipinfo = sum(1 for r in clean if r.get("ipinfo"))
+    if n_ipinfo:
+        ipinfo_json = os.path.join(outdir, "ipinfo.json")
+        write_ipinfo_json(clean, ipinfo_json)
+        written[ipinfo_json] = n_ipinfo
 
     groups = {}
     for r in clean:

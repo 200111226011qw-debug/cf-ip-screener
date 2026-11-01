@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """测试：离线 MMDB 画像（screener/geo.py）。"""
 
+import hashlib
 import os
 import time
 
@@ -188,6 +189,18 @@ def test_download_db_atomic_replace(tmp_path, monkeypatch):
     assert r["url"] == "https://example/a.mmdb"
     assert target.read_bytes() == payload
     assert not (target.parent / (target.name + ".tmp")).exists()
+
+
+def test_download_db_returns_sha256(tmp_path, monkeypatch):
+    """下载成功返回 sha256（取证留痕）。"""
+    target = tmp_path / "Merged-IP.mmdb"
+    payload = b"\x00\x01\x02\x03"
+    monkeypatch.setattr(geo.urllib.request, "urlopen",
+                        lambda req, timeout: _Resp(payload))
+    monkeypatch.setattr(geo, "_validate_mmdb", lambda p: True)
+
+    r = geo.download_db(str(target), "https://example/a.mmdb")
+    assert r["sha256"] == hashlib.sha256(payload).hexdigest()
 
 
 def test_download_db_corrupt_not_replaced(tmp_path, monkeypatch):

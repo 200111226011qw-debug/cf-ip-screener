@@ -17,6 +17,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import os
 import time
 import urllib.request
@@ -476,11 +477,21 @@ def _validate_mmdb(path: str) -> bool:
         return False
 
 
+def _sha256(path: str) -> str:
+    """流式计算文件 SHA256（16 进制），供下载取证留痕。"""
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(64 * 1024), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
 def download_db(path, url: str, backup=None) -> dict:
     """二进制安全下载 MMDB：写 ``<path>.tmp`` → 校验 → ``os.replace`` 原子覆盖。
 
     依次尝试 ``[url, backup]``（backup 通常是 gh-proxy.com 国内镜像）。
     全部失败抛 RuntimeError；失败时清理临时文件、保留旧库。
+    返回 ``{path, url, sha256}``，sha256 供调用方留取证痕迹。
     """
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -500,7 +511,7 @@ def download_db(path, url: str, backup=None) -> dict:
                         f.write(chunk)
             if _validate_mmdb(str(tmp)):
                 os.replace(tmp, target)
-                return {"path": str(target), "url": u}
+                return {"path": str(target), "url": u, "sha256": _sha256(str(target))}
             # 校验失败（下载到 HTML 错误页等），清理后尝试下一个 url
             tmp.unlink(missing_ok=True)
         except Exception as e:  # noqa: BLE001 - 下载失败统一降级到下一源
@@ -512,7 +523,7 @@ def download_db(path, url: str, backup=None) -> dict:
 
 def update_db(path, url: str, backup=None, force: bool = False,
               max_age_hours: float = 24) -> dict:
-    """新鲜度守卫 + 下载。返回 ``{path, skipped?|updated?, reason?}``。
+    """新鲜度守卫 + 下载。返回 ``{path, skipped?|updated?, reason?|url?|sha256?}``。
 
     ``force=False`` 且库文件 mtime 距今小于 ``max_age_hours`` 小时则跳过
     （避免 CI 每轮全量重下 ~百 MB）。
@@ -524,4 +535,5 @@ def update_db(path, url: str, backup=None, force: bool = False,
             return {"path": str(target), "skipped": True,
                     "reason": f"库文件较新（{age_h:.1f}h < {max_age_hours}h）"}
     r = download_db(path, url, backup)
-    return {"path": r["path"], "updated": True, "url": r["url"]}
+    return {"path": r["path"], "updated": True, "url": r["url"],
+            "sha256": r.get("sha256")}
