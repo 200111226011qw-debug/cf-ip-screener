@@ -110,3 +110,19 @@ def test_enrich_offline_miss_online_disabled_skips(monkeypatch):
                         geo_cfg={"db_path": "x.mmdb", "offline_first": True,
                                  "online_fallback": False})
     assert out == {}
+
+
+def test_enrich_full_degradation_returns_empty(monkeypatch):
+    """mmdb 缺失 + 在线不可达 → 返回 {}，不崩、不产生 ipinfo。
+
+    这是 CI 的兜底路径：离线库拉取失败时走在线，在线（国内不可达）也超时，
+    enrich 应返回空 dict，由 main.py 的 `.get("ipinfo")` 安全吞掉（键缺失，
+    不抛 KeyError）。
+    """
+    monkeypatch.setattr(geo, "open_reader", lambda p: _FakeReader({}))
+    monkeypatch.setattr(ipinfo, "query_one", lambda ip, retries=1: None)
+
+    out = ipinfo.enrich(["8.8.8.8"],
+                        geo_cfg={"db_path": "x.mmdb", "offline_first": True,
+                                 "online_fallback": True})
+    assert out == {}

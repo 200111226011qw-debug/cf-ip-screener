@@ -95,6 +95,18 @@ def normalize(record, lang: str = "en"):
     else:
         as_text = None
 
+    # proxy 布尔族语义（Merged-IP-Data 的 proxy 对象，字段彼此独立，非互斥）：
+    #   is_proxy     通用代理标记
+    #   is_hosting   托管/云（Cloudflare 本身即数据中心，恒 true 属正常）
+    #   is_cdn       CDN（Cloudflare 恒 true）
+    #   is_anonymous 「匿名化基础设施」的聚合标记（涵盖代理/VPN/中继/CDN 等），
+    #                是比 is_vpn/is_tor 更宽泛的一档——anonymous=true 不代表
+    #                是 VPN 或 Tor 出口
+    #   is_vpn       具体「VPN」子类
+    #   is_tor       具体「Tor 出口」子类
+    # 注意 is_vpn/is_tor 对 Cloudflare 任播 IP 通常**缺键**（DB 不把 CF 标成
+    # VPN/Tor），按「未知不臆断」原则归 None，而非 False。anonymous 与
+    # vpn/tor 是不同粒度的两个维度，下游不要用 anonymous 反推 vpn/tor。
     info = {
         "status": "success",
         "country": country,
