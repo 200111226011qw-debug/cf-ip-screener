@@ -41,6 +41,12 @@
 - 不加 `--ipinfo` 零变化；加 `--ipinfo` 但无库文件 → 在线兜底（同旧行为）；
   `geo/` 已加入 `.gitignore`，库文件不入 git。
 
+### 测试
+
+- 全量 **468 passed**（新增 `tests/test_geo.py` 离线归一化/回填/下载更新、
+  `tests/test_ipinfo.py` 离线优先+在线兜底+双失效降级，及 score/output 的
+  flags/标记/瘦身增补）。
+
 ### 待办
 
 - **Docker 四步验收待补跑**（v2.1.1 / v2.2.0-rc1 遗留）：`docker build` →

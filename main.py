@@ -270,7 +270,8 @@ def _update_geo(args, overrides):
     if r.get("skipped"):
         log.info(f"地理库无需更新：{r['reason']}")
     else:
-        log.info(f"地理库已更新：{r['path']}（来源 {r['url']}）")
+        log.info(f"地理库已更新：{r['path']}（来源 {r['url']}，"
+                 f"sha256 {r.get('sha256', '?')}）")
     return 0
 
 

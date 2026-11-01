@@ -206,6 +206,19 @@ class TestWriteAllGrouping:
         assert all(isinstance(v, int) for v in written.values())
         assert sum(1 for k in written if k.endswith("t.txt")) == 2  # 总 + ct
 
+    def test_no_ipinfo_writes_no_ipinfo_json(self, tmp_path):
+        """无任何 ipinfo 时不落空 ipinfo.json（「不加 --ipinfo 零变化」）。"""
+        cfg = {
+            "output_txt": "t.txt", "output_json": "t.json",
+            "output_txt_by_isp": "t-{isp}.txt", "output_json_by_isp": "t-{isp}.json",
+        }
+        outdir = tmp_path / "r"
+        outdir.mkdir()
+        write_all([
+            {"ip": "1.1.1.1", "port": 443, "avg_ms": 10.0, "loss_rate": 0.0},
+        ], str(outdir), cfg)
+        assert not (outdir / "ipinfo.json").exists()
+
 
 # ---------- write_client_configs 边界 ----------
 
