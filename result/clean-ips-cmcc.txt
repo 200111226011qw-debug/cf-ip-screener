@@ -1,2 +1,2 @@
-104.16.241.184:443#wetest移动HKG | 速度53.52MB/s | 机房IAD
-104.16.146.51:443#wetest移动HKG | 速度54.5MB/s | 机房IAD
+172.64.144.154:443#移动 | 速度15.36MB/s | 机房MSP | CA/Toronto | AS13335 Cloudflare, Inc.
+104.19.151.192:443#移动 | 速度19.77MB/s | 机房MSP | CA/Toronto | AS13335 Cloudflare, Inc.
