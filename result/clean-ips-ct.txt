@@ -1,2 +1,1 @@
-104.17.153.130:2053#电信-LAX-2053-WS-TLS | 速度21.69MB/s | 机房SEA | CA/Toronto | AS13335 Cloudflare, Inc.
-162.159.147.40:443#wetest电信SJC | 速度23.59MB/s | 机房SEA | US | AS13335 Cloudflare, Inc.
+162.159.157.246:443#电信 | 速度10.52MB/s | 机房DFW | US | AS13335 Cloudflare, Inc.
