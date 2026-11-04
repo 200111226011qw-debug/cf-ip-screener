@@ -972,7 +972,7 @@ def run_once(args, overrides, cfg=None):
                 log.info(f"      403 二次验证：{len(_c403)} 个 403 候选"
                       f"再打一次普通域名 {_phost}{_ppath} …")
                 for _k, _sp in _c403:
-                    _st, _colo, _srv = asyncio.run(
+                    _st, _colo, _srv, _ = asyncio.run(
                         speedtest.probe_host_status(_k[0], _k[1], _phost,
                                                     _ppath))
                     _ok = (_st == 200)
@@ -1278,13 +1278,22 @@ def run_once(args, overrides, cfg=None):
     _eiv_host = (cfg.get("probe_host") or "").strip()
     if _eiv_host and clean:
         _pairs = [(r["ip"], r["port"]) for r in clean]
-        _drop = set(asyncio.run(
-            speedtest.eiv_restricted_candidates(_pairs, _eiv_host)))
+        _eiv = asyncio.run(
+            speedtest.eiv_restricted_candidates(_pairs, _eiv_host))
+        _drop = set(_eiv["drop"])
         if _drop:
             _before = len(clean)
             clean = [r for r in clean if (r["ip"], r["port"]) not in _drop]
-            log.info(f"      EIV 受限子池淘汰 {_before - len(clean)} 个"
-                     f"（probe_host={_eiv_host} 下 403/无 colo）")
+            _msg = (f"      EIV 受限子池淘汰 {_before - len(clean)} 个"
+                    f"（probe_host={_eiv_host}）：403+1034 {len(_eiv['eiv'])}、"
+                    f"200 无 colo {len(_eiv['nocolo'])}、TLS/连接失败 "
+                    f"{len(_eiv['tls'])}")
+            if _eiv["uncertain"]:
+                _msg += f"；纯 403 {len(_eiv['uncertain'])} 个记为不确定（保留）"
+            log.info(_msg)
+        elif _eiv["uncertain"]:
+            log.info(f"      EIV 校验：无受限淘汰，纯 403 "
+                     f"{len(_eiv['uncertain'])} 个记为不确定（保留）")
 
     # 5) 输出
     # 5.1) 可选：IP 归属画像（地理位置/ISP/ASN/网络类型）
@@ -1643,7 +1652,7 @@ def _probe_domain_line(ip, port, cfg):
            or "https://www.cloudflare.com/cdn-cgi/trace")
     _u = urllib.parse.urlparse(url)
     try:
-        status, colo, server = asyncio.run(speedtest.probe_host_status(
+        status, colo, server, _ = asyncio.run(speedtest.probe_host_status(
             ip, port, _u.hostname or "www.cloudflare.com", _u.path or "/"))
     except Exception:
         return None
