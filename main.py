@@ -1270,6 +1270,22 @@ def run_once(args, overrides, cfg=None):
         log.info(f"      段分布：公告段 {len(clean) - n_ext} / "
               f"外延段 {n_ext} ({n_ext * 100 // len(clean)}%)")
 
+    # EIV 受限子池淘汰（借鉴 self-hosted-best-cf-ip-scanner）：填了 probe_host
+    # 后，对每个候选再打一次**你自己的 CF 代理域名**。专属/静态/BYOIP 段只在
+    # 所属账号 zone 上可用，打你的域名返回 403 / error 1034（无 colo）——这类
+    # IP 物理最近、用 CF 自有域名测速时看起来最快，但订阅者当代理节点连不上。
+    # 留空 = 关闭（与旧行为一致）。
+    _eiv_host = (cfg.get("probe_host") or "").strip()
+    if _eiv_host and clean:
+        _pairs = [(r["ip"], r["port"]) for r in clean]
+        _drop = set(asyncio.run(
+            speedtest.eiv_restricted_candidates(_pairs, _eiv_host)))
+        if _drop:
+            _before = len(clean)
+            clean = [r for r in clean if (r["ip"], r["port"]) not in _drop]
+            log.info(f"      EIV 受限子池淘汰 {_before - len(clean)} 个"
+                     f"（probe_host={_eiv_host} 下 403/无 colo）")
+
     # 5) 输出
     # 5.1) 可选：IP 归属画像（地理位置/ISP/ASN/网络类型）
     if cfg["ipinfo"] and clean:

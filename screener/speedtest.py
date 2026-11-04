@@ -627,6 +627,26 @@ async def probe_host_status(ip, port, host, path="/", timeout=8.0):
         return None, None, None
 
 
+async def eiv_restricted_candidates(pairs, host, path="/cdn-cgi/trace",
+                                    timeout=8.0):
+    """并发校验候选是否被 EIV 受限子池拒收（打**用户自己的**域名）。
+
+    Cloudflare 的专属/静态/BYOIP 段只在所属账号 zone 上可用：打用户自己的
+    域名时返回 403 / error 1034（拿不到 colo），而普通 CF 边缘返回 200 +
+    合法 colo。这与「探针盲区」是**相反方向**——盲区是测速端点 403 但普通
+    域名可达，EIV 是测速端点可达但用户域名 403。
+
+    pairs: [(ip, port), ...]；返回被拒收的 (ip, port) 列表（200 且 colo
+    非空者保留）。
+    """
+    async def _one(ip, port):
+        st, colo, _ = await probe_host_status(ip, port, host, path, timeout)
+        return (ip, port) if (st != 200 or not colo) else None
+
+    results = await asyncio.gather(*[_one(ip, port) for ip, port in pairs])
+    return [x for x in results if x is not None]
+
+
 class SpeedTester:
     # 失败归因分类（fail_reason 的取值全集）。顺序即判定优先级：
     # 状态码优先于其它原因——拿到 429 就是被风控，与超时/短响应无关。

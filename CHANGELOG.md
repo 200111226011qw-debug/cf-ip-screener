@@ -24,6 +24,10 @@
   `as`/`asn_org`/`hosting`/`cdn`/`proxy`/`anonymous`），完整画像按 IP 索引拆到
   `result/ipinfo.json`；`clean-ips.txt` 订阅行不变。体积：51KB（旧版无画像）→
   88KB（完整画像）→ 63KB（瘦身后），相对旧版净 **+22%**、相对完整版 -28%。
+- **`probe_host` EIV 受限子池淘汰**（借鉴 self-hosted-best-cf-ip-scanner）：填自己
+  的 CF 代理域名（裸域名）后，对每个候选再打一次该域名，403 / error 1034（专属/
+  静态/BYOIP 段，只在所属账号 zone 可用）即淘汰——避免把「物理最近但订阅者连不上」
+  的假最快 IP 当优选放出去。留空 = 关闭（与旧行为一致）。
 
 ### 行为变更（Breaking-ish）
 
