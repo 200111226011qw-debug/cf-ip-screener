@@ -1282,18 +1282,25 @@ def run_once(args, overrides, cfg=None):
             speedtest.eiv_restricted_candidates(_pairs, _eiv_host))
         _drop = set(_eiv["drop"])
         if _drop:
-            _before = len(clean)
             clean = [r for r in clean if (r["ip"], r["port"]) not in _drop]
-            _msg = (f"      EIV 受限子池淘汰 {_before - len(clean)} 个"
+        # 纯 403（body 无 1034）不淘汰，但打标记让订阅行备注可感知（见 output.py）
+        _unc = set(_eiv["uncertain"])
+        if _unc:
+            for r in clean:
+                if (r["ip"], r["port"]) in _unc:
+                    r["eiv_uncertain"] = True
+        # 无条件打印：运维要能区分「池子薄」还是「EIV 严」，0 淘汰也显式打
+        _n_drop = len(_drop)
+        if _n_drop:
+            _msg = (f"      EIV 受限子池淘汰 {_n_drop} 个"
                     f"（probe_host={_eiv_host}）：403+1034 {len(_eiv['eiv'])}、"
                     f"200 无 colo {len(_eiv['nocolo'])}、TLS/连接失败 "
                     f"{len(_eiv['tls'])}")
-            if _eiv["uncertain"]:
-                _msg += f"；纯 403 {len(_eiv['uncertain'])} 个记为不确定（保留）"
-            log.info(_msg)
-        elif _eiv["uncertain"]:
-            log.info(f"      EIV 校验：无受限淘汰，纯 403 "
-                     f"{len(_eiv['uncertain'])} 个记为不确定（保留）")
+        else:
+            _msg = f"      EIV 校验：0 淘汰（probe_host={_eiv_host}）"
+        if _eiv["uncertain"]:
+            _msg += f"；纯 403 {len(_eiv['uncertain'])} 个记为不确定（保留）"
+        log.info(_msg)
 
     # 5) 输出
     # 5.1) 可选：IP 归属画像（地理位置/ISP/ASN/网络类型）

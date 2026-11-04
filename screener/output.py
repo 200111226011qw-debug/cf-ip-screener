@@ -69,6 +69,10 @@ def to_subscribe_line(r: dict) -> str:
             remark = f"{remark} | VPN"
         if info.get("tor"):
             remark = f"{remark} | Tor"
+    # EIV 校验：纯 403（body 无 1034）→ 不淘汰，但标记让订阅端可感知
+    # 「对 probe_host 返回了非 1034 的 403，可能临时 WAF，也可能不可用」
+    if r.get("eiv_uncertain"):
+        remark = f"{remark} | 域名403-未定"
     remark = remark.replace("\n", " ").replace("\r", " ").replace("#", "＃")
     return f"{r['ip']}:{r['port']}#{remark}"
 

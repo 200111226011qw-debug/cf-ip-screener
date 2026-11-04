@@ -82,3 +82,18 @@ def test_eiv_empty_pairs():
     """空候选列表 → 空结果。"""
     r = asyncio.run(speedtest.eiv_restricted_candidates([], "h.example.com"))
     assert r["drop"] == [] and r["uncertain"] == []
+
+
+def test_eiv_uncertain_marked_in_subscribe_line():
+    """纯 403（非 1034）不淘汰，但订阅行备注标记可感知。"""
+    from screener import output
+    r = {"ip": "3.3.3.3", "port": 443, "remark": "CF筛选",
+         "eiv_uncertain": True}
+    assert "域名403-未定" in output.to_subscribe_line(r)
+
+
+def test_eiv_no_marker_without_flag():
+    """无 eiv_uncertain 标记 → 订阅行备注不含该标记。"""
+    from screener import output
+    r = {"ip": "1.1.1.1", "port": 443, "remark": "CF筛选"}
+    assert "域名403-未定" not in output.to_subscribe_line(r)
