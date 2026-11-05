@@ -48,7 +48,7 @@ class TestDefaultOff:
 
         async def _fake_probe(ip, port, host, path="/", timeout=8.0):
             called.append((ip, port, host))
-            return 200, "SEA", "cloudflare"
+            return 200, "SEA", "cloudflare", b""
 
         monkeypatch.setattr(speedtest, "probe_host_status", _fake_probe)
         out = main_mod._maybe_probe_domain("1.2.3.4", 443, _cfg())
@@ -64,7 +64,7 @@ class TestEnabled:
 
         async def _fake_probe(ip, port, host, path="/", timeout=8.0):
             seen.update(ip=ip, port=port, host=host, path=path)
-            return 200, "SEA", "cloudflare"
+            return 200, "SEA", "cloudflare", b""
 
         monkeypatch.setattr(speedtest, "probe_host_status", _fake_probe)
         out = main_mod._maybe_probe_domain("1.2.3.4", 443, _cfg(probe_domain=True))
@@ -79,7 +79,7 @@ class TestEnabled:
     def test_403_on_normal_domain_is_not_blind_spot(self, monkeypatch):
         """普通域名也 403 → **不是**探针盲区，是真不可用。"""
         async def _fake_probe(ip, port, host, path="/", timeout=8.0):
-            return 403, "AMS", "cloudflare"
+            return 403, "AMS", "cloudflare", b""
 
         monkeypatch.setattr(speedtest, "probe_host_status", _fake_probe)
         out = main_mod._maybe_probe_domain("1.2.3.4", 443, _cfg(probe_domain=True))
@@ -88,7 +88,7 @@ class TestEnabled:
     def test_connection_failure_is_distinguished(self, monkeypatch):
         """连接/TLS 层失败（status=None）→ 与 403 区分开。"""
         async def _fake_probe(ip, port, host, path="/", timeout=8.0):
-            return None, None, None
+            return None, None, None, b""
 
         monkeypatch.setattr(speedtest, "probe_host_status", _fake_probe)
         out = main_mod._maybe_probe_domain("1.2.3.4", 443, _cfg(probe_domain=True))

@@ -972,7 +972,7 @@ def run_once(args, overrides, cfg=None):
                 log.info(f"      403 二次验证：{len(_c403)} 个 403 候选"
                       f"再打一次普通域名 {_phost}{_ppath} …")
                 for _k, _sp in _c403:
-                    _st, _colo, _srv = asyncio.run(
+                    _st, _colo, _srv, _ = asyncio.run(
                         speedtest.probe_host_status(_k[0], _k[1], _phost,
                                                     _ppath))
                     _ok = (_st == 200)
@@ -1269,6 +1269,38 @@ def run_once(args, overrides, cfg=None):
     if clean:
         log.info(f"      段分布：公告段 {len(clean) - n_ext} / "
               f"外延段 {n_ext} ({n_ext * 100 // len(clean)}%)")
+
+    # EIV 受限子池淘汰（借鉴 self-hosted-best-cf-ip-scanner）：填了 probe_host
+    # 后，对每个候选再打一次**你自己的 CF 代理域名**。专属/静态/BYOIP 段只在
+    # 所属账号 zone 上可用，打你的域名返回 403 / error 1034（无 colo）——这类
+    # IP 物理最近、用 CF 自有域名测速时看起来最快，但订阅者当代理节点连不上。
+    # 留空 = 关闭（与旧行为一致）。
+    _eiv_host = (cfg.get("probe_host") or "").strip()
+    if _eiv_host and clean:
+        _pairs = [(r["ip"], r["port"]) for r in clean]
+        _eiv = asyncio.run(
+            speedtest.eiv_restricted_candidates(_pairs, _eiv_host))
+        _drop = set(_eiv["drop"])
+        if _drop:
+            clean = [r for r in clean if (r["ip"], r["port"]) not in _drop]
+        # 纯 403（body 无 1034）不淘汰，但打标记让订阅行备注可感知（见 output.py）
+        _unc = set(_eiv["uncertain"])
+        if _unc:
+            for r in clean:
+                if (r["ip"], r["port"]) in _unc:
+                    r["eiv_uncertain"] = True
+        # 无条件打印：运维要能区分「池子薄」还是「EIV 严」，0 淘汰也显式打
+        _n_drop = len(_drop)
+        if _n_drop:
+            _msg = (f"      EIV 受限子池淘汰 {_n_drop} 个"
+                    f"（probe_host={_eiv_host}）：403+1034 {len(_eiv['eiv'])}、"
+                    f"200 无 colo {len(_eiv['nocolo'])}、TLS/连接失败 "
+                    f"{len(_eiv['tls'])}")
+        else:
+            _msg = f"      EIV 校验：0 淘汰（probe_host={_eiv_host}）"
+        if _eiv["uncertain"]:
+            _msg += f"；纯 403 {len(_eiv['uncertain'])} 个记为不确定（保留）"
+        log.info(_msg)
 
     # 5) 输出
     # 5.1) 可选：IP 归属画像（地理位置/ISP/ASN/网络类型）
@@ -1627,7 +1659,7 @@ def _probe_domain_line(ip, port, cfg):
            or "https://www.cloudflare.com/cdn-cgi/trace")
     _u = urllib.parse.urlparse(url)
     try:
-        status, colo, server = asyncio.run(speedtest.probe_host_status(
+        status, colo, server, _ = asyncio.run(speedtest.probe_host_status(
             ip, port, _u.hostname or "www.cloudflare.com", _u.path or "/"))
     except Exception:
         return None

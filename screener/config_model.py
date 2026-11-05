@@ -163,6 +163,8 @@ class AppConfig(DictCompatMixin, BaseModel):
     # 403 二次验证（探针盲区回收）
     speed_blind_probe_url: str = "https://www.cloudflare.com/cdn-cgi/trace"
     speed_blind_output: Literal["main", "separate", "off"] = "main"
+    # EIV 受限子池淘汰（用户自己的 CF 代理域名；空=关闭）
+    probe_host: str = ""
     # --single 模式的普通域名 HTTP 探测（默认关闭；只给人工排查用）
     probe_domain: bool = False
     # 速度分档标定系数（0 = 按测速体量自动查表）

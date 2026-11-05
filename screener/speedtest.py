@@ -36,6 +36,10 @@ import time
 import urllib.parse
 
 _CF_RAY_COLO = re.compile(r"^[0-9a-f]{8,}-([A-Za-z0-9]{3})$")
+# EIV error 1034 判定：\b 词边界。命中 "error code: 1034" / "Error 1034" 等
+# 措辞变体，但不命中 WAF 页 footer 里 16 位 hex Ray ID 内嵌的 "1034"
+# （如 8a3f1034b7c2，十六进制连续无词边界，避免 0.02%/页 的假阳性）。
+_EIV_1034_RE = re.compile(rb"\b1034\b")
 
 # 速度分档的标定表（体量 → 系数），来源见 score_scale_for_url 的文档。
 _SCORE_SCALE_BY_BYTES = {10485760: 1.0, 1048576: 5.0, 262144: 9.0}
@@ -567,8 +571,11 @@ async def probe_host_status(ip, port, host, path="/", timeout=8.0):
     返回 403（**探针盲区**——实测 11/11 的 403 IP 打普通 CF 域名都返回
     200），这些边缘对订阅者其实完全可用，只是测速端点不服务它们。
 
-    返回 (status:int|None, colo:str|None, server:str|None)：
+    返回 (status:int|None, colo:str|None, server:str|None, body:bytes)：
       status=None → 连接/TLS 层失败（**不是**盲区，是真不可用）
+      body 仅在 403 时有内容（有界读 ≤4KB），供 EIV 判「403 是否含 1034」；
+      其它状态一律 b""（盲区/--probe-domain 路径对 200 响应**零 body 读取**，
+      不受影响）。
     """
     import socket
     import ssl as _ssl
@@ -588,7 +595,7 @@ async def probe_host_status(ip, port, host, path="/", timeout=8.0):
             fp = tls.makefile("rb")
             line = fp.readline()
             if not line:
-                return None, None, None
+                return None, None, None, b""
             parts = line.split(b" ", 2)
             try:
                 status = int(parts[1]) if len(parts) > 1 else 0
@@ -609,10 +616,19 @@ async def probe_host_status(ip, port, host, path="/", timeout=8.0):
                 if m:
                     colo = m.group(1).upper()
             srv = headers.get(b"server")
-            return status, colo, (srv.decode("ascii", "ignore").strip()
-                                  if srv else None)
+            body = b""
+            if status == 403:
+                # 仅 403 时读 body（判 EIV 的 error 1034）；读不到/超时不
+                # 影响 status/colo 判定，置空即可。
+                try:
+                    body = fp.read(4096)
+                except Exception:
+                    body = b""
+            return (status, colo,
+                    (srv.decode("ascii", "ignore").strip() if srv else None),
+                    body)
         except Exception:
-            return None, None, None
+            return None, None, None, b""
         finally:
             if tls is not None:
                 try:
@@ -624,7 +640,55 @@ async def probe_host_status(ip, port, host, path="/", timeout=8.0):
     try:
         return await loop.run_in_executor(None, _probe)
     except Exception:
-        return None, None, None
+        return None, None, None, b""
+
+
+async def eiv_restricted_candidates(pairs, host, path="/cdn-cgi/trace",
+                                    timeout=8.0):
+    """并发校验候选是否被 EIV 受限子池拒收（打**用户自己的**域名）。
+
+    Cloudflare 的专属/静态/BYOIP 段只在所属账号 zone 上可用：打用户自己的
+    域名时返回 403 + error 1034，而普通 CF 边缘返回 200 + 合法 colo。这与
+    「探针盲区」是**相反方向**——盲区是测速端点 403 但普通域名可达，EIV 是
+    测速端点可达但用户域名 403。
+
+    判定口径（精确优先，避免临时 WAF 抖动误杀）：
+    - 200 + colo → 保留
+    - 403 且 body 含 "1034" → EIV 受限，淘汰（eiv 类）
+    - 200 但无 colo → 未按 CF 边缘服务，淘汰（nocolo 类）
+    - 连接/TLS 失败（status=None）→ 淘汰，单独计数（tls 类）
+    - 纯 403（body 无 1034）→ **不淘汰**，记「不确定」（可能临时 WAF/限流）
+
+    pairs: [(ip, port), ...]；host 为空则不发请求、直接返回空结果。
+    返回 dict：drop（应淘汰并集）/ eiv / nocolo / tls / uncertain。
+    """
+    empty = {"drop": [], "eiv": [], "nocolo": [], "tls": [], "uncertain": []}
+    if not host or not pairs:
+        return empty
+
+    async def _one(ip, port):
+        st, colo, _, body = await probe_host_status(ip, port, host, path,
+                                                    timeout)
+        return (ip, port), st, colo, body or b""
+
+    out = {"drop": [], "eiv": [], "nocolo": [], "tls": [], "uncertain": []}
+    rows = await asyncio.gather(*[_one(ip, port) for ip, port in pairs])
+    for pair, st, colo, body in rows:
+        if st is None:
+            out["tls"].append(pair)
+            out["drop"].append(pair)
+        elif st == 200 and colo:
+            continue  # 正常边缘，保留
+        elif st == 200:
+            out["nocolo"].append(pair)
+            out["drop"].append(pair)
+        elif st == 403 and _EIV_1034_RE.search(body):
+            out["eiv"].append(pair)
+            out["drop"].append(pair)
+        else:
+            # 纯 403 或其它非 200/403 状态：临时 WAF/限流等，不误杀
+            out["uncertain"].append(pair)
+    return out
 
 
 class SpeedTester:

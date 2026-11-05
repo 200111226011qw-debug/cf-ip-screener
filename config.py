@@ -386,6 +386,14 @@ DEFAULT_CONFIG = {
     # 盲区候选的去向：main=进主结果（默认）/ separate=只记数不加入 /
     # off=完全不做二次验证。
     "speed_blind_output": "main",
+    # EIV 受限子池淘汰（借鉴 self-hosted-best-cf-ip-scanner）：Cloudflare 的
+    # 专属/静态/BYOIP 段只在所属账号 zone 上可用，当代理节点对订阅者不可用；
+    # 但它们物理最近，用 CF 自有域名（speed.cloudflare.com）测速时同样返回
+    # cf-ray+colo，会被误判为「可用且最快」。填你自己的 CF 代理域名（裸域名，
+    # 如 proxy.example.com）后，对每个候选再打一次你自己的域名：
+    # 403/error 1034（拿不到 colo）即淘汰，只保留真正能当代理的 IP。
+    # 留空 = 关闭此校验（与旧行为一致）。
+    "probe_host": "",
     # --single 模式：额外打一次**普通域名** HTTP 探测，用来区分
     # 「端口可达」与「应用层可用」（403 探针盲区的判定口径）。
     # **默认关闭**：CI 批量模式不需要——它已经在用同一个探测做 403 二次
