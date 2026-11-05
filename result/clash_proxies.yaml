@@ -1,72 +1,212 @@
 # CF 优选 IP 代理骨架（server 已填筛选结果，password 请自行填写）
 # 用法：把 proxies 段复制进 Clash 配置；协议可用 trojan/vmess/ss
 proxies:
-  - name: "CF-172.65.61.66:443"
+  - name: "CF-172.65.229.253:443"
     type: trojan
-    server: 172.65.61.66
+    server: 172.65.229.253
     port: 443
     password: "YOUR_PASSWORD"
     sni: www.cloudflare.com
     skip-cert-verify: true
-  - name: "CF-162.159.0.2:443"
+  - name: "CF-198.41.204.232:443"
     type: trojan
-    server: 162.159.0.2
+    server: 198.41.204.232
     port: 443
     password: "YOUR_PASSWORD"
     sni: www.cloudflare.com
     skip-cert-verify: true
-  - name: "CF-172.65.252.76:443"
+  - name: "CF-104.24.30.25:443"
     type: trojan
-    server: 172.65.252.76
+    server: 104.24.30.25
     port: 443
     password: "YOUR_PASSWORD"
     sni: www.cloudflare.com
     skip-cert-verify: true
-  - name: "CF-172.65.56.177:443"
+  - name: "CF-172.65.43.237:443"
     type: trojan
-    server: 172.65.56.177
+    server: 172.65.43.237
     port: 443
     password: "YOUR_PASSWORD"
     sni: www.cloudflare.com
     skip-cert-verify: true
-  - name: "CF-162.159.25.203:443"
+  - name: "CF-172.65.165.239:443"
     type: trojan
-    server: 162.159.25.203
+    server: 172.65.165.239
     port: 443
     password: "YOUR_PASSWORD"
     sni: www.cloudflare.com
     skip-cert-verify: true
-  - name: "CF-162.159.145.175:443"
+  - name: "CF-172.65.163.16:443"
     type: trojan
-    server: 162.159.145.175
+    server: 172.65.163.16
     port: 443
     password: "YOUR_PASSWORD"
     sni: www.cloudflare.com
     skip-cert-verify: true
-  - name: "CF-172.64.158.181:443"
+  - name: "CF-172.65.42.88:443"
     type: trojan
-    server: 172.64.158.181
+    server: 172.65.42.88
     port: 443
     password: "YOUR_PASSWORD"
     sni: www.cloudflare.com
     skip-cert-verify: true
-  - name: "CF-198.41.197.48:443"
+  - name: "CF-172.67.70.196:443"
     type: trojan
-    server: 198.41.197.48
+    server: 172.67.70.196
     port: 443
     password: "YOUR_PASSWORD"
     sni: www.cloudflare.com
     skip-cert-verify: true
-  - name: "CF-172.65.235.243:443"
+  - name: "CF-198.41.211.147:443"
     type: trojan
-    server: 172.65.235.243
+    server: 198.41.211.147
     port: 443
     password: "YOUR_PASSWORD"
     sni: www.cloudflare.com
     skip-cert-verify: true
-  - name: "CF-172.65.209.164:443"
+  - name: "CF-162.159.82.185:443"
     type: trojan
-    server: 172.65.209.164
+    server: 162.159.82.185
+    port: 443
+    password: "YOUR_PASSWORD"
+    sni: www.cloudflare.com
+    skip-cert-verify: true
+  - name: "CF-104.18.127.1:443"
+    type: trojan
+    server: 104.18.127.1
+    port: 443
+    password: "YOUR_PASSWORD"
+    sni: www.cloudflare.com
+    skip-cert-verify: true
+  - name: "CF-104.16.215.235:443"
+    type: trojan
+    server: 104.16.215.235
+    port: 443
+    password: "YOUR_PASSWORD"
+    sni: www.cloudflare.com
+    skip-cert-verify: true
+  - name: "CF-172.66.174.154:443"
+    type: trojan
+    server: 172.66.174.154
+    port: 443
+    password: "YOUR_PASSWORD"
+    sni: www.cloudflare.com
+    skip-cert-verify: true
+  - name: "CF-104.24.153.228:443"
+    type: trojan
+    server: 104.24.153.228
+    port: 443
+    password: "YOUR_PASSWORD"
+    sni: www.cloudflare.com
+    skip-cert-verify: true
+  - name: "CF-190.93.247.165:443"
+    type: trojan
+    server: 190.93.247.165
+    port: 443
+    password: "YOUR_PASSWORD"
+    sni: www.cloudflare.com
+    skip-cert-verify: true
+  - name: "CF-172.64.156.8:443"
+    type: trojan
+    server: 172.64.156.8
+    port: 443
+    password: "YOUR_PASSWORD"
+    sni: www.cloudflare.com
+    skip-cert-verify: true
+  - name: "CF-104.17.17.180:443"
+    type: trojan
+    server: 104.17.17.180
+    port: 443
+    password: "YOUR_PASSWORD"
+    sni: www.cloudflare.com
+    skip-cert-verify: true
+  - name: "CF-190.93.246.230:443"
+    type: trojan
+    server: 190.93.246.230
+    port: 443
+    password: "YOUR_PASSWORD"
+    sni: www.cloudflare.com
+    skip-cert-verify: true
+  - name: "CF-198.41.215.159:443"
+    type: trojan
+    server: 198.41.215.159
+    port: 443
+    password: "YOUR_PASSWORD"
+    sni: www.cloudflare.com
+    skip-cert-verify: true
+  - name: "CF-172.64.147.105:443"
+    type: trojan
+    server: 172.64.147.105
+    port: 443
+    password: "YOUR_PASSWORD"
+    sni: www.cloudflare.com
+    skip-cert-verify: true
+  - name: "CF-172.66.215.14:443"
+    type: trojan
+    server: 172.66.215.14
+    port: 443
+    password: "YOUR_PASSWORD"
+    sni: www.cloudflare.com
+    skip-cert-verify: true
+  - name: "CF-190.93.247.24:443"
+    type: trojan
+    server: 190.93.247.24
+    port: 443
+    password: "YOUR_PASSWORD"
+    sni: www.cloudflare.com
+    skip-cert-verify: true
+  - name: "CF-190.93.246.54:443"
+    type: trojan
+    server: 190.93.246.54
+    port: 443
+    password: "YOUR_PASSWORD"
+    sni: www.cloudflare.com
+    skip-cert-verify: true
+  - name: "CF-198.41.205.70:443"
+    type: trojan
+    server: 198.41.205.70
+    port: 443
+    password: "YOUR_PASSWORD"
+    sni: www.cloudflare.com
+    skip-cert-verify: true
+  - name: "CF-198.41.219.117:443"
+    type: trojan
+    server: 198.41.219.117
+    port: 443
+    password: "YOUR_PASSWORD"
+    sni: www.cloudflare.com
+    skip-cert-verify: true
+  - name: "CF-173.245.49.109:443"
+    type: trojan
+    server: 173.245.49.109
+    port: 443
+    password: "YOUR_PASSWORD"
+    sni: www.cloudflare.com
+    skip-cert-verify: true
+  - name: "CF-190.93.246.126:443"
+    type: trojan
+    server: 190.93.246.126
+    port: 443
+    password: "YOUR_PASSWORD"
+    sni: www.cloudflare.com
+    skip-cert-verify: true
+  - name: "CF-104.17.119.160:443"
+    type: trojan
+    server: 104.17.119.160
+    port: 443
+    password: "YOUR_PASSWORD"
+    sni: www.cloudflare.com
+    skip-cert-verify: true
+  - name: "CF-104.27.111.167:443"
+    type: trojan
+    server: 104.27.111.167
+    port: 443
+    password: "YOUR_PASSWORD"
+    sni: www.cloudflare.com
+    skip-cert-verify: true
+  - name: "CF-104.24.150.20:443"
+    type: trojan
+    server: 104.24.150.20
     port: 443
     password: "YOUR_PASSWORD"
     sni: www.cloudflare.com
@@ -78,275 +218,135 @@ proxies:
     password: "YOUR_PASSWORD"
     sni: www.cloudflare.com
     skip-cert-verify: true
-  - name: "CF-162.159.196.108:443"
+  - name: "CF-190.93.244.167:443"
     type: trojan
-    server: 162.159.196.108
+    server: 190.93.244.167
     port: 443
     password: "YOUR_PASSWORD"
     sni: www.cloudflare.com
     skip-cert-verify: true
-  - name: "CF-172.64.38.109:443"
+  - name: "CF-104.17.142.132:443"
     type: trojan
-    server: 172.64.38.109
+    server: 104.17.142.132
     port: 443
     password: "YOUR_PASSWORD"
     sni: www.cloudflare.com
     skip-cert-verify: true
-  - name: "CF-162.159.0.1:443"
+  - name: "CF-104.24.143.12:443"
     type: trojan
-    server: 162.159.0.1
+    server: 104.24.143.12
     port: 443
     password: "YOUR_PASSWORD"
     sni: www.cloudflare.com
     skip-cert-verify: true
-  - name: "CF-190.93.245.79:443"
+  - name: "CF-172.64.153.133:443"
     type: trojan
-    server: 190.93.245.79
+    server: 172.64.153.133
     port: 443
     password: "YOUR_PASSWORD"
     sni: www.cloudflare.com
     skip-cert-verify: true
-  - name: "CF-162.159.58.254:443"
+  - name: "CF-172.66.139.181:443"
     type: trojan
-    server: 162.159.58.254
+    server: 172.66.139.181
     port: 443
     password: "YOUR_PASSWORD"
     sni: www.cloudflare.com
     skip-cert-verify: true
-  - name: "CF-104.26.12.200:443"
+  - name: "CF-172.66.158.90:443"
     type: trojan
-    server: 104.26.12.200
+    server: 172.66.158.90
     port: 443
     password: "YOUR_PASSWORD"
     sni: www.cloudflare.com
     skip-cert-verify: true
-  - name: "CF-172.64.188.85:443"
+  - name: "CF-104.16.0.7:443"
     type: trojan
-    server: 172.64.188.85
+    server: 104.16.0.7
     port: 443
     password: "YOUR_PASSWORD"
     sni: www.cloudflare.com
     skip-cert-verify: true
-  - name: "CF-172.66.192.29:443"
+  - name: "CF-104.16.243.211:443"
     type: trojan
-    server: 172.66.192.29
+    server: 104.16.243.211
     port: 443
     password: "YOUR_PASSWORD"
     sni: www.cloudflare.com
     skip-cert-verify: true
-  - name: "CF-108.162.198.150:443"
+  - name: "CF-104.16.171.58:443"
     type: trojan
-    server: 108.162.198.150
+    server: 104.16.171.58
     port: 443
     password: "YOUR_PASSWORD"
     sni: www.cloudflare.com
     skip-cert-verify: true
-  - name: "CF-108.162.198.80:443"
+  - name: "CF-162.159.138.244:443"
     type: trojan
-    server: 108.162.198.80
+    server: 162.159.138.244
     port: 443
     password: "YOUR_PASSWORD"
     sni: www.cloudflare.com
     skip-cert-verify: true
-  - name: "CF-198.41.193.197:443"
+  - name: "CF-104.24.152.155:443"
     type: trojan
-    server: 198.41.193.197
+    server: 104.24.152.155
     port: 443
     password: "YOUR_PASSWORD"
     sni: www.cloudflare.com
     skip-cert-verify: true
-  - name: "CF-162.159.9.87:443"
+  - name: "CF-104.24.3.44:443"
     type: trojan
-    server: 162.159.9.87
+    server: 104.24.3.44
     port: 443
     password: "YOUR_PASSWORD"
     sni: www.cloudflare.com
     skip-cert-verify: true
-  - name: "CF-104.25.237.125:443"
+  - name: "CF-104.25.140.14:443"
     type: trojan
-    server: 104.25.237.125
+    server: 104.25.140.14
     port: 443
     password: "YOUR_PASSWORD"
     sni: www.cloudflare.com
     skip-cert-verify: true
-  - name: "CF-104.24.213.97:443"
+  - name: "CF-104.25.240.85:443"
     type: trojan
-    server: 104.24.213.97
+    server: 104.25.240.85
     port: 443
     password: "YOUR_PASSWORD"
     sni: www.cloudflare.com
     skip-cert-verify: true
-  - name: "CF-108.162.198.21:443"
+  - name: "CF-104.17.204.142:443"
     type: trojan
-    server: 108.162.198.21
+    server: 104.17.204.142
     port: 443
     password: "YOUR_PASSWORD"
     sni: www.cloudflare.com
     skip-cert-verify: true
-  - name: "CF-108.162.194.110:443"
+  - name: "CF-172.64.33.52:443"
     type: trojan
-    server: 108.162.194.110
+    server: 172.64.33.52
     port: 443
     password: "YOUR_PASSWORD"
     sni: www.cloudflare.com
     skip-cert-verify: true
-  - name: "CF-172.64.155.5:443"
+  - name: "CF-172.64.150.226:443"
     type: trojan
-    server: 172.64.155.5
+    server: 172.64.150.226
     port: 443
     password: "YOUR_PASSWORD"
     sni: www.cloudflare.com
     skip-cert-verify: true
-  - name: "CF-108.162.198.62:443"
+  - name: "CF-172.64.149.9:443"
     type: trojan
-    server: 108.162.198.62
+    server: 172.64.149.9
     port: 443
     password: "YOUR_PASSWORD"
     sni: www.cloudflare.com
     skip-cert-verify: true
-  - name: "CF-104.25.66.130:443"
+  - name: "CF-172.67.89.129:443"
     type: trojan
-    server: 104.25.66.130
-    port: 443
-    password: "YOUR_PASSWORD"
-    sni: www.cloudflare.com
-    skip-cert-verify: true
-  - name: "CF-198.41.196.125:443"
-    type: trojan
-    server: 198.41.196.125
-    port: 443
-    password: "YOUR_PASSWORD"
-    sni: www.cloudflare.com
-    skip-cert-verify: true
-  - name: "CF-108.162.196.248:443"
-    type: trojan
-    server: 108.162.196.248
-    port: 443
-    password: "YOUR_PASSWORD"
-    sni: www.cloudflare.com
-    skip-cert-verify: true
-  - name: "CF-108.162.196.92:443"
-    type: trojan
-    server: 108.162.196.92
-    port: 443
-    password: "YOUR_PASSWORD"
-    sni: www.cloudflare.com
-    skip-cert-verify: true
-  - name: "CF-162.159.27.48:443"
-    type: trojan
-    server: 162.159.27.48
-    port: 443
-    password: "YOUR_PASSWORD"
-    sni: www.cloudflare.com
-    skip-cert-verify: true
-  - name: "CF-172.64.49.127:443"
-    type: trojan
-    server: 172.64.49.127
-    port: 443
-    password: "YOUR_PASSWORD"
-    sni: www.cloudflare.com
-    skip-cert-verify: true
-  - name: "CF-172.64.187.97:443"
-    type: trojan
-    server: 172.64.187.97
-    port: 443
-    password: "YOUR_PASSWORD"
-    sni: www.cloudflare.com
-    skip-cert-verify: true
-  - name: "CF-172.64.150.142:443"
-    type: trojan
-    server: 172.64.150.142
-    port: 443
-    password: "YOUR_PASSWORD"
-    sni: www.cloudflare.com
-    skip-cert-verify: true
-  - name: "CF-172.64.229.140:443"
-    type: trojan
-    server: 172.64.229.140
-    port: 443
-    password: "YOUR_PASSWORD"
-    sni: www.cloudflare.com
-    skip-cert-verify: true
-  - name: "CF-172.66.214.46:443"
-    type: trojan
-    server: 172.66.214.46
-    port: 443
-    password: "YOUR_PASSWORD"
-    sni: www.cloudflare.com
-    skip-cert-verify: true
-  - name: "CF-172.64.152.64:443"
-    type: trojan
-    server: 172.64.152.64
-    port: 443
-    password: "YOUR_PASSWORD"
-    sni: www.cloudflare.com
-    skip-cert-verify: true
-  - name: "CF-162.159.0.4:443"
-    type: trojan
-    server: 162.159.0.4
-    port: 443
-    password: "YOUR_PASSWORD"
-    sni: www.cloudflare.com
-    skip-cert-verify: true
-  - name: "CF-172.67.65.7:443"
-    type: trojan
-    server: 172.67.65.7
-    port: 443
-    password: "YOUR_PASSWORD"
-    sni: www.cloudflare.com
-    skip-cert-verify: true
-  - name: "CF-172.67.94.52:443"
-    type: trojan
-    server: 172.67.94.52
-    port: 443
-    password: "YOUR_PASSWORD"
-    sni: www.cloudflare.com
-    skip-cert-verify: true
-  - name: "CF-108.162.195.204:443"
-    type: trojan
-    server: 108.162.195.204
-    port: 443
-    password: "YOUR_PASSWORD"
-    sni: www.cloudflare.com
-    skip-cert-verify: true
-  - name: "CF-198.41.195.229:443"
-    type: trojan
-    server: 198.41.195.229
-    port: 443
-    password: "YOUR_PASSWORD"
-    sni: www.cloudflare.com
-    skip-cert-verify: true
-  - name: "CF-162.159.24.118:443"
-    type: trojan
-    server: 162.159.24.118
-    port: 443
-    password: "YOUR_PASSWORD"
-    sni: www.cloudflare.com
-    skip-cert-verify: true
-  - name: "CF-162.159.145.146:443"
-    type: trojan
-    server: 162.159.145.146
-    port: 443
-    password: "YOUR_PASSWORD"
-    sni: www.cloudflare.com
-    skip-cert-verify: true
-  - name: "CF-172.64.149.113:443"
-    type: trojan
-    server: 172.64.149.113
-    port: 443
-    password: "YOUR_PASSWORD"
-    sni: www.cloudflare.com
-    skip-cert-verify: true
-  - name: "CF-108.162.196.17:443"
-    type: trojan
-    server: 108.162.196.17
-    port: 443
-    password: "YOUR_PASSWORD"
-    sni: www.cloudflare.com
-    skip-cert-verify: true
-  - name: "CF-198.41.223.29:443"
-    type: trojan
-    server: 198.41.223.29
+    server: 172.67.89.129
     port: 443
     password: "YOUR_PASSWORD"
     sni: www.cloudflare.com
