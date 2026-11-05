@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — 离线 IP 画像（MMDB）
+## v2.5.0 — 离线 IP 画像（MMDB）+ EIV 受限子池淘汰 + 产出缩水告警
 
 借鉴 [goip](https://github.com/hezhizheng/goip) 与
 [ip2geo](https://github.com/haxqer/ip2geo)，把 `--ipinfo` 的画像后端从
@@ -30,6 +30,9 @@
   连不上」的假最快 IP 当优选放出去。判定精确优先：纯 403（不含 1034）不淘汰、记
   「不确定」并在订阅行备注标「域名403-未定」，连接/TLS 失败单独计数。留空 = 关闭
   （与旧行为一致）。
+- **`shrink_alert_ratio` 产出缩水告警**：最终产出 < top_n × 该比例（默认 0.8，
+  0 = 关闭）时打 `[warn]`，帮助区分「池子薄」还是「过滤严」（EIV 淘汰 / purity /
+  速度门槛都可能压产出）。
 
 ### 行为变更（Breaking-ish）
 
@@ -55,8 +58,9 @@
 
 ### 测试
 
-- 全量 **468 passed**（新增 `tests/test_geo.py` 离线归一化/回填/下载更新、
-  `tests/test_ipinfo.py` 离线优先+在线兜底+双失效降级，及 score/output 的
+- 全量 **483 passed**（新增 `tests/test_geo.py` 离线归一化/回填/下载更新、
+  `tests/test_ipinfo.py` 离线优先+在线兜底+双失效降级、`tests/test_eiv.py`
+  EIV 判定精确化、`tests/test_shrink_alert.py` 缩水告警，及 score/output 的
   flags/标记/瘦身增补）。
 
 ### 待办
