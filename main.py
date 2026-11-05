@@ -1430,6 +1430,9 @@ def run_once(args, overrides, cfg=None):
     if empty_streak:
         log.warning(f"      [warn] 已连续 {empty_streak} 轮空结果"
                     f"（阈值 {cfg.get('empty_streak_alert_threshold', 3)}）")
+    _shrink = _shrink_alert(cfg, len(clean))
+    if _shrink:
+        log.warning(f"      [warn] 缩水告警：{_shrink}——可能池子薄或过滤严")
     try:
         rep_paths = report.build_report(
             cfg, pool_stats, clean, len(results), len(candidates),
@@ -1494,6 +1497,20 @@ def _blind_off_extra_state():
     if _BLIND_OFF_STREAK is None:
         return None
     return {"blind_quota_off_streak": int(_BLIND_OFF_STREAK)}
+
+
+def _shrink_alert(cfg, n_clean):
+    """产出缩水告警文案；不缩水返回 None。
+
+    产出显著低于 top_n 时告警（软信号，区别于空结果的硬失败）——帮助区分
+    「池子薄」还是「过滤严」（EIV 淘汰 / purity / 速度门槛都可能压产出）。
+    阈值 `shrink_alert_ratio`（0 = 关闭）。
+    """
+    topn = int(cfg.get("top_n") or 0)
+    ratio = float(cfg.get("shrink_alert_ratio") or 0)
+    if topn > 0 and ratio > 0 and n_clean < int(topn * ratio):
+        return f"产出 {n_clean} 条 < top_n×{ratio:.0%}（{int(topn * ratio)} 条）"
+    return None
 
 
 def _update_streak_state(cfg, n_clean):
