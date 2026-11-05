@@ -186,6 +186,8 @@ class AppConfig(DictCompatMixin, BaseModel):
     # 连续空结果轮数告警阈值 + 连击计数状态文件
     empty_streak_alert_threshold: int = Field(3, ge=1)
     empty_streak_file: str = ".ci-state.json"
+    # 产出缩水告警阈值（产出 < top_n × 比例时告警，0 = 关闭）
+    shrink_alert_ratio: float = Field(0.8, ge=0.0)
     # 盲区候选（探针盲区）在 top_n 内的保底名额
     blind_quota_enabled: bool = True
     blind_quota_ratio: float = Field(0.10, ge=0.0)

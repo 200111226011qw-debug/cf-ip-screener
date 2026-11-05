@@ -416,6 +416,9 @@ DEFAULT_CONFIG = {
     # 连击计数的状态文件（放仓库根，不进 result/——空结果时 result/
     # 不会被提交，计数必须活在别处才能跨轮累计）。
     "empty_streak_file": ".ci-state.json",
+    # 产出缩水告警：最终产出 < top_n × 该比例时打 [warn]（帮助区分「池子薄」
+    # 还是「过滤严」——EIV 淘汰 / purity / 速度门槛都可能压产出）。0 = 关闭。
+    "shrink_alert_ratio": 0.8,
     # 地区过滤（colo）：只保留机房位于这些 IATA 机场码的 IP，逗号分隔，
     # 如 "HKG,SIN,NRT,LAX"；为空表示不限地区（参考 cf-ray 响应头提取）
     "colo_filter": "",
