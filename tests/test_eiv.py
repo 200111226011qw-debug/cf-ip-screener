@@ -47,6 +47,31 @@ def test_eiv_plain_403_uncertain(monkeypatch):
     assert r["uncertain"] == [("3.3.3.3", 443)]
 
 
+def test_eiv_error_1034_title_wording(monkeypatch):
+    """标题措辞「Error 1034」（无 "error code:" 前缀）→ 也判 EIV 淘汰。
+
+    锁死 \b 词边界匹配的召回：exact 措辞「error code: 1034」会漏掉这个变体。
+    """
+    body = b"<html><h1>Error 1034</h1>Edge IP Restricted</html>"
+    table = {("7.7.7.7", 443): (403, None, "cloudflare", body)}
+    r = _run([("7.7.7.7", 443)], "proxy.example.com", monkeypatch, table)
+    assert r["eiv"] == [("7.7.7.7", 443)]
+    assert ("7.7.7.7", 443) in r["drop"]
+
+
+def test_eiv_ray_id_1034_not_false_positive(monkeypatch):
+    """WAF 页 footer 的 Ray ID 内嵌 "1034"（16 位 hex）→ 不是 EIV 1034，不淘汰。
+
+    锁死 \b 词边界的精度：裸子串 b"1034" 会把 0.02%/页 的 Ray ID 撞串误升级
+    成 EIV 淘汰。
+    """
+    body = b"<html>403 forbidden. Ray ID: 8a3f1034b7c2d9e1</html>"
+    table = {("6.6.6.6", 443): (403, None, "cloudflare", body)}
+    r = _run([("6.6.6.6", 443)], "proxy.example.com", monkeypatch, table)
+    assert r["drop"] == []
+    assert r["uncertain"] == [("6.6.6.6", 443)]
+
+
 def test_eiv_200_no_colo_dropped(monkeypatch):
     """200 但拿不到 colo → 未按 CF 边缘服务，淘汰。"""
     table = {("4.4.4.4", 443): (200, None, "cloudflare", b"")}

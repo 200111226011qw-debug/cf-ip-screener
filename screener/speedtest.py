@@ -36,6 +36,10 @@ import time
 import urllib.parse
 
 _CF_RAY_COLO = re.compile(r"^[0-9a-f]{8,}-([A-Za-z0-9]{3})$")
+# EIV error 1034 判定：\b 词边界。命中 "error code: 1034" / "Error 1034" 等
+# 措辞变体，但不命中 WAF 页 footer 里 16 位 hex Ray ID 内嵌的 "1034"
+# （如 8a3f1034b7c2，十六进制连续无词边界，避免 0.02%/页 的假阳性）。
+_EIV_1034_RE = re.compile(rb"\b1034\b")
 
 # 速度分档的标定表（体量 → 系数），来源见 score_scale_for_url 的文档。
 _SCORE_SCALE_BY_BYTES = {10485760: 1.0, 1048576: 5.0, 262144: 9.0}
@@ -678,7 +682,7 @@ async def eiv_restricted_candidates(pairs, host, path="/cdn-cgi/trace",
         elif st == 200:
             out["nocolo"].append(pair)
             out["drop"].append(pair)
-        elif st == 403 and b"1034" in body:
+        elif st == 403 and _EIV_1034_RE.search(body):
             out["eiv"].append(pair)
             out["drop"].append(pair)
         else:
