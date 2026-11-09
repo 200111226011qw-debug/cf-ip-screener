@@ -1,1 +1,1 @@
-162.159.157.246:443#电信 | 速度10.52MB/s | 机房DFW | US | AS13335 Cloudflare, Inc.
+172.64.79.56:443#电信 | 速度10.67MB/s | 机房DFW | CA/Toronto | AS13335 Cloudflare, Inc.

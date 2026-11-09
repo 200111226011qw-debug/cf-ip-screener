@@ -1,8 +1,8 @@
 [
   {
-    "ip": "162.159.157.246",
+    "ip": "172.64.79.56",
     "port": 443,
-    "avg_ms": 10.6,
+    "avg_ms": 10.4,
     "loss_rate": 0.0,
     "tls_ok": true,
     "tls_fp": "TLSv1.3|TLS_AES_256_GCM_SHA384",
@@ -12,15 +12,15 @@
     "isp": "ct",
     "native": false,
     "source": "https://raw.githubusercontent.com/vipmc838/cf_best_ip/main/cloudflare_bestip.txt",
-    "speed_mbps": 10.52,
+    "speed_mbps": 10.67,
     "colo": "DFW",
     "speed_rounds_ok": 3,
     "speed_rounds_total": 3,
     "speed_rounds_measured": 3,
     "net_scope": "announced",
     "ipinfo": {
-      "country": "US",
-      "city": null,
+      "country": "CA",
+      "city": "Toronto",
       "as": "AS13335 Cloudflare, Inc.",
       "asn_org": "Cloudflare, Inc.",
       "hosting": true,
@@ -30,7 +30,7 @@
     },
     "score": 100,
     "status": "good",
-    "checked_at": "2026-11-04T08:53:10.404985+00:00",
+    "checked_at": "2026-11-09T05:00:26.446788+00:00",
     "flags": {
       "residential": false,
       "datacenter": true,
