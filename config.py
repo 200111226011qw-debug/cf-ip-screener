@@ -96,6 +96,18 @@ DEFAULT_CONFIG = {
         {"url": "https://raw.githubusercontent.com/kinghui-001/cfip/main/best_ips.txt"},
         {"url": "https://raw.githubusercontent.com/HandsomeMJZ/cfip/main/best_ips.txt"},
         {"url": "https://raw.githubusercontent.com/cmliu/WorkerVless2sub/main/addressesipv6api.txt"},
+        # —— 2026-11-15 池审计新增（核对 fork yyyr-otz/cf-ip-collect 的池清单）——
+        # 筛选口径：不是「能不能访问」，而是「里面是不是真 CF」——按 CF 官方公告段
+        # 归属率排序，只收 ≥60% 且去重后量够的；实测数字见行尾注释（2026-11-15）。
+        # 已排除（命中 config/pool_blacklist.txt，11 轮 0 纯净命中，勿再加回）：
+        #   jifengwind/HHP-cf-ips（100% CF 但在黑名单）
+        #   bestcf.pages.dev/uouin（97% CF 但在黑名单）
+        # 排除理由同 10-03 批：先单 raw 源验证，稳定后再考虑 jsDelivr 备源。
+        {"url": "https://raw.githubusercontent.com/xxzh72/yxym/main/ip.txt"},  # 82 IP / 98% CF / 裸 IP
+        {"url": "https://raw.githubusercontent.com/yydfys/cm/main/ip/yydfys/1-px.txt"},  # 50 / 100% / 带端口
+        {"url": "https://raw.githubusercontent.com/luckyops/cf-pool/main/add.txt"},  # 39 / 78%
+        {"url": "https://bestcf.pages.dev/nirevil/ipv4.txt"},  # 36 / 97%（bestcf 家族，同域已有池）
+        {"url": "https://bestcf.pages.dev/lzj/all.txt"},  # 28 / 62%（本批最弱，观察）
     ],
 
     # 裸 IP（未带端口）时默认测试的端口
