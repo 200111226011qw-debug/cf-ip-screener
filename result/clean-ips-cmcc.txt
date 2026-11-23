@@ -1,1 +1,1 @@
-104.18.37.249:8443#移动-SEA-8443-WS-TLS | 速度20.02MB/s | 机房MSP | CA/Toronto | AS13335 Cloudflare, Inc.
+172.66.206.166:443#移动 | 速度20.11MB/s | 机房MSP | CA/Toronto | AS13335 Cloudflare, Inc.
