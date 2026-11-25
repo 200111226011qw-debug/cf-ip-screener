@@ -1,1 +1,1 @@
-172.66.206.166:443#移动 | 速度20.11MB/s | 机房MSP | CA/Toronto | AS13335 Cloudflare, Inc.
+104.18.3.229:443#wetest移动SEA | 速度13.41MB/s | 机房LAX | CA/Toronto | AS13335 Cloudflare, Inc.
