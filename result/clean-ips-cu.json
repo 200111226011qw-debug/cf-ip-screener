@@ -1,8 +1,8 @@
 [
   {
-    "ip": "104.17.156.213",
+    "ip": "104.17.139.153",
     "port": 443,
-    "avg_ms": 6.5,
+    "avg_ms": 11.7,
     "loss_rate": 0.0,
     "tls_ok": true,
     "tls_fp": "TLSv1.3|TLS_AES_256_GCM_SHA384",
@@ -12,8 +12,8 @@
     "isp": "cu",
     "native": false,
     "source": "https://raw.githubusercontent.com/vipmc838/cf_best_ip/main/cloudflare_bestip.txt",
-    "speed_mbps": 19.1,
-    "colo": "MSP",
+    "speed_mbps": 10.69,
+    "colo": "DFW",
     "speed_rounds_ok": 3,
     "speed_rounds_total": 3,
     "speed_rounds_measured": 3,
@@ -30,7 +30,7 @@
     },
     "score": 100,
     "status": "good",
-    "checked_at": "2026-11-23T02:27:32.611077+00:00",
+    "checked_at": "2026-11-26T04:04:55.770661+00:00",
     "flags": {
       "residential": false,
       "datacenter": true,
