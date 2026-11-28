@@ -1,2 +1,1 @@
-104.17.113.77:443#电信 | 速度13.68MB/s | 机房LAX | CA/Toronto | AS13335 Cloudflare, Inc.
-104.18.106.147:443#wetest电信LAX | 速度13.61MB/s | 机房LAX | CA/Toronto | AS13335 Cloudflare, Inc.
+104.18.34.26:443#电信 | 速度19.69MB/s | 机房IAD | CA/Toronto | AS13335 Cloudflare, Inc.
